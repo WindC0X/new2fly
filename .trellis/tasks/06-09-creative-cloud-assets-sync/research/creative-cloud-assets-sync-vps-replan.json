@@ -1,0 +1,673 @@
+{
+  "workflow": ".codex-flow/generated/creative-cloud-assets-sync-vps-replan.workflow.ts",
+  "journal": ".codex-flow/journal/creative-cloud-assets-sync-vps-replan.jsonl",
+  "evidence": [
+    {
+      "area": "vps-capacity-and-production-scope",
+      "facts": [
+        "当前 Trellis artifacts 已把范围改成：DB-backed blob 仅用于本地开发、测试、很小的 VPS-A canary；不是 VPS-A 广泛生产默认。关键位置：PRD 行 22/37/41/54/92，design 行 7/60-71/224，implement 行 6-7/35/40-41/196/198。",
+        "VPS docs 支持该限制：VPS-A 是当前 new-api/CPA/helper/备份中心，new-api compose 在线；VPS-A 根盘 40G，根分区超过 90% 可触发 `system_disk_overloaded`，runbook 明确 90% 不应成为常态并建议至少保留 4G。",
+        "VPS monitoring 记录 live DB 源为 `/home/admin/apps/new-api/data/new-api.db`，备份到 `/home/admin/apps/new-api/backups/auto`；capacity runbook 把 live DB/data、Docker overlay/volumes、业务数据列为高风险清理对象。DB blob 会同时放大 live DB 与备份占用。",
+        "其它 VPS 不适合作为替代持久资产存储：VPS-B 是 1G 级/高波动执行层；VPS-D 是私有 OpenClaw 控制面且不应回迁；VPS-E canary 记录显示清理后仍约 49G total / 45G used / 3.7G available / 93%，说明集群整体存储余量偏低。",
+        "new-api 当前代码仍无 `/creative/api/assets`、`CreativeAsset`、document→asset ref 表或 S3/object storage 实现；仅已有 `/creative/api` documents/preferences 等 JSON 同步。代码中 `SystemPerformanceCheck` 主要保护 relay 路径，不能替代 asset DB 写入前的专用 quota + disk-headroom guard。",
+        "object-storage-options.md 的当前建议仍是：MVP 默认 database，立即加入 `CreativeAssetStorage` seam、`storage_backend`/`object_key` 元数据；S3-compatible backend 作为生产升级路径，Opentu 继续只使用 new-api 私有 `/creative/api/assets/:id/content`。"
+      ],
+      "constraints": [
+        "PLANNING ONLY；本轮只读检查，未编辑文件。",
+        "未 SSH 到 VPS，也未采集 2026-06-09 实时 `df -h /` 或 `/api/performance/stats`。",
+        "未联网复核 R2/B2/Tigris 当前价格；相关价格仅作为现有 artifact 证据。",
+        "若目标是当前 VPS-A 上的广泛用户生产媒体同步，DB-backed 方案不满足生产容量约束，必须升级 MVP 到 S3-compatible object storage。"
+      ],
+      "codeOrDocPaths": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.jsonl",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/check.jsonl",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/vps-capacity-evidence.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/object-storage-options.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/codebase-evidence.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_A_CAPACITY_GOVERNANCE_2026-03-21.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_STATUS_HANDOFF_2026-03-06.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_SERVICE_INVENTORY_2026-03-06.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_MONITORING_2026-03-14.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/superpowers/plans/2026-06-02-grok2api-jiujiu-canary.md",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/new-api/model/creative.go",
+        "/mnt/f/code/project/new-api/controller/creative.go",
+        "/mnt/f/code/project/new-api/middleware/performance.go",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-sync.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts"
+      ],
+      "planningGaps": [
+        "最终范围取决于产品发布意图：若只是 dev/test/小 canary，当前 DB-backed + seam 计划可保留；若要在当前 VPS-A 上开放真实生产媒体同步，应立即升级 MVP 到 S3-compatible adapter。",
+        "需要实时 VPS-A 容量证据来确定 canary caps：`df -h /`、inode、`new-api /api/performance/stats.disk_space_info`、当前 `new-api.db` 与 backups 占用。",
+        "若选择 S3-now，还缺 provider/account/region/bucket/IAM/secret 注入/备份与账单决策；object-storage-options.md 的价格信息需上线前实时复核。",
+        "若升级 S3-now，artifact patches 应至少翻转 PRD out-of-scope 第 92 行、design storage seam 第 68-71 行、implement 第 41/196 行，从“future/DB-only MVP”改为“本任务实现并测试 S3-compatible adapter”，并补 deployment config、rollback、provider-private-bucket 验收项。"
+      ]
+    },
+    {
+      "area": "backend-storage-architecture-db-vs-s3",
+      "facts": [
+        "当前 Trellis 产物已把 DB blob 降级为 local/dev/test/小流量 canary：PRD/design/implement 均写明 VPS-A 上不能把 2GiB/user DB-backed blobs 作为广泛生产默认，需 feature flag、严格 global/user caps、disk-headroom guard，并保留 storage adapter seam。",
+        "VPS-A 文档给出硬约束：40G 根盘；Use% >= 90% 可能触发 new-api `system_disk_overloaded`；建议至少保留 4G 可用空间；`/home/admin/apps/new-api/data/new-api.db` 与自动备份 `/home/admin/apps/new-api/backups/auto` 都在同一受限主机/根盘风险域。",
+        "VPS 拓扑不提供更合适的自建持久资产盘：VPS-B 是约 1G 内存高波动执行层；VPS-D 是私有 OpenClaw 主机且不应回迁/承担 public new-api asset store；VPS-E 近期 canary 文档显示清理后仍约 49G/45G/3.7G/93%，也不是安全余量证据。",
+        "new-api 现有 `/creative/api` 只有 bootstrap/models/preferences/documents；`CreativeDocument` 只存 JSON snapshot/metadata/revision/clientMutationId；没有 `/creative/api/assets`、`CreativeAsset`、ref table 或 durable object-storage abstraction。",
+        "new-api 现有 BodyStorage/ParseMultipart helpers 是请求生命周期缓存/复读机制，不是 durable asset storage；multipart helper 会把 body 读回内存，不宜直接作为 64MiB asset upload 路径。",
+        "opentu 现有 cloud document sync 只把 board snapshot JSON 发到 `/creative/api/documents`；本地媒体可存在于 `data:`、`blob:`、`/__aitu_cache__/`、`/asset-library/`、`/__aitu_generated__/audio/`；`unifiedCacheService`/embedded-media 已能读写本地 Blob，但 cloud sync 未上传/水合二进制。",
+        "容量证据支持的结论是：如果本任务目标只是可测试 MVP + 小规模 canary，维持 DB-backed canary + storage seam 是一致的；如果目标是 current VPS-A 上真实公开/广泛生产使用，则应升级 MVP，立即实现 S3-compatible backend，而不是先落 DB blobs。"
+      ],
+      "constraints": [
+        "PLANNING ONLY；本轮未编辑文件。",
+        "当前本地证据未包含 live SSH/`df -h`/new-api `/api/performance/stats` 的实时容量采样。",
+        "object-storage-options.md 中的 R2/B2/Tigris 价格/免费额度是本地 artifact 事实，本轮未做联网重新核价。"
+      ],
+      "codeOrDocPaths": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/vps-capacity-evidence.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/object-storage-options.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/codebase-evidence.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_A_CAPACITY_GOVERNANCE_2026-03-21.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_STATUS_HANDOFF_2026-03-06.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_SERVICE_INVENTORY_2026-03-06.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_MONITORING_2026-03-14.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/superpowers/plans/2026-06-02-grok2api-jiujiu-canary.md",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/new-api/model/creative.go",
+        "/mnt/f/code/project/new-api/controller/creative.go",
+        "/mnt/f/code/project/new-api/common/gin.go",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-sync.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/data/embedded-media.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/virtual-media-url.ts"
+      ],
+      "planningGaps": [
+        "需要产品/发布决策：本 child 的交付目标是“canary-only/dev-test MVP”还是“VPS-A 公网可广泛启用”。该决策直接决定是否升级 MVP 到 S3-compatible。",
+        "若保留 DB canary：artifact patch 应把所有“2GiB/user production default”语义收紧为 non-VPS/test default，并明确 VPS-A 默认关闭或 canary caps（例如 global <=1GiB、user <=256MiB、root reserve/90% guard）。",
+        "若升级 S3：还缺 provider 选择、bucket 私有访问模型、SDK/MinIO/fake 测试策略、streaming Range、delete/GC 一致性、object key 命名、凭据部署与轮换、成本/配额、回滚/迁移计划。",
+        "需要补实时容量采样或记录无法采样：当前判断基于 runbook/交接文档，不是 2026-06-09 live disk stats。"
+      ]
+    },
+    {
+      "area": "frontend-contract-upload-rewrite-hydration",
+      "facts": [
+        "当前规划已把存储决策收敛为：DB-backed blob 仅用于本地/测试/小规模 VPS-A canary；VPS-A 广泛生产使用需 S3-compatible/object storage。证据：`prd.md:22,37-41,91-92`，`design.md:7,60-73`，`object-storage-options.md:7-18`。",
+        "从前端合同看，是否 DB 或 S3 不应改变 Opentu：Opentu 只上传到 new-api `/creative/api/assets`，快照只保存 `/creative/api/assets/:id/content`，new-api 负责私有鉴权并从 DB/object storage 流式返回；不能暴露 bucket URL、签名 URL 或 provider credentials。证据：`design.md:21-28,68-74,80-107`。",
+        "VPS 证据支持“不要把 DB blob 当 VPS-A 生产默认”：VPS-A 40G root，超过 90% 可能触发 `system_disk_overloaded`，建议至少 4G free；`new-api.db` 与自动备份都在 VPS-A；`new-api.db`/data/overlay 是高风险清理目标。证据：`vps-capacity-evidence.md:13-27`，VPS runbook `:11-17,:36-37,:143-149`，monitoring `:217-221`。",
+        "另一个节点 VPS-E 在 2026-06-02 低风险清理后仍约 `49G total / 45G used / 3.7G available / 93%`，VPS-B 是 1G 级高波动执行层，VPS-D 是私有 OpenClaw 主机；这些都不构成合适的持久创意资产落点。证据：`vps-capacity-evidence.md:19-21`，canary plan `:309-323`。",
+        "当前 new-api 只有 `/creative/api` bootstrap/models/preferences/documents 路由，无 `/creative/api/assets`；`CreativeDocument` 只存 `SnapshotJSON`、`MetadataJSON`、revision 等 JSON 字段。证据：`new-api/router/web-router.go:56-69`，`new-api/model/creative.go:57-68`。",
+        "当前 Opentu document sync 只构造并清洗 JSON snapshot，然后 create/put 到 `/creative/api/documents`；`flushSnapshot()` 直接调用 document create/put，没有资产上传、outbound URL rewrite 或 hydration。证据：`creative-document-sync.ts:168-179,430-447,470-530,892-915`。",
+        "可复用前端基础已存在：`isVirtualMediaUrl()` 覆盖 `/asset-library/`、`/__aitu_cache__/`、`/__aitu_generated__/audio/`；`unifiedCacheService.getCachedBlob()` 可读缓存 blob；`cacheLocalMediaByContent()` 可写 content-addressed local URL。证据：`virtual-media-url.ts:1-39`，`unified-cache-service.ts:1330-1417`。",
+        "现有 JSON export/import embedded-media traversal 太窄：只识别 `url/imageUrl/videoUrl/poster/src`，且 local virtual 判断只覆盖 `/__aitu_cache__/` 与 `/asset-library/`，不覆盖规划要求的 `audioUrl/urls[]/thumbnail*/previewImageUrl/coverUrl/clips.*` 与 `/__aitu_generated__/audio/`。证据：`embedded-media.ts:21-23,41-45,104-118,145-170`，规划要求 `prd.md:58-65`、`design.md:139-170,271-274`。",
+        "Service Worker 现状需要特别防护：当前 fetch handler 没有 `/creative/api/assets/*` 早期 pass-through；同源 asset content 若作为 video 会命中 video handler，若作为 image/audio/static destination 可能进入 static cache 流程。证据：`sw/index.ts:930-955,4230-4318,4413-4470,4534-4620,5610-5639`；规划已要求 pass-through：`prd.md:61`，`design.md:326-329`，`implement.md:91`。",
+        "当前 planning closure 认为 frontend outbound 与 hydration 主体合同已覆盖，但仍记录一个弱措辞风险：`implement.md:99` 的 invalid cloud refs 可 “reject/ignore” 容易误导为静默保存破损引用。证据：`creative-cloud-assets-sync-planning-closure-v2.json:65-73,101,231-234`。"
+      ],
+      "constraints": [
+        "PLANNING ONLY；本轮未编辑文件、未运行 task start。",
+        "当前 Trellis resolver 显示 no current task，但用户明确指定了 `.trellis/tasks/06-09-creative-cloud-assets-sync`，因此只做该任务的只读证据收集。",
+        "网络受限；证据来自本地 Trellis 工件、VPS 文档、`new-api` 与 `opentu` sibling repo 代码。"
+      ],
+      "codeOrDocPaths": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/vps-capacity-evidence.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/object-storage-options.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/codebase-evidence.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/creative-cloud-assets-sync-planning-closure-v2.json",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_A_CAPACITY_GOVERNANCE_2026-03-21.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_MONITORING_2026-03-14.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/superpowers/plans/2026-06-02-grok2api-jiujiu-canary.md",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/new-api/model/creative.go",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-sync.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/data/embedded-media.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/virtual-media-url.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts",
+        "/mnt/f/code/project/opentu/apps/web/src/sw/index.ts"
+      ],
+      "planningGaps": [
+        "决策缺口：若 MVP 只承诺本地/测试/小 VPS-A canary，证据支持保持 DB-backed canary + storage seam；若要“当前 VPS-A 上广泛生产/公开用户使用”，应升级 MVP scope 现在实现 S3-compatible/object storage。前端合同本身无需因 DB/S3 改形。",
+        "工件补丁缺口：把 `implement.md:99` 的 invalid cloud refs “reject/ignore” 改成 MUST reject/degrade without saving broken board/status sanitized only。",
+        "工件精化缺口：Service Worker RED test 应明确覆盖 `/creative/api/assets/*` 在 `image`、`audio`、`video`、普通 fetch/XHR destination 下均 pass-through 且不进入 static/image/video/audio caches。",
+        "工件对齐缺口：`design.md` 的 `CreativeWorkspaceCloudRepository` 示例只有 `hasBoard/upsertBoardFromCloud`；应与 implement 计划对齐，显式包含 revision lookup（如 `getStoredRevision`）以及 upsert 不触发普通 outbound `boardCreated/boardUpdated` 的要求。"
+      ]
+    },
+    {
+      "area": "security-privacy-ops-cost-backup",
+      "facts": [
+        "当前 Trellis 计划已改为：DB-backed blob 仅用于本地/测试/极小 VPS-A canary；广泛生产默认不能依赖 DB blobs，需保留 storage adapter seam 与 backend-neutral metadata。",
+        "VPS-A 是当前 new-api 公网生产路径；api.se7endot.top / console.se7endot.top 指向该角色，且 VPS-A 同时承担 CPA、new-api、监控与备份中心。",
+        "VPS-A 容量 runbook 记录 40G 根盘、90% 以上可能触发 system_disk_overloaded，并要求不要把 90% 当常态，平时至少保留 4G。",
+        "new-api.db 位于 /home/admin/apps/new-api/data/new-api.db，并自动备份到 /home/admin/apps/new-api/backups/auto；DB 存资产会同时放大在线 DB 与同机备份占用。",
+        "VPS-A runbook 明确禁止为救空间直接清理 /home/admin/apps/new-api/data、在线 new-api.db、Docker overlay/volumes 等高风险对象，因此 DB blob 膨胀后的运维回旋空间很小。",
+        "其他 VPS 不是合适替代资产存储：VPS-B 是 1G 级高波动执行层；VPS-D 是私有 OpenClaw 主机且不应回迁/承担公开 new-api 资产存储；VPS-E 现有 canary 记录也显示低磁盘余量。",
+        "new-api 代码当前只有 /creative/api/bootstrap/models/preferences/documents，没有 /creative/api/assets；document mutation 已用 session + CreativeRequireNonce，资产路由需复用但尚未实现。",
+        "new-api 当前 CreativeDocument 只保存 SnapshotJSON、MetadataJSON、Revision 等 JSON 字段，没有 CreativeAsset、CreativeDocumentAssetRef、StorageBackend/ObjectKey/Data 模型。",
+        "new-api 的 SystemPerformanceCheck 可返回 system_disk_overloaded；但资产上传若新增在 /creative/api/assets，仍需要独立的 asset-level disk-headroom guard、global/user caps 与写前拒绝。",
+        "opentu 已有 secret sanitizer、same-origin document sync、409 freeze、virtual media URL 识别、unifiedCacheService.getCachedBlob/cacheLocalMediaByContent；但没有资产上传、云 URL hydrate、cold-start import 或 SW pass-through 资产测试。",
+        "object-storage-options.md 当前建议仍是 DB MVP + seam：R2/B2/Tigris 作为后续 S3-compatible 私有 bucket 候选；Opentu 继续只访问 /creative/api/assets/:id/content，由 new-api 做 session/owner 授权。",
+        "安全/隐私上，无论 DB 还是 S3，计划必须保持：bucket 私有、不持久化 provider credentials/public object URL/signed URL/sourceUrl、asset metadata/content 私有缓存头、拒绝 access-token-only 资产访问。"
+      ],
+      "constraints": [
+        "PLANNING ONLY：本轮只读检查，没有编辑文件。",
+        "Layer 1 只提供 evidence 与 planning gaps，不输出最终 artifact patch。",
+        "证据只能支持条件性结论：若 MVP 目标是当前 VPS-A 广泛生产可用，应升级实现 S3-compatible adapter；若目标仍是本地/测试/极小 canary，可保留 DB-backed canary + storage seam。"
+      ],
+      "codeOrDocPaths": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:22,37-41,50-54,89-92",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:7,58-74,224,309-317,329",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:6-7,33-41,158,186-198",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/vps-capacity-evidence.md:13-27",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/object-storage-options.md:7-18",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_A_CAPACITY_GOVERNANCE_2026-03-21.md:11-37,77-79,100-101,145-151",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_MONITORING_2026-03-14.md:217-221",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_STATUS_HANDOFF_2026-03-06.md:18-23,57-81,157-165",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_SERVICE_INVENTORY_2026-03-06.md:18-37,64-98,160-205",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/superpowers/plans/2026-06-02-grok2api-jiujiu-canary.md:5-7,96,263-282,312-323",
+        "/mnt/f/code/project/new-api/router/web-router.go:56-69",
+        "/mnt/f/code/project/new-api/model/creative.go:58-74",
+        "/mnt/f/code/project/new-api/middleware/performance.go:64-67",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-sync.ts:168-175,461-549,892",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-cloud-sanitizer.ts:1-18,114-141",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/virtual-media-url.ts:1-38",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts:1330-1417"
+      ],
+      "planningGaps": [
+        "必须明确 rollout intent：这个 child 是否要在当前 VPS-A 上面向真实用户广泛启用。若是，现有 out-of-scope 必须翻转为实现 S3-compatible storage now。",
+        "缺少 VPS-A 实时容量基线：需要上线前采集 df -h /、new-api /api/performance/stats used_percent、new-api.db 与 backups 当前大小，再确定 canary cap。",
+        "若保留 DB canary，需要把 artifact patch 固化为“非生产默认”：feature flag 默认关闭、global <=1GiB、user <=256MiB、写前 disk reserve、命中 guard 时安全降级。",
+        "若升级 S3，需要新增 artifact patch：provider 选择、bucket 私有策略、S3 config/secrets 管理、streaming/range、失败重试、object lifecycle、删除/GC 与审计日志。",
+        "S3 成本证据仍需生产前实时核验：本地 object-storage-options.md 记录 R2/B2/Tigris 价格/免费层，但正式采购前要复查官方价格与区域限制。",
+        "备份策略未闭环：DB 方案会自动进入同机 DB backups；S3 方案则要定义 bucket versioning、生命周期、跨区/导出、恢复演练，以及 DB metadata 与 object bytes 的一致性恢复。",
+        "迁移/回滚缺口：若先 DB 后 S3，需要单独计划 copy-to-object、hash/size verify、StorageBackend/ObjectKey 切换、何时允许清空 DB Data；清空/删除仍属破坏性动作。",
+        "安全配置缺口：S3 access key/secret 不能进 snapshots、metadata、logs 或 Trellis artifacts；还需定义 secret rotation、least-privilege bucket policy、no public bucket、no persisted signed URL。"
+      ]
+    },
+    {
+      "area": "implementation-tdd-openspec-dynamic-workflow",
+      "facts": [
+        "只读检查完成，未编辑文件；任务仍为 `planning`，`task.py validate 06-09-creative-cloud-assets-sync` 通过，`implement.jsonl`/`check.jsonl` 各 13 条且已纳入 VPS 与 object-storage 证据。",
+        "当前 Trellis 工件已经选择“DB-backed blob 仅用于本地/测试/极小 VPS-A canary + storage seam”：PRD 明确 DB blob 不是 VPS-A broad production default；design 要求 `StorageBackend/ObjectKey`、`CreativeAssetStorage` seam；implement.md 写 S3 adapter 只有 scope 显式升级才做。",
+        "VPS-A 是当前 public edge/control/new-api host；`api.se7endot.top` 与 `console.se7endot.top` 走此路径。VPS-A runbook 记录 40G root disk，Use% ≥90% 可能触发 `system_disk_overloaded`，建议至少保留 4G free。",
+        "VPS docs 记录 live `new-api.db` 位于 `/home/admin/apps/new-api/data/new-api.db`，自动备份到 `/home/admin/apps/new-api/backups/auto`；`data`、当前 `new-api.db`、Docker overlay/volumes、live business data 都属于高风险清理对象，不能靠删除它们救容量。",
+        "VPS-B 被记录为 1G 级高波动执行层，不适合持久资产；VPS-D 是 private OpenClaw host，不应变成 public new-api asset store；VPS-E canary note 显示清理后仍约 49G total / 45G used / 3.7G available / 93%，说明集群整体存储余量偏低。",
+        "new-api 当前 `/creative/api` 只有 bootstrap/models/preferences/documents；`CreativeDocument` 只存 JSON snapshot/metadata/revision/clientMutationId；AutoMigrate 没有 `CreativeAsset`/ref 表；未发现 `/creative/api/assets`、`CreativeAssetStorage` 或 S3 object-storage abstraction。",
+        "new-api `go.mod` 已有 AWS SDK core/credentials/Bedrock 依赖，但未见 `service/s3` 或可复用用户上传对象存储层；升级 S3 MVP 仍是新增后端能力，不只是打开配置。",
+        "opentu 当前 creative document sync 只做 JSON create/get/put/delete、409 freeze；`CreativeDocumentCloudAdapter` class 有 `list()`，但 interface 未声明；未实现 asset adapter、outbound upload/rewrite、hydration/cold-start import。",
+        "opentu 已有可复用基础：`unifiedCacheService.getCachedBlob()`、`cacheLocalMediaByContent()`、`virtual-media-url.ts`；但现有 `embedded-media.ts` traversal 只覆盖 `url/imageUrl/videoUrl/poster/src` 且非 cloud sync。",
+        "opentu service worker 当前没有 `/creative/api/assets/*` 专门 pass-through；same-origin media/static GET 可能进入视频/静态缓存路径，因此私有资产响应必须有前端 pass-through/不缓存测试。",
+        "Opentu AGENTS/OpenSpec 规则要求新 capability/security/architecture change 先建/关联 proposal 并 strict validate；当前 `openspec list`/`list --specs` 未见 dedicated creative cloud asset sync capability。",
+        "决策证据：若本 child 的 MVP 只承诺 local/test/strict canary，当前 DB-backed canary + seam 是一致的；若要面向当前 VPS-A broad production 用户交付跨设备媒体同步，证据支持立即升级 MVP 范围实现 S3-compatible object storage，否则 DB-only canary 无法安全承载产品目标。"
+      ],
+      "constraints": [
+        "PLANNING ONLY；不得编辑 Trellis artifacts、new-api、opentu 或 VPS docs。",
+        "不能把 DB-backed 2GiB/user 逻辑 cap 当作 VPS-A production default。",
+        "资产 API 必须继续由 new-api session/owner 授权代理，Opentu 不应持久化 bucket URL、signed URL 或 provider credentials。",
+        "实现前仍需 OpenSpec gate 完成或记录显式例外，且 Trellis task 需由 planning 转入 in_progress。"
+      ],
+      "codeOrDocPaths": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/vps-capacity-evidence.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/object-storage-options.md",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/codebase-evidence.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_A_CAPACITY_GOVERNANCE_2026-03-21.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_STATUS_HANDOFF_2026-03-06.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_SERVICE_INVENTORY_2026-03-06.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_MONITORING_2026-03-14.md",
+        "/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/superpowers/plans/2026-06-02-grok2api-jiujiu-canary.md",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/new-api/model/creative.go",
+        "/mnt/f/code/project/new-api/controller/creative.go",
+        "/mnt/f/code/project/new-api/model/main.go",
+        "/mnt/f/code/project/new-api/go.mod",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-sync.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/virtual-media-url.ts",
+        "/mnt/f/code/project/opentu/apps/web/src/sw/index.ts",
+        "/mnt/f/code/project/opentu/openspec/AGENTS.md"
+      ],
+      "planningGaps": [
+        "需要先锁定 scope 词义：`MVP = canary-only` 还是 `MVP = current VPS-A production-ready`。这是是否升级 S3 的唯一关键分叉。",
+        "若选择 production-ready，需 patch PRD/design/implement：把 S3-compatible adapter 纳入本 child scope；DB adapter 降为 local/test/emergency fallback；删除/改写“full object storage out of scope”和“database only MVP”口径。",
+        "若选择 canary-only，需 patch artifacts 强化 release gate：VPS-A 默认关闭 broad rollout；DB-backed canary caps、disk-headroom guard、kill switch、监控/告警和“不满足生产 asset sync 验收”的限制要成为显式验收/实施项。",
+        "升级 S3 前还缺 provider/config 决策：generic S3 vs R2/B2/Tigris、私有 bucket、endpoint/region/env key 命名、Range/streaming、GC/lifecycle、测试 fake/minio 策略；不要在 artifacts 写入真实 credentials。",
+        "OpenSpec gate 仍未完成：需要创建/关联 `add-creative-cloud-asset-sync` 并 `openspec validate ... --strict`，或在任务工件记录 owner 明确例外。",
+        "如果 S3 纳入 MVP，TDD plan 需新增 storage adapter contract tests、S3 fake tests、DB fallback tests、no-public-URL/no-signed-URL persistence tests、object delete/GC/ref transaction tests，以及无真实网络/无真实 bucket 的 CI 策略。"
+      ]
+    }
+  ],
+  "plans": [
+    {
+      "area": "creative-cloud-assets-sync / VPS 容量复核后的 Layer 2 规划",
+      "recommendedDecision": "建议保持当前任务为 DB-backed blob MVP + CreativeAssetStorage seam：S3-compatible 只进入元数据/接口 seam 和后续生产升级，不在本 MVP 实现。原因是：现有 PRD/design 已把 DB blob 限定为本地、测试、很小 VPS-A canary；VPS 文档证明 VPS-A 40G 根盘、90% 保护阈值、new-api.db 与 backups 同机，DB blob 不适合广泛生产；但当前还缺 provider、bucket、IAM、secret 注入、账单与实时价格/容量决策，贸然把 S3 做进 MVP 会扩大范围。结论要写死：若产品目标变成当前 VPS-A 上广泛生产媒体同步，则当前 DB MVP 不应 start，应先升级/新建 S3-compatible adapter 任务。只读规划完成，未编辑文件。",
+      "prdChanges": [
+        "替换 `.trellis/tasks/06-09-creative-cloud-assets-sync/prd.md` 第 22 行为：`- 2026-06-09 Layer 2 scope decision: keep this child task as a DB-backed binary blob MVP plus storage seam only. DB-backed assets are allowed for local development, automated tests, and explicitly capped VPS-A canary; they are not a broad production backend for current VPS-A. Do not implement S3-compatible storage in this MVP. Broad user-facing media sync on current VPS-A is blocked until a separate S3-compatible adapter task is implemented and configured with a private bucket. The public Opentu snapshot/API shape remains /creative/api/assets/:id/content regardless of backend.`",
+        "替换 PRD 第 37 行为：`- For this child task, implement database storage plus the CreativeAssetStorage seam only. The persisted model must still include backend-neutral metadata such as storage_backend and optional object_key so a later S3-compatible backend can be added without changing document snapshots or Opentu routes. If CREATIVE_ASSET_STORAGE is set to an unsupported future backend such as s3 before that adapter exists, asset writes must fail closed or the feature must stay disabled; never silently fall back to DB in production.`",
+        "替换 PRD 第 41 行为：`  - VPS-A DB-backed canary default: feature-flagged and much smaller configurable caps, recommended initial values CreativeAssetDatabaseGlobalMaxBytes <= 1 GiB and CreativeAssetDatabaseUserMaxBytes <= 256 MiB, plus disk-headroom guard before writes.`",
+        "在 PRD 第 41 行后插入：`  - VPS-A canary enablement must require a fresh capacity note before rollout: df -h /, df -i /, new-api /api/performance/stats.disk_space_info, and du -sh /home/admin/apps/new-api/data/new-api.db /home/admin/apps/new-api/backups/auto; if root usage is near 90% or free space is below the configured reserve, DB-backed upload stays disabled.`",
+        "在 PRD acceptance criteria 第 86 行后插入：`- [ ] VPS-A DB-backed asset sync is proven feature-flagged/canary-only: tests cover global/user cap rejection, disk-headroom rejection near 90% root usage, reserved-free-byte rejection, and unsupported s3 config failing closed rather than falling back to DB.`",
+        "在 PRD acceptance criteria 第 86 行后继续插入：`- [ ] Pre-deployment notes record the fresh VPS-A capacity snapshot or explicitly state no VPS-A canary was enabled.`",
+        "替换 PRD 第 92 行为：`- Implementing and operating S3-compatible object storage in this child task. S3-compatible storage is the required next task before broad production media sync on current VPS-A, but this MVP only creates the adapter seam and canary-safe DB backend.`",
+        "在 PRD out-of-scope 第 92 行后插入：`- Choosing object-storage provider/account/region/bucket/IAM/secret injection/billing policy; those belong to the S3-compatible follow-up/cutover task.`"
+      ],
+      "designChanges": [
+        "替换 `.trellis/tasks/06-09-creative-cloud-assets-sync/design.md` 第 7 行为：`MVP storage remains DB-backed binary blobs plus backend-neutral metadata for development, tests, and explicitly capped small canary only. Current VPS docs show VPS-A is storage-constrained and disk-protected, so DB blobs are not suitable as broad production storage there. This task implements the CreativeAssetStorage seam and the database adapter only; S3-compatible storage is the required follow-up for broad VPS-A production media sync, without changing Opentu snapshot URLs or the /creative/api/assets contract.`",
+        "替换 design 第 42-44 行为三条：`- StorageBackend string — database is the only implemented backend in this MVP; future values such as s3-compatible are reserved and must not silently alias to database.` / `- ObjectKey string — optional opaque key for a future object-storage object; empty for DB-backed rows.` / `- Data []byte — DB blob payload; populated only when StorageBackend=database and DB canary limits allow it.`",
+        "替换 design 第 62-64 行为三条：`- DB-backed creative assets on VPS-A must run behind a feature flag, strict global/user caps, and a disk-headroom guard. Recommended initial canary caps: global DB asset bytes <= 1GiB, per-user DB asset bytes <= 256MiB, with configurable values.` / `- Before accepting a DB-backed upload, check aggregate creative DB asset bytes and an injected disk-headroom provider. Refuse writes if the upload would exceed configured caps, approach the documented 90% root usage threshold, or reduce free space below the configured reserve.` / `- Broad production use on current VPS-A is blocked until an S3-compatible storage adapter is implemented and enabled; this child task deliberately does not ship that adapter.`",
+        "替换 design 第 68-71 行为四条：`- Define a minimal CreativeAssetStorage service boundary used by asset upload/download/delete handlers.` / `- MVP implements only DatabaseCreativeAssetStorage, which stores bytes in CreativeAsset.Data; this adapter is allowed for local/test and strictly capped VPS-A canary use, not broad production use.` / `- Do not implement S3CompatibleCreativeAssetStorage in this child task. If config selects s3 or any unsupported backend before the adapter exists, asset upload/delete must fail closed and must not fall back to database.` / `- Future S3-compatible config keys may include CREATIVE_ASSET_S3_ENDPOINT, CREATIVE_ASSET_S3_BUCKET, CREATIVE_ASSET_S3_REGION, CREATIVE_ASSET_S3_ACCESS_KEY, and CREATIVE_ASSET_S3_SECRET_KEY; do not require or read them for the MVP DB adapter.`",
+        "在 design 第 74 行后插入小节：`### Deployment config / fail-closed behavior`，内容：`- CREATIVE_ASSET_SYNC_ENABLED should default off for production-like deployments unless explicitly enabled.`、`- CREATIVE_ASSET_STORAGE=database is the only valid backend in this task.`、`- Unsupported storage config returns a stable disabled/config error for mutating asset routes and never routes bytes to DB as fallback.`、`- VPS-A canary enablement requires configured DB global/user caps, reserved free bytes, and an injected disk-headroom provider.`",
+        "替换 design 第 224 行为：`- If this feature needs broad production on current VPS-A, stop after the MVP seam and implement a separate S3-compatible backend/cutover plan. Existing DB rows can be migrated by copying bytes to object storage, setting StorageBackend/ObjectKey, verifying hash/size, then clearing Data only after a separate migration/rollback plan and destructive-operation approval.`"
+      ],
+      "implementChanges": [
+        "替换 `.trellis/tasks/06-09-creative-cloud-assets-sync/implement.md` 第 7 行为：`- [x] Scope decision after VPS capacity review: S3-compatible storage is not in this MVP. DB-backed storage is implementation target only for local/test and tightly capped VPS-A canary. Broad production on VPS-A is blocked until a separate S3-compatible adapter/cutover task is planned and approved.`",
+        "在 implement 第 8 行后插入：`- [ ] If the user changes intent to broad production media sync on current VPS-A, stop before task.py start and replace this plan with an S3-compatible MVP plan.`",
+        "替换 implement 第 41 行为：`3. Add a minimal CreativeAssetStorage service boundary and implement only the DB-backed adapter for MVP. Unsupported storage settings such as s3 must fail closed and must not fall back to DB. The DB adapter must expose configurable global/user caps and an injectable disk-headroom guard for VPS-A canary safety.`",
+        "在 implement Phase A controller/router tests 第 60 行后插入：`   - storage config fail-closed tests: unsupported CREATIVE_ASSET_STORAGE=s3/unknown refuses asset writes before any adapter exists and never persists bytes through the DB fallback path`",
+        "在 implement Phase D 第 112 行前插入 gate：`## Phase D0 — VPS-A canary capacity gate`，内容：`Before enabling VPS-A canary only, collect and record df -h /, df -i /, new-api /api/performance/stats.disk_space_info, du -sh /home/admin/apps/new-api/data/new-api.db, and du -sh /home/admin/apps/new-api/backups/auto. Gate fails if root Use% is near/above 90%, free space is below configured reserve, capacity evidence is missing, or DB caps are unset. This gate is not required for local automated tests and does not authorize broad production rollout.`",
+        "替换 implement 第 158 行为：`- Backend schema changes: keep model changes additive; default rollback disables routes/feature flags and preserves asset/ref tables and blobs. If VPS-A disk guard trips, disable DB-backed asset upload/hydration. Do not raise DB caps to simulate production; implement the S3-compatible follow-up instead. Dropping tables, deleting blobs, or clearing DB Data after object-storage migration requires separate destructive-operation confirmation.`",
+        "替换 implement 第 196 行为：`- Storage seam: DB adapter is the only implemented MVP adapter. Tests assert handlers go through the storage boundary, response/snapshot shape does not expose backend-specific URLs, unsupported s3 config fails closed, and DB adapter deployment caps can be set much lower than the logical non-VPS 2GiB/user limit.`"
+      ],
+      "testsAndGates": [
+        "Backend Go tests：DB adapter cap/quota、same-hash dedupe concurrency、distinct upload quota race、disk-headroom injected stats near 90% and reserved-free-byte rejection、unsupported s3 config fail-closed、auth/nonce/access-token rejection、MIME sniff/oversize/SVG rejection、Range 206/416、ref transactionality、AutoMigrate blob type/no blob index。",
+        "Frontend Vitest：outbound local media upload/rewrite purity、data/blob/virtual URL coverage、signed URL no-persist and anonymous fetch policy、asset API no Authorization/apiKey/baseUrl、hydration to unifiedCacheService.cacheLocalMediaByContent、service worker pass-through /creative/api/assets/*、409 conflict does not overwrite remote state。",
+        "VPS-A canary gate：必须记录 df -h /、df -i /、/api/performance/stats.disk_space_info、new-api.db 占用、backups/auto 占用；无新鲜证据或接近 90%/低于 reserve 时不启用 DB asset upload。",
+        "发布范围 gate：本任务验收只能声明 local/test/small canary ready；不得声明 current VPS-A broad production media sync ready，除非另一个 S3-compatible adapter/cutover 任务完成并通过。",
+        "配置 gate：CREATIVE_ASSET_STORAGE=s3 或 unknown 在本 MVP 中必须失败关闭；不能隐式走 database。"
+      ],
+      "risks": [
+        "本轮未 SSH 到 VPS，也未采集 2026-06-09 实时容量，因此 canary caps 只能作为规划默认值，不能作为上线证据。",
+        "DB blobs 会同时放大 live new-api.db 与自动备份，占用 VPS-A 同一受限根盘；即使 canary 也必须依赖硬 caps 与 disk-headroom guard。",
+        "推迟 S3 意味着真实广泛生产媒体同步仍被阻塞；这是有意的范围控制，不是生产就绪承诺。",
+        "object-storage-options.md 中 R2/B2/Tigris 价格未联网复核；S3 follow-up 上线前必须重新查官方价格和服务条款。",
+        "unsupported s3 config fail-closed 可能导致误配置时 asset sync 不可用，但这是优先保护 VPS-A 容量和避免静默 DB fallback 的正确失败模式。"
+      ]
+    },
+    {
+      "area": "backend-storage-architecture-db-vs-s3",
+      "recommendedDecision": "建议保持当前子任务为 DB-backed canary MVP + storage adapter seam，不把 S3-compatible 对象存储纳入本子任务 MVP。理由：当前证据只支持本任务作为可测试 MVP/小流量 canary；VPS-A 40G 根盘、90% 磁盘保护、new-api.db 与备份同盘风险都说明 DB blobs 不能广泛生产启用。因此补强工件口径：VPS-A 默认关闭或严格 canary；若目标变成当前 VPS-A 公网广泛启用，则 task.py start 前必须中止本计划并升级/新建 S3-compatible 实现任务。",
+      "prdChanges": [
+        "prd.md 行20-22 替换为：2026-06-09 revised decision: MVP scope remains DB-backed only for local development, automated tests, and explicitly approved small canary. S3-compatible storage is not part of this MVP. Broad/public production enablement on current VPS-A is blocked until an S3-compatible backend is implemented and enabled. The public API and Opentu snapshot shape must already be backend-neutral so the later S3 backend does not require client URL changes.",
+        "prd.md 行37-42 改为强口径：Default implemented backend is database only for non-VPS/dev/test/canary. On VPS-A, database asset storage must be feature-flagged off by default or canary-only, with CreativeAssetDatabaseGlobalMaxBytes <= 1 GiB, CreativeAssetDatabaseUserMaxBytes <= 256 MiB, root free reserve >= 4 GiB, and reject writes at/near 90% root usage. The 2 GiB/user logical cap is explicitly non-VPS/dev-test, not a VPS-A production default.",
+        "prd.md 在 Backend requirements 增加：If product intent is broad VPS-A production rollout, this child task must be re-scoped before implementation to include S3-compatible storage; do not ship broad rollout by raising DB caps.",
+        "prd.md Acceptance criteria 增加：VPS-A DB-backed uploads are disabled or canary-limited by config; tests prove writes fail closed when caps, reserve, or 90% disk guard would be violated; no acceptance criterion allows 2 GiB/user DB blobs on VPS-A production.",
+        "prd.md Out of scope 行91-92 替换为：Implementing S3-compatible object storage is out of scope for the canary MVP. It becomes required scope only if the release target is broad/public production on current VPS-A; in that case this plan must be upgraded before task.py start."
+      ],
+      "designChanges": [
+        "design.md Summary 行5-8 替换第二段为：MVP storage is database-backed only for development, tests, and explicitly approved small canary. Current VPS evidence makes DB blobs unsafe as broad VPS-A production storage. The design therefore implements a storage seam and backend-neutral metadata now, but treats S3-compatible storage as a separate/upgraded production scope unless the user changes the release target before start.",
+        "design.md 在 Backend contract 前新增小节 MVP scope decision：Implemented in this child: DatabaseCreativeAssetStorage, CreativeAssetStorage interface, storage_backend/object_key metadata, DB canary caps, disk-headroom guard, private new-api content proxy. Not implemented in this child: R2/B2/Tigris provider SDK wiring, bucket provisioning, S3 credential deployment/rotation, S3 object GC/migration. Production gate: broad VPS-A enablement requires S3-compatible backend first.",
+        "design.md VPS-A capacity constraints 行60-64 补强：VPS-A DB asset feature must fail closed if disk stats are unavailable; reject writes when root Use% >= 90% or free space after write would be below configured reserve, recommended 4 GiB. DB cap increases are not an acceptable production workaround.",
+        "design.md Storage adapter seam 行66-74 替换为：CreativeAssetStorage has database implementation now and S3-compatible interface shape only. Object keys remain opaque and owner-scoped. Opentu only sees /creative/api/assets/:id/content. S3 config keys are documented placeholders, not required nor read by the DB-only MVP unless scope is upgraded.",
+        "design.md Quota and concurrency 行309 改为：Limits are runtime-configurable. Non-VPS/dev-test logical defaults may use 64 MiB per asset and 2 GiB per user; VPS-A DB-backed canary must use much lower configured global/user caps and disk guard. Broad production must use S3-compatible storage instead of DB blobs.",
+        "design.md Compatibility/migration 行224 补一句：Existing DB canary rows may later migrate to object storage by copy -> hash/size verify -> metadata switch -> separate destructive approval before clearing DB Data."
+      ],
+      "implementChanges": [
+        "implement.md Pre-start checklist 行5-10 替换/新增：Confirm release target is canary-only/dev-test. If user/product target is broad VPS-A public production, stop this DB-canary implementation plan and re-plan S3-compatible backend first. Do not treat previous DB-backed MVP approval as approval for broad VPS-A rollout.",
+        "implement.md Context list 保留 object-storage-options.md 与 vps-capacity-evidence.md，并新增 gate note：object storage docs are evidence for future/upgraded scope; implementation agents must not add provider SDK/credentials in DB-canary MVP unless scope is explicitly changed.",
+        "implement.md 在 Phase A 前新增 Phase 0 — release/storage gate：1. Record task remains planning. 2. Record no live SSH/df sample is available or capture it if separately authorized. 3. Assert selected scope equals DB canary MVP. 4. If selected scope equals broad production, replace Phase A with S3-compatible backend planning and do not start current checklist.",
+        "implement.md Phase A 行40-42 改为：Add CreativeAsset/CreativeDocumentAssetRef with StorageBackend/ObjectKey metadata. Implement CreativeAssetStorage interface and DatabaseCreativeAssetStorage only. Add config for backend selection, DB enable flag, global/user DB caps, reserve-free bytes, disk threshold, and injectable disk provider. Tests must prove handlers use the storage boundary, but no S3 provider code is required in this MVP.",
+        "implement.md Backend tests 行184-198 补强：Add config tests proving VPS-A-like DB caps are lower than non-VPS 2 GiB/user; disk provider unavailable, >=90% usage, or below reserve all reject writes; cap increase alone cannot bypass disk guard; response code remains stable creative_asset_quota_exceeded or documented disk-headroom code.",
+        "implement.md Dynamic workflow plan 增加约束：Backend worker owns DB-canary adapter only; no worker may introduce R2/B2/Tigris credentials, bucket config, or public object URLs unless main session updates PRD/design/implement to S3 scope first."
+      ],
+      "testsAndGates": [
+        "Trellis gate：保持 planning；用户审阅并接受 revised PRD/design/implement 后，主会话才可 task.py start。当前本轮只读，未编辑文件。",
+        "Release gate：必须明确本子任务交付目标是 canary-only/dev-test；若选择 broad VPS-A production，则当前 DB-canary plan 不可 start，需改为 S3-compatible MVP。",
+        "VPS safety tests：DB caps、per-user caps、global caps、root reserve >=4 GiB、Use% >=90%、disk stats unavailable fail-closed。",
+        "Backend tests：storage seam, DB adapter, no S3 provider dependency, upload/download/delete/ref refresh/GC/auth/nonce/MIME/Range/private headers/quota/concurrency/migration。",
+        "Frontend tests：outbound pure rewrite, data/blob/virtual media upload, signed URL non-persistence, cloud ref hydration, cold-start import, service-worker pass-through, no secrets in status/logs。",
+        "Validation commands remain：focused Go tests for creative assets/documents; broader Go package tests; Vitest including creative-document-assets.test.ts if created; pnpm build:web after frontend changes; diff --check for new-api/opentu/new2fly; tsconfig.spec baseline/delta recorded as known debt if still failing."
+      ],
+      "risks": [
+        "Keeping S3 out of MVP means the feature is not approved for broad VPS-A production; it is only safe for local/test/small canary.",
+        "No live 2026-06-09 df/performance stats were sampled in this planning pass; capacity conclusion relies on current local runbooks and handoff docs.",
+        "Object-storage provider pricing/quotas in object-storage-options.md were not re-verified online in this pass.",
+        "DB blobs amplify both live new-api.db and same-host backup footprint; guards must be implemented before any VPS-A canary upload.",
+        "Future S3 migration still needs provider choice, private bucket model, SDK/fake tests, object GC consistency, credential deployment/rotation, and rollback plan."
+      ]
+    },
+    {
+      "area": "frontend-contract-upload-rewrite-hydration",
+      "recommendedDecision": "建议保持当前 MVP 为 DB-backed blob 的 local/test/小规模 VPS-A canary + StorageAdapter seam；不要默认把 S3-compatible object storage 升级进 MVP。原因是 VPS 证据足以否定“DB blob 作为 VPS-A 广泛生产默认”，但还不足以把对象存储的 provider 配置、凭据治理、迁移、集成测试和运维 runbook 强行塞进最小闭环。明确 gate：如果本任务的批准目标是 current VPS-A broad production/public users，则必须先升级 scope，实现 S3-compatible adapter 后再 start。",
+      "prdChanges": [
+        "建议补丁：\n```diff\n--- a/.trellis/tasks/06-09-creative-cloud-assets-sync/prd.md\n+++ b/.trellis/tasks/06-09-creative-cloud-assets-sync/prd.md\n@@\n-- 2026-06-09: Use a DB-backed binary blob MVP for local development, tests, and very small canary use only. After reviewing current VPS docs, DB-backed blobs are not safe as the broad production default on VPS-A: it has a 40G root disk, new-api may return `system_disk_overloaded` above 90% root usage, and live `new-api.db` plus its backups live on the same constrained host. The plan must include a storage-adapter seam and backend-neutral metadata so S3-compatible object storage can become the production backend without changing Opentu snapshots or public asset API shape.\n+- 2026-06-09: Storage scope decision after current VPS review: keep the MVP as DB-backed binary blob storage for local development, tests, and very small VPS-A canary only. Do not implement S3-compatible object storage in the default MVP. If the intended launch target becomes broad production/public user use on current VPS-A, this child task must be re-scoped before implementation starts and S3-compatible storage becomes an MVP requirement.\n+- VPS capacity evidence: VPS-A has a 40G root disk, new-api may return `system_disk_overloaded` above 90% root usage, at least 4G free is recommended, and live `new-api.db` plus automatic backups live on the same constrained host. Therefore DB-backed blobs are not safe as the VPS-A production default.\n@@\n-- Default backend storage is DB-backed blob storage for MVP development/test/canary. On VPS-A production, DB-backed asset storage must be feature-flagged and canary-limited unless external object storage is enabled. The service/model contract must include a minimal storage adapter seam (`database` now, future `s3-compatible`) and backend-neutral metadata such as storage backend and optional object key.\n+- Default backend storage is DB-backed blob storage for MVP development/test/canary only. On VPS-A, the database backend must be feature-flagged, canary-limited, capped, and guarded by disk headroom checks. Broad VPS-A production must either keep binary asset sync disabled or use an S3-compatible/object-storage backend. The service/model contract must include a minimal storage adapter seam (`database` now, future `s3-compatible`) and backend-neutral metadata such as storage backend and optional object key.\n@@\n-- Opentu service worker must pass through `/creative/api/assets/*` and must not place private asset metadata/content responses into a static cache.\n+- Opentu service worker must early pass through `/creative/api/assets/*` for image, audio, video, and ordinary fetch/XHR-style requests, and must not place private asset metadata/content responses into static, image, audio, video, or app-shell caches.\n@@\n - [ ] A rollback/kill-switch path can disable frontend prepare/hydrate and backend routes without dropping existing asset/ref tables.\n+- [ ] Pre-start/deployment gate records whether the approved target is local/test/small VPS-A canary or broad VPS-A production. DB-backed MVP may start only for the former; broad VPS-A production requires S3-compatible storage scope upgrade first.\n+- [ ] If scope is upgraded to broad VPS-A production, S3-compatible adapter/config/integration tests are added before task start; Opentu snapshot shape remains `/creative/api/assets/:id/content` and never stores bucket/signed URLs.\n - [ ] Target checks pass or are explicitly recorded as pre-existing debt.\n@@\n-- Implementing and operating a full object-storage/S3-compatible adapter in the DB-only MVP path. If this feature is intended for broad production use on current VPS-A, the scope should be upgraded to implement the object-storage adapter now instead of relying on DB blobs.\n+- Implementing and operating a full object-storage/S3-compatible adapter in the DB-backed canary MVP path. If this feature is intended for broad production use on current VPS-A, this item moves in-scope and the plan must be upgraded before implementation starts.\n```"
+      ],
+      "designChanges": [
+        "建议补丁：\n```diff\n--- a/.trellis/tasks/06-09-creative-cloud-assets-sync/design.md\n+++ b/.trellis/tasks/06-09-creative-cloud-assets-sync/design.md\n@@\n-MVP storage is DB-backed binary blobs plus metadata for development, tests, and small canary only because existing creative document/preference sync is already DB-backed and the repository has no durable object-storage abstraction. Current VPS docs show VPS-A is storage-constrained and disk-protected, so DB blobs are not suitable as broad production storage there. The design includes a minimal storage adapter seam and backend-neutral metadata now; for real production media sync on VPS-A, the preferred backend is future S3-compatible object storage without changing Opentu snapshot URLs or the `/creative/api/assets` contract.\n+MVP storage is DB-backed binary blobs plus metadata for development, tests, and small canary only because existing creative document/preference sync is already DB-backed and the repository has no durable object-storage abstraction. Current VPS docs show VPS-A is storage-constrained and disk-protected, so DB blobs are not suitable as broad production storage there. The design includes a minimal storage adapter seam and backend-neutral metadata now; S3-compatible object storage is not part of the default MVP, but becomes mandatory if the approved target is broad production/public user media sync on current VPS-A. Opentu snapshot URLs and the `/creative/api/assets` contract do not change in either backend.\n@@\n - DB-backed creative assets on VPS-A must run behind a feature flag, strict global/user caps, and a disk-headroom guard. Recommended initial canary caps: global DB asset bytes <= 1GiB, per-user DB asset bytes <= 256MiB, with configurable values.\n - Before accepting a DB-backed upload, check aggregate creative DB asset bytes and an injected disk-headroom provider. Refuse writes if the upload would exceed configured caps, approach the documented 90% root usage threshold, or reduce free space below the configured reserve.\n - For broad production use, implement and enable the S3-compatible storage adapter rather than relying on DB blobs.\n+- Scope gate: if product approval explicitly targets broad VPS-A production/public users, stop the DB-only start path and patch this design/implementation plan for an S3-compatible adapter, provider config, credential handling, migration/rollback notes, and integration tests before `task.py start`.\n@@\n - Define a minimal `CreativeAssetStorage` service boundary used by asset upload/download/delete handlers.\n - MVP implements only `DatabaseCreativeAssetStorage`, which stores bytes in `CreativeAsset.Data`; this adapter is allowed for local/test and strictly capped VPS-A canary use, not broad production use.\n-- Future `S3CompatibleCreativeAssetStorage` can target Cloudflare R2, Backblaze B2, Tigris, or another S3-compatible provider using private buckets.\n+- Future or scope-upgraded `S3CompatibleCreativeAssetStorage` can target Cloudflare R2, Backblaze B2, Tigris, or another S3-compatible provider using private buckets.\n+- The storage boundary must be backend-neutral: handlers call storage `Put/Get/Delete`-style methods and return only new-api asset metadata/content URLs. No handler, model response, or Opentu snapshot may expose bucket URLs, signed URLs, object keys as fetch URLs, or provider credentials.\n@@\n interface CreativeWorkspaceCloudRepository {\n   hasBoard(boardId: string): Promise<boolean>;\n-  upsertBoardFromCloud(board: Board, revision: string | number): Promise<void>;\n+  getStoredRevision(boardId: string): Promise<string | number | undefined>;\n+  upsertBoardFromCloud(\n+    board: Board,\n+    revision: string | number,\n+    options?: { suppressOutboundSync?: true }\n+  ): Promise<void>;\n }\n ```\n \n-Default implementation can use `workspaceStorageService.saveBoard(...)` followed by `workspaceService.reload()` or a purpose-built public WorkspaceService method.\n+Default implementation can use `workspaceStorageService.saveBoard(...)` followed by `workspaceService.reload()` or a purpose-built public WorkspaceService method. Cloud import/upsert must not emit ordinary `boardCreated` / `boardUpdated` outbound sync events; otherwise cold-start hydration can immediately re-save a just-imported remote document.\n@@\n-- Opentu's service worker/static asset layer must pass through `/creative/api/assets/*`; private asset metadata/content must not be stored in app-shell caches.\n+- Opentu's service worker/static asset layer must early pass through `/creative/api/assets/*` for `request.destination` values including `image`, `audio`, `video`, and empty ordinary fetch/XHR requests. Private asset metadata/content must not be stored in app-shell, static, image, audio, or video caches.\n```"
+      ],
+      "implementChanges": [
+        "建议补丁：\n```diff\n--- a/.trellis/tasks/06-09-creative-cloud-assets-sync/implement.md\n+++ b/.trellis/tasks/06-09-creative-cloud-assets-sync/implement.md\n@@\n-- [x] Confirm VPS-capacity concern is handled by planning a storage adapter seam now. After reviewing current VPS docs, DB-backed storage is limited to development/test and very small VPS-A canary; broad production use requires upgrading scope to implement S3-compatible storage.\n+- [x] Confirm VPS-capacity concern is handled by planning a storage adapter seam now. After reviewing current VPS docs, DB-backed storage is limited to development/test and very small VPS-A canary; broad production/public use on current VPS-A requires upgrading scope to implement S3-compatible storage before `task.py start`.\n+- [ ] Record the approved deployment target before start: `local/test/small-canary` may use the DB-backed MVP with caps and disk guards; `vps-a-broad-production` blocks this DB-only implementation plan until S3-compatible storage is added to PRD/design/implement.\n@@\n-3. Add a minimal `CreativeAssetStorage` service boundary and implement only the DB-backed adapter for MVP; do not implement R2/B2/Tigris adapter in this task unless scope is explicitly upgraded. The DB adapter must expose configurable global/user caps and an injectable disk-headroom guard for VPS-A canary safety.\n+3. Add a minimal `CreativeAssetStorage` service boundary and implement only the DB-backed adapter for MVP; do not implement R2/B2/Tigris adapter in this task unless scope is explicitly upgraded. The DB adapter must expose configurable global/user caps and an injectable disk-headroom guard for VPS-A canary safety. If scope is upgraded to broad VPS-A production, add the S3-compatible adapter/config/credential/integration-test slice before implementing frontend rollout.\n@@\n-6. Add a RED service-worker/static-cache test or equivalent assertion proving `/creative/api/assets/*` is pass-through and not written to app-shell/static caches.\n+6. Add RED service-worker/static-cache tests or equivalent assertions proving `/creative/api/assets/*` is early pass-through for image, audio, video, and ordinary fetch/XHR destinations, and is not written to app-shell, static, image, audio, or video caches.\n@@\n-   - reject invalid cloud refs using the same relative/absolute same-origin validator and degrade without saving a broken board; never silently ignore then persist an unresolved or unsafe ref\n+   - MUST reject invalid cloud refs using the same relative/absolute same-origin validator, or degrade with sanitized status only; MUST NOT save a board containing unresolved, unsafe, or broken cloud asset refs, and MUST NOT silently ignore then persist such refs\n@@\n - Hydration/download/quota failure does not save a broken board and records only non-sensitive status; console/log output is also sanitized.\n - Cold-start import preserves remote document id as board id, converts seconds timestamps to milliseconds, applies folder fallback, does not emit immediate outbound sync, and covers missing/same/different local revision behavior.\n - Partial prepare/hydrate failure is atomic: no document create/put is called and no broken imported board is saved.\n+- Service worker pass-through matrix covers `/creative/api/assets/*` as `image`, `audio`, `video`, and ordinary fetch/XHR requests; tests assert no writes to static/app-shell/media caches.\n+\n+### Scope/deployment gate before `task.py start`\n+\n+- If approved deployment target is local development, tests, or small VPS-A canary, continue with DB-backed adapter only. Required gates: strict global/user caps, injected disk-headroom guard, feature flag/kill switch, and rollback path that disables asset upload/hydration without deleting asset/ref tables.\n+- If approved deployment target is current VPS-A broad production/public users, stop and upgrade this plan first. Required S3-compatible scope additions: provider selection/config, private bucket/object-key contract, credential loading without persistence/logging, storage adapter integration tests, migration/rollback plan for DB rows, and deployment runbook updates.\n+- In both paths, Opentu remains provider-agnostic: snapshots contain only `/creative/api/assets/:id/content`; bucket URLs, signed URLs, provider credentials, and object-storage implementation details never cross the frontend contract.\n \n ## Validation command updates\n```"
+      ],
+      "testsAndGates": [
+        "已只读核对 `.trellis/tasks/06-09-creative-cloud-assets-sync`、用户指定 VPS 文档与 sibling repo 代码；未编辑文件。",
+        "只读校验已运行：`python3 ./.trellis/scripts/task.py validate 06-09-creative-cloud-assets-sync` 通过，`implement.jsonl` / `check.jsonl` 均为 13 entries。",
+        "MVP gate：只允许 local/test/small VPS-A canary 使用 DB adapter；必须有 feature flag、global/user caps、disk-headroom guard、rollback kill switch。",
+        "Production gate：如果批准目标是 current VPS-A broad production/public users，DB-only plan 不得 start；必须先补 S3-compatible adapter/config/credential/integration/migration/runbook。",
+        "Frontend gates：outbound traversal 覆盖完整字段矩阵；hydration 不保存 broken board；cloud import 不触发普通 outbound `boardCreated/boardUpdated`。",
+        "SW gates：`/creative/api/assets/*` 在 image/audio/video/fetch-XHR 矩阵均 pass-through，且不进入 static/app-shell/media caches。",
+        "Security gates：new-api content endpoint 私有鉴权并 stream/proxy；不得向 Opentu 暴露 bucket URL、signed URL 或 provider credentials。"
+      ],
+      "risks": [
+        "若把 DB blob 当 VPS-A 生产默认，40G root、90% 磁盘保护、live DB 与 backup 共盘会放大容量和回滚风险。",
+        "若现在强行把 S3 纳入默认 MVP，会显著扩 scope：provider 选择、凭据、私有 bucket、集成测试、迁移、运维 runbook 都要补齐。",
+        "SW 是高回归点：同源 `/creative/api/assets/:id/content` 可能被现有 video/static/cache 分支误拦截。",
+        "必须把“invalid cloud refs”写成阻断/降级且不保存 broken board，不能留下实现者可解释为静默 ignore 的措辞。"
+      ]
+    },
+    {
+      "area": "creative-cloud-assets-sync / VPS-A capacity re-plan",
+      "recommendedDecision": "建议升级 MVP：S3-compatible object storage 应进入 MVP 的生产路径，而不是只保留 adapter seam。DB-backed blob 仍保留在 MVP 内，但只能用于 local/test/极小 VPS-A canary，并且必须 feature flag、<=1GiB global、<=256MiB/user、写前 disk-headroom guard、禁止生产 S3 配置失败时自动 fallback 到 DB。本轮未编辑文件。依据：VPS-A 是 new-api 公网路径，40G 根盘、90% 触发 system_disk_overloaded 风险、new-api.db 与自动备份同盘，DB blob 会同时放大在线 DB 与备份，运维回旋空间很小。",
+      "prdChanges": [
+        "`.trellis/tasks/06-09-creative-cloud-assets-sync/prd.md`：替换 `Confirmed product decisions` 中现有 DB MVP 决策为：`2026-06-09 revised after VPS capacity review: S3-compatible object storage is in MVP for any public/VPS-A production rollout. DB-backed blob storage remains in MVP only as the local/test adapter and as a tiny VPS-A canary fallback behind a feature flag, strict caps, and disk-headroom guard. The stable browser-facing API remains /creative/api/assets/:id/content; Opentu never receives bucket URLs, public object URLs, or persisted signed URLs.`",
+        "`prd.md`：替换 backend requirement 里“Default backend storage is DB-backed...”为：`MVP must implement a backend-neutral CreativeAssetStorage with both database and s3-compatible adapters. database is allowed only for local/test/tiny canary. s3-compatible is required before broad VPS-A production enablement. Metadata must remain backend-neutral: storageBackend, objectKey, optional objectVersion/eTag, contentHash, mimeType, mediaType, sizeBytes; Data is populated only when storageBackend=database.`",
+        "`prd.md`：在 VPS-A deployment safety 后新增：`Production object storage requirements: bucket private by default; no public ACL/policy; least-privilege access key from runtime secrets only; no credentials/provider URLs/signed URLs/sourceUrl in snapshots, metadata, logs, Trellis artifacts, or responses; new-api streams bytes after session/owner auth; object keys are opaque owner-scoped keys and not raw content hashes; S3 failures fail closed and do not silently fall back to DB on VPS-A production.`",
+        "`prd.md`：更新 limits：保留 64MiB per asset、2GiB logical per user、10,000 assets/user、1,000 refs/document；明确 2GiB 是 logical quota across storage backends，不是 VPS-A DB cap；DB canary cap 仍为 global <=1GiB、user <=256MiB。",
+        "`prd.md`：Acceptance criteria 追加：`S3-compatible adapter upload/download/range/delete/ref-GC pass using a fake/local S3 client; responses never expose bucket URL/signed URL; production config rejects broad enablement when storage=database; S3 private bucket/secrets/lifecycle/backup preflight is recorded before rollout; realtime VPS-A df/performance/db/backups baseline is captured before any canary.`",
+        "`prd.md`：Out of scope 替换原“full object-storage/S3-compatible adapter out of scope”为：`Provider procurement, final price commitment, and migration of any pre-existing DB canary blobs to S3 are separate deployment/migration decisions. The code-level S3-compatible adapter and production storage contract are in this MVP.`"
+      ],
+      "designChanges": [
+        "`design.md` Summary line 7 替换为：`MVP storage includes two adapters: database for local/test/tiny canary, and s3-compatible for the production-capable VPS-A path. DB blobs are not acceptable as broad production storage on current VPS-A because live new-api.db and backups share the constrained root disk. Opentu still uses /creative/api/assets/:id/content; new-api enforces auth and streams from the selected private backend.`",
+        "`design.md` model concepts：把 `StorageBackend` 改成 `database | s3-compatible`；`ObjectKey` 对 S3 为必填、DB 为空；`Data []byte` 仅 `database` 填充；新增可选 `ObjectETag/ObjectVersion` 作为备份/恢复审计元数据，但不得暴露 provider URL。",
+        "`design.md` Storage adapter seam 整段替换为 MVP storage architecture：`CreativeAssetStorage` 必须支持 `Put/Get/GetRange/Delete/Exists` 或等价接口；实现 `DatabaseCreativeAssetStorage` 和 `S3CompatibleCreativeAssetStorage`；生产配置选择 S3，DB 只允许 canary；S3 config keys 从 runtime secrets/env 读取；bucket private；object key 例 `creative-assets/<user-id>/<asset-id>`；不返回、不持久化 signed URL。",
+        "`design.md` GET content endpoint：补充 `new-api must stream content through the authenticated endpoint and must not redirect the browser to provider public/signed URLs. Range requests are served by the selected storage backend; invalid range returns 416 without cross-user existence leaks.`",
+        "`design.md` 新增 S3 consistency：上传先计算 hash/sniff/size，再 dedupe；新对象写入 S3 后提交 DB metadata，DB 失败需 best-effort delete object 并记录非敏感审计；删除时先移除/禁用 metadata 可见性，再 best-effort delete object，失败进入 retry/GC，不破坏用户可见一致性。",
+        "`design.md` 新增 backup/restore：DB backups cover metadata/refs only；object bytes rely on private bucket versioning/lifecycle/export policy；production rollout gate 必须记录 restore plan：metadata row + object key/hash/size 能一致恢复，missing object fail-closed。",
+        "`design.md` Compatibility/migration：把“future S3 adapter”改为“S3 adapter in MVP”；DB→S3 copy/verify/clear Data 只适用于已有 DB canary rows，清空 Data 或删除 blobs 需要单独 destructive confirmation。"
+      ],
+      "implementChanges": [
+        "`implement.md` pre-start checklist：把 `[x] Confirm DB-backed blob MVP...` 改为 `[ ] Confirm revised MVP scope: implement S3-compatible storage now for any VPS-A/public rollout; keep DB only for local/test/tiny canary.`；把 storage seam checklist 改为 `[ ] Capture realtime VPS-A baseline: df -h /, new-api /api/performance/stats used_percent, new-api.db size, backups size; record canary cap or require S3 for production enablement.`",
+        "`implement.md` Phase A step 1 tests 追加：adapter selection/config validation、S3 fake client Put/Get/Range/Delete、no public/signed URL exposure、object-key opacity、S3 failure compensation、production refuses storage=database unless explicit canary caps/disk guard are active。",
+        "`implement.md` Phase A step 2：模型新增 `StorageBackend/ObjectKey/ObjectETag/ObjectVersion`，`Data` 仅 DB backend 使用；migration tests 验证 blob 不建索引、S3 metadata 字段存在、backend/object key constraints 合理。",
+        "`implement.md` Phase A step 3 替换为：`Add CreativeAssetStorage boundary and implement both DatabaseCreativeAssetStorage and S3CompatibleCreativeAssetStorage in this task. Use fake/local S3 client for unit tests; do not require live provider credentials for normal tests. No automatic production fallback from S3 to database.`",
+        "`implement.md` Phase A step 5 controller/router tests 追加：S3-backed upload returns same `/creative/api/assets/:id/content` shape；GET streams from storage without redirect；Range/206/416 works through S3 adapter；provider credentials/object URLs/signed URLs never appear in response/log/status/metadata。",
+        "`implement.md` Phase D validation：Go focused test pattern 扩为 `Test.*Creative.*Asset|Test.*Creative.*Storage|Test.*Creative.*Document`；新增 optional live smoke only when explicit scratch-bucket env is set，且必须 create/get/range/delete a disposable object and verify no public URL is returned。",
+        "`implement.md` risk/rollback：补充 `If S3 config is unhealthy, keep asset sync disabled or DB canary-only; do not silently route broad production traffic into database blobs. Object deletion/GC and DB Data clearing remain rollback/destructive-risk checkpoints.`"
+      ],
+      "testsAndGates": [
+        "Backend TDD：DB adapter、S3-compatible adapter、config validation、quota/concurrency、MIME/sniff、multipart hardening、Range、private headers、session/nonce/access-token rejection、ref transaction、S3 failure compensation。",
+        "Frontend TDD 保持现有范围：data/blob/virtual upload rewrite、same URL one upload、signed URL cache/anonymous fetch/block、pure outbound payload、cold-start hydrate、service-worker pass-through、sanitized status/log/localStorage。",
+        "Pre-rollout VPS gate：采集并记录 `df -h /`、`/api/performance/stats disk_space_info.used_percent`、`new-api.db` size、`backups/auto` size；DB canary 不满足 reserve/caps 时拒绝启用。",
+        "S3 deployment gate：私有 bucket、no public access、least-privilege key、secret rotation plan、lifecycle/versioning/backup/restore plan、official pricing/region limits 重新核验后再采购或生产启用。",
+        "Kill switch gate：backend route/storage enable flag 与 frontend prepare/hydrate flag 可独立关闭；关闭后不得把已知 local-only/signed refs 标记为 cloud-sync success。"
+      ],
+      "risks": [
+        "Scope 增大：S3 adapter now 会增加实现量，但这是让当前 VPS-A public path 具备真实生产安全性的必要代价。",
+        "Provider 成本/区域/可用性未在本轮联网核验；只能把 R2/B2/Tigris 当候选，正式采购前必须查官方当前价格。",
+        "DB metadata 与 S3 object bytes 非事务一致，需 compensation cleanup、审计日志、retry/GC 和 restore drill。",
+        "若用户明确只要 local/test/极小 canary，可保留当前 DB-only plan；但不能把它描述为 VPS-A broad production-ready。"
+      ]
+    },
+    {
+      "area": "Creative Cloud Binary Asset Sync / VPS-A 容量复盘规划",
+      "recommendedDecision": "建议升级本 child 的 MVP：S3-compatible object storage 必须进入 MVP 的生产路径；DB-backed blob 只保留为 local/test 和极小 VPS-A canary/emergency fallback。原因是该功能目标是当前 new-api 公网 `/creative` 的跨设备媒体同步，而 VPS-A 40G root、90% 磁盘保护、live DB 与自动备份同盘，不能安全承载 DB-only 广泛发布。若产品明确把 MVP 改定义为“canary-only”，才维持当前 seam-only 方案。",
+      "prdChanges": [
+        "在 `prd.md` 的 `Confirmed product decisions` 中，把当前 DB-backed MVP bullet 替换为：`2026-06-09: Upgrade MVP scope to include an S3-compatible object-storage backend for any VPS-A broad production rollout. DB-backed blob storage remains allowed only for local development, tests, and explicitly capped VPS-A canary/emergency fallback. new-api remains the only asset authority: Opentu stores only /creative/api/assets/:id/content references, while new-api enforces session/owner authorization and streams bytes from the configured backend. Cloudflare R2 is the preferred first deployment target from the current options research, but the implementation must be generic S3-compatible and must not hard-code provider credentials or public bucket URLs.`",
+        "在 `Backend: new-api asset API` 中，把 `Default backend storage is DB-backed blob storage...` 替换为：`MVP backend storage must implement a CreativeAssetStorage seam with both s3 and database adapters. For VPS-A production/broad rollout, CREATIVE_ASSET_STORAGE=s3 is required. The database adapter is limited to local/test and explicitly capped canary fallback. Asset metadata remains in DB; production bytes live in private S3-compatible object storage through opaque ObjectKey values.`",
+        "在 limits 中保留 `64 MiB per asset`、`2 GiB/user logical quota`，但改写含义：`2 GiB/user is a product quota tracked in DB metadata, not permission to store 2 GiB/user in VPS-A SQLite/DB blobs. DB-backed deployments must additionally enforce much lower global/user caps and disk-headroom guards.`",
+        "新增 PRD requirement：`S3-compatible storage requirements: private bucket; opaque owner-scoped object keys; Put/Get/Head/Delete support; HTTP Range support for audio/video; no public permanent bucket URL, signed URL, provider credential, endpoint secret, or bucket secret may be persisted in document snapshots, document metadata, asset metadata, localStorage, logs, or Opentu state.`",
+        "新增 PRD acceptance criteria：`[ ] With CREATIVE_ASSET_STORAGE=s3 and a fake/local S3-compatible backend, upload/download/range/delete pass without real network or real bucket credentials.`、`[ ] VPS-A broad rollout gate fails closed unless object storage is configured; CREATIVE_ASSET_STORAGE=database is accepted only with explicit canary caps, disk-headroom guard, and kill switch.`、`[ ] Asset API responses and Opentu snapshots never expose bucket URLs, signed URLs, object-store credentials, or provider-specific object addresses.`",
+        "在 `Out of scope` 中删除/替换 `Implementing and operating a full object-storage/S3-compatible adapter in the DB-only MVP path...`，改为：`Direct browser-to-bucket uploads, public share links, multi-provider operations runbooks, billing UI, and destructive migration of existing DB blobs to object storage are out of scope. The generic S3-compatible adapter itself is in MVP scope for production readiness.`"
+      ],
+      "designChanges": [
+        "在 `design.md` Summary 第二段替换为：`MVP storage is backend-neutral metadata in DB plus a CreativeAssetStorage seam with two adapters: S3-compatible object storage for VPS-A production/broad rollout, and DB-backed blob storage only for local/test/strict canary fallback. Current VPS docs make DB blobs unsafe as the production default because asset bytes would grow both live new-api DB and same-host backups on the constrained VPS-A root disk.`",
+        "在 `CreativeAsset` 字段说明中改为：`StorageBackend string — s3 for production MVP, database for local/test/canary fallback.`；`ObjectKey string — required when StorageBackend=s3; opaque private bucket key such as creative-assets/u/<user-id>/<asset-id>/<random>; must not be a public URL or content-hash-only identifier.`；`Data []byte — populated only when StorageBackend=database; empty for s3 rows.`",
+        "把 `VPS-A deployment capacity constraints` 最后一条改成强制门禁：`For broad production use on current VPS-A, S3-compatible storage is not future work; it is the required MVP backend. DB-backed creative assets on VPS-A are canary-only and must be feature-flagged, capped, disk-guarded, monitored, and kill-switchable.`",
+        "把 `Storage adapter seam` 改成当前范围：`Define CreativeAssetStorage with Store(ctx, userID, assetID, contentHash, mime, size, reader) -> object metadata, Open(ctx, objectKey, range) -> stream/size/content range, Delete(ctx, objectKey), and optional Head/Exists. Implement S3CompatibleCreativeAssetStorage and DatabaseCreativeAssetStorage in this task. Handlers must depend on the interface, not concrete storage.`",
+        "新增配置设计：`CREATIVE_ASSET_STORAGE=database|s3`; `CREATIVE_ASSET_S3_ENDPOINT`; `CREATIVE_ASSET_S3_REGION`; `CREATIVE_ASSET_S3_BUCKET`; `CREATIVE_ASSET_S3_PREFIX`; `CREATIVE_ASSET_S3_ACCESS_KEY_ID`; `CREATIVE_ASSET_S3_SECRET_ACCESS_KEY`; `CREATIVE_ASSET_S3_FORCE_PATH_STYLE`; `CREATIVE_ASSET_DB_GLOBAL_MAX_BYTES`; `CREATIVE_ASSET_DB_USER_MAX_BYTES`; `CREATIVE_ASSET_DB_RESERVED_FREE_BYTES`. 明确：真实 credentials 只来自部署 secret/env，不写入 Trellis、repo、测试 fixture 或日志。",
+        "新增一致性设计：`Upload computes hash/MIME/size under the 64MiB cap before object write; check same-user hash dedupe before writing when possible; on duplicate race, return existing asset and best-effort delete any newly written orphan object. DB metadata remains source of truth. Object delete failures must not produce broken referenced assets; unreferenced object cleanup can be retried or logged as non-secret operational debt.`",
+        "在 API contract 中补充：`GET /creative/api/assets/:id/content` always proxies through new-api. For s3 backend, new-api forwards Range to object storage and returns private session-scoped response headers. It never redirects to bucket URLs and never returns signed URLs to Opentu.`",
+        "在 Compatibility/Rollback 中替换 DB-heavy wording：`If S3 config is missing or unhealthy, production rollout must disable asset sync rather than silently falling back to DB blobs. DB fallback may be enabled only by explicit canary config with low caps and disk guards. Rollback preserves metadata rows and objects; destructive object/bucket cleanup requires separate approval.`"
+      ],
+      "implementChanges": [
+        "在 `implement.md` pre-start checklist 中，把 `Confirm DB-backed blob MVP...` 两项替换为：`[x] Confirm VPS capacity changes MVP scope: S3-compatible object storage is required for VPS-A broad production; DB-backed storage is local/test/canary fallback only.` 和 `[ ] Choose first deployment provider/config owner before implementation freeze; recommended first provider is Cloudflare R2, implemented through generic S3-compatible config.`",
+        "把 `Phase A — Backend TDD: asset model and API` 改名为：`Phase A — Backend TDD: asset model, S3-compatible storage, DB fallback, and API`。",
+        "Phase A step 1 增加 failing tests：S3 fake/local adapter Put/Get/Range/Delete；private bucket URL never leaves backend；missing S3 config disables/fails closed; no real network/credentials in tests；DB fallback rejected for production broad rollout unless canary caps+disk guard are set。",
+        "Phase A step 2 保持 `CreativeAsset`/`CreativeDocumentAssetRef`，但明确 `StorageBackend/ObjectKey` 不是 future-only：S3 rows must set `StorageBackend=s3` and non-empty `ObjectKey`; DB rows set `StorageBackend=database` and empty `ObjectKey`.",
+        "Phase A step 3 替换为：`Add CreativeAssetStorage boundary and implement both S3CompatibleCreativeAssetStorage and DatabaseCreativeAssetStorage. S3 adapter is the MVP production backend; DB adapter is fallback only. Add config validation and tests for CREATIVE_ASSET_STORAGE=s3/database/off-or-disabled behavior if the project uses a feature flag.`",
+        "Phase A 增加 implementation step：`Add AWS SDK service/s3 dependency only if needed; prefer generic S3-compatible client configuration. Do not reuse Bedrock-only AWS dependencies as proof that S3 already exists. Tests must use fake HTTP S3/minio-style local adapter or mocked client, never a real bucket.`",
+        "Phase D validation 增加：`go test ./service ./controller ./model ./router -run 'Test.*Creative.*Asset|Test.*Creative.*Storage|Test.*S3' -count=1`；保留现有 Go/Vitest/build/diff checks。",
+        "Dynamic workflow ownership 更新：backend branch owns storage interface + S3 adapter + DB fallback + route/model/ref/security tests；frontend branch remains asset adapter/outbound rewrite/hydration/service-worker tests；main session owns config contract and release gate synthesis。"
+      ],
+      "testsAndGates": [
+        "OpenSpec gate 不变但更强：在 `/mnt/f/code/project/opentu` 创建/关联 `add-creative-cloud-asset-sync`，把 S3-proxied private asset contract 写进 spec delta，并运行 `openspec validate add-creative-cloud-asset-sync --strict`；未完成则不得编辑 Opentu 产品代码，除非记录显式例外。",
+        "Backend TDD gate：storage contract tests must pass for S3 fake and DB fallback; API auth/nonce/owner/MIME/size/range/ref/GC tests must pass; tests assert no public bucket URL/signed URL/credential persistence。",
+        "Frontend TDD gate：Opentu only stores `/creative/api/assets/:id/content`; outbound rewrite/hydration/service-worker pass-through tests must prove no bucket URL, signed URL, provider credential, Authorization header, apiKey/baseUrl/provider setting is synced or cached。",
+        "VPS-A release gate：broad rollout requires `CREATIVE_ASSET_STORAGE=s3` with private bucket config, successful smoke upload/download/range/delete through new-api, and DB-backed mode disabled for broad users. DB canary requires global/user caps, root disk headroom guard, monitoring, and kill switch.",
+        "Trellis gate：任务仍是 planning；实现前必须由用户接受 artifact patch、`task.py validate 06-09-creative-cloud-assets-sync` 通过、再 `task.py start` 进入 in_progress。"
+      ],
+      "risks": [
+        "S3 进入 MVP 会扩大后端实现面：配置、fake S3 测试、Range 代理、对象/DB 一致性和部署 secret 管理都必须纳入首轮。",
+        "仍缺一个产品/运维 owner 决策：首选 Cloudflare R2 还是其他 S3-compatible provider；我建议 artifact 写 generic S3 + R2 recommended deployment，不写真实 credentials。",
+        "如果用户实际只想做 canary-only demo，则上述升级会超出最小实现；这种情况下应保留当前 DB seam 方案，但必须在 PRD 明确“不满足 VPS-A production asset sync 验收”。",
+        "本轮按要求只读规划，未编辑任何文件。"
+      ]
+    }
+  ],
+  "review": [
+    {
+      "area": "creative-cloud-assets-sync / VPS 容量复核后的 Layer 3 对抗审查",
+      "verdict": "needs-patch",
+      "blockingIssues": [
+        "核心决策基本成立：保持 DB-backed blob MVP + CreativeAssetStorage seam，不在本 MVP 做 S3-compatible；但当前 revised plan 仍不应直接 start，需要补几处防误上线/防误配置合同。",
+        "容量证据 endpoint 写法有误或过度简写：VPS runbook 与 new-api 代码是 `GET /api/performance/stats`，`disk_space_info` 是响应字段，不是 `/api/performance/stats.disk_space_info` 路径。",
+        "fail-closed 范围仍偏窄：多处只写 asset writes/mutating routes；若 `CREATIVE_ASSET_STORAGE=s3|unknown` 但 adapter 不存在，所有需要 storage 的 asset 操作都不能静默回落 DB，包括 upload、content read、delete、ref refresh/GC 相关路径。",
+        "feature flag 没有跨前后端闭环：计划说 production-like 默认关闭，但没有要求 new-api bootstrap 暴露能力、opentu 只在服务端确认 enabled 后 prepare/hydrate；否则前端可能继续上传并把正常 JSON sync 阻塞成配置故障。",
+        "VPS-A gate 仍不够可执行：`near 90%`、fresh capacity note、reserve 的精确定义不足；还缺 projected post-write footprint、自动备份放大、inode 失败条件和证据新鲜度窗口。",
+        "`2GiB/user` 仍容易被实现者理解成 DB production default；必须明确它只是非 VPS/local/test 逻辑上限，任何 production-like DB backend 都要显式配置更低 global/user cap 与 disk guard。",
+        "测试范围还缺：feature flag disabled、bootstrap disabled、caps unset、unsupported storage 对 GET content/DELETE 也 fail-closed、DB fallback 未持久化 bytes、inode/backup-amplified disk projection。"
+      ],
+      "requiredArtifactPatches": [
+        "PRD：把 proposed capacity note 中的 `new-api /api/performance/stats.disk_space_info` 改为 `GET /api/performance/stats`，并明确记录响应字段 `disk_space_info.used_percent`、可用字节/百分比；同样修正 testsAndGates 与 implement D0 的写法。",
+        "PRD：替换默认限额段的 2GiB 描述为：`logical per-user maximum: 2 GiB only for local/test/non-production DB-backed runs. Any production-like database backend, including VPS-A canary, must set explicit lower global/user caps plus reserved-free-byte and disk-use guards; unset production-like DB caps keep asset upload disabled.`",
+        "PRD acceptance criteria：新增 `- [ ] Feature flag/config disabled behavior is tested: production-like default off, backend mutating/content routes return a stable disabled/config error, opentu does not prepare/hydrate assets unless bootstrap advertises assetSyncEnabled, and snapshots with local-only/signed media stay pending instead of being saved as broken cloud documents.`",
+        "PRD/design：把 unsupported `s3` fail-closed 从“writes/mutating routes”扩展为：`unsupported CREATIVE_ASSET_STORAGE values disable all asset storage operations and never read from or write to DatabaseCreativeAssetStorage as fallback; tests assert no CreativeAsset row/Data is created and existing DB blobs are not served under an unsupported configured backend.`",
+        "Design：在 Deployment config 小节加入 bootstrap 合同：`new-api /creative/api/bootstrap (or equivalent existing bootstrap response) must expose assetSyncEnabled and a non-secret disabled/config reason. Opentu enables asset prepare/hydrate only when this capability is true; pure JSON sync may continue only for snapshots without local-only or credentialed media refs.`",
+        "Design：把 VPS-A disk guard 改成精确定义：`refuse DB-backed writes when projected post-write root Use% would be >= 90%, when projected free bytes would fall below max(configured reserve, 4GiB for VPS-A), or when inode usage is near/above the configured threshold. For VPS-A projection, reserve at least incoming bytes plus expected next DB-backup amplification unless backup policy is changed and documented.`",
+        "Implement Phase A tests：新增 backend tests for `CREATIVE_ASSET_SYNC_ENABLED=false`, unset DB caps in production-like mode, unsupported `CREATIVE_ASSET_STORAGE=s3|unknown` on POST/GET content/DELETE, and assertions that no DB fallback row/blob is persisted or served.",
+        "Implement Phase A/Additional TDD：扩展 disk-headroom tests to cover `df` root Use%, `GET /api/performance/stats` `disk_space_info.used_percent`, low free bytes, inode threshold, and projected footprint including live DB + backup amplification.",
+        "Implement Phase D0：改为 `same rollout window` 的 fresh evidence gate，并写明记录位置；命令清单使用 `df -h /`, `df -i /`, `GET /api/performance/stats`, `du -sh /home/admin/apps/new-api/data/new-api.db`, `du -sh /home/admin/apps/new-api/backups/auto`；无证据、>=90%、低于 reserve、inode 风险、caps unset 均禁止启用 VPS-A DB upload。",
+        "object-storage-options.md：页首加 caveat：`Provider pricing/free tiers are planning notes only and were not revalidated for this MVP start gate. The S3-compatible follow-up must re-check official pricing/limits/TOS, choose provider/region/bucket/IAM/secret injection, and pass a separate cost/capacity review before implementation.`"
+      ],
+      "nonBlockingNotes": [
+        "已只读检查当前 task artifacts、vps-capacity-evidence.md、object-storage-options.md 以及指定 VPS docs；未编辑文件。",
+        "不建议把 MVP 升级为 S3-compatible now；但必须把上述防误配置、防误上线、容量 gate 细节写进 artifact 后再 start。",
+        "OpenSpec gate 仍是实现前置条件，但 current implement.md 已记录；本轮未把它列为新增 patch。"
+      ]
+    },
+    {
+      "area": "backend-storage-architecture-db-vs-s3-layer3-adversarial-review",
+      "verdict": "needs-patch",
+      "blockingIssues": [
+        "推荐方向基本正确：保持 DB-backed canary MVP + storage seam，不把 S3-compatible 纳入本子任务 MVP；但只有在交付目标明确为 dev/test/小流量 canary 时成立。若目标是当前 VPS-A 公网广泛启用，必须停止并改成 S3-compatible MVP。",
+        "“canary-only”目前仍不够可执行：仅靠低配额不是 canary。工件必须要求 VPS-A DB asset upload 默认关闭，并通过当前用户 allowlist/group/capability 显式开启；非 canary 用户不得触发 DB blob 写入。",
+        "磁盘保护低估了同盘备份放大：VPS 文档显示 live new-api.db 与 automatic backups 同在 VPS-A 根盘；只检查“写入后剩余 4GiB”不足以覆盖下一次 DB 备份复制。",
+        "部署门禁仍偏弱：实现/测试可以不 SSH，但任何 VPS-A canary enablement 前必须采集新鲜 df/new-api performance stats/backup 占用；没有 2026-06-09 或部署窗口内 live 样本时，VPS-A feature 必须保持关闭。",
+        "现有/拟改工件仍需消除残余“production 2GiB/user DB 默认”口径，尤其 design.md 现有 line 309 与 implement.md line 6 的旧批准语义会误导实现代理。"
+      ],
+      "requiredArtifactPatches": [
+        "prd.md：在 Confirmed product decisions 后新增强约束：DB-backed backend is approved only for local/dev/test and explicitly allowlisted canary users. Quota caps are not a substitute for canary scoping. On VPS-A, creative asset DB uploads default disabled unless an explicit per-user/group canary capability is enabled.",
+        "prd.md Backend requirements：补充 capability/kill-switch 合同：new-api must expose a non-secret current-session capability such as creativeAssetSyncEnabled; Opentu must not prepare/upload assets when disabled. If a disabled user has local-only or credentialed media, sync stays pending with sanitized feature-disabled status instead of persisting broken/signed URLs.",
+        "prd.md Acceptance criteria：增加测试项：VPS-A-like config with DB backend disabled rejects upload for ordinary users; allowlisted canary user may upload only within global/user caps and disk/backup headroom; non-canary users cannot consume global DB asset cap.",
+        "prd.md Acceptance criteria：增加备份放大测试口径：disk guard accounts for same-root DB backup amplification, at minimum reserving headroom for live DB growth plus one next automatic backup copy, or canary enablement is blocked when backup target shares the constrained root without enough headroom.",
+        "prd.md / design.md：把 disk guard 错误码固定为一个非敏感稳定 code，例如 creative_asset_storage_capacity_exceeded 或明确映射到 creative_asset_quota_exceeded；不要在响应/status/log 中泄漏 df、路径、backup 文件名或真实剩余空间。",
+        "design.md line 58-64：补强为 fail-closed：disk stats unavailable/stale/parse-error/permission-error, root Use% >= 90%, new-api performance used_percent >= 90% when available, or free space after live write + configured backup amplification < reserve all reject writes. 4GiB is minimum reserve, not a target operating point.",
+        "design.md Storage adapter seam：明确 DB-only MVP must not import S3 SDKs, read S3 credentials, create buckets, emit object URLs, or require S3 config. S3 config names are placeholders only until an upgraded S3 scope is approved.",
+        "design.md Quota and concurrency line 309：必须替换当前“production defaults remain 64 MiB / 2 GiB per user”为：Non-VPS/dev-test logical defaults may use 64MiB per asset and 2GiB per user; VPS-A DB canary must use explicit lower caps, canary allowlist, disk+backup headroom guard; broad production requires S3-compatible storage.",
+        "implement.md Pre-start checklist line 6-10：替换旧“User accepted DB-backed MVP”为：Confirm release target is canary-only/dev-test. Previous DB-backed MVP approval is not approval for VPS-A broad rollout. If product target is broad VPS-A public production, stop and re-plan S3-compatible backend before task.py start.",
+        "implement.md：新增 Phase 0 release/storage gate：record selected scope; verify DB canary allowlist/capability semantics; record no live VPS sample for planning only; require fresh df -h /, df -i /, new-api /api/performance/stats, and backup-dir size before any VPS-A canary enablement.",
+        "implement.md Backend tests：补充 allowlist/capability tests、feature-disabled tests、disk stats unavailable/stale tests、>=90% tests、reserve tests、backup amplification tests、and cap-increase-cannot-bypass-disk-guard tests.",
+        "implement.md Dynamic workflow constraints：明确 backend worker owns DB-canary adapter only; frontend worker must honor assetSyncEnabled capability; no worker may add R2/B2/Tigris credentials, provider SDK wiring, bucket config, or public/signed object URLs unless PRD/design/implement are first upgraded to S3 scope.",
+        "research/vps-capacity-evidence.md：在 Planning consequence 追加：No live 2026-06-09 VPS-A disk/performance sample was captured in this planning pass; therefore evidence supports implementation tests and local/dev canary planning only, not enabling VPS-A canary without fresh deployment-window capacity evidence."
+      ],
+      "nonBlockingNotes": [
+        "我只读检查了 Trellis artifacts、vps-capacity-evidence.md、object-storage-options.md，以及指定 VPS 文档；未编辑文件。",
+        "VPS 文档支持该决策：VPS-A 是 new-api 公网主路径；40G 根盘、90% system_disk_overloaded 风险、至少 4G free 建议、new-api.db 与 backups/auto 同盘，均反对 DB blobs 作为广泛生产存储。",
+        "object-storage-options.md 的 provider pricing/quotas 未在线复核；如果后续升级为 S3 MVP，需重新查官方 R2/B2/Tigris 文档并把 provider choice、credential rotation、private bucket、GC/migration/rollback 纳入新 scope。",
+        "保留 DB-backed MVP 的代价应写清：本子任务交付后仍不是 VPS-A broad production ready；它只证明 API shape、snapshot shape、storage seam、sanitizer、hydration 与 canary safety。"
+      ]
+    },
+    {
+      "area": "frontend-contract-upload-rewrite-hydration / VPS storage scope Layer 3",
+      "verdict": "needs-patch",
+      "blockingIssues": [
+        "推荐决策方向正确：保持 DB-backed local/test/small VPS-A canary + StorageAdapter seam；不要默认把 S3-compatible object storage 塞进 MVP。但 revised plan 还不能直接 start。",
+        "VPS-A canary gate 仍偏“人工流程”，缺少 fail-closed runtime contract：生产环境若误用 DB backend 且未设置 canary caps/reserve，应默认禁用上传，而不是落到 2GiB/user 非 VPS 默认。",
+        "DB 备份放大风险未写死：VPS 文档明确 live new-api.db 与 automatic backups 同盘；1GiB global asset cap 会被后续 DB backup 成倍放大。disk-headroom guard 需要预留“至少下一次完整 DB backup”空间，不能只看本次 upload 后 free space。",
+        "Service Worker 测试仍 under-scoped：Opentu SW 在 apps/web/src/sw/index.ts，不在 packages/drawnix；当前 Vitest 命令只跑 drawnix 测试。即使补“early pass-through”文字，也需要可执行的 SW 测试/静态断言命令进入 implement.md。",
+        "对象存储升级 gate 还缺可执行的阻断字段：implement.md 应明确记录 approved deployment target 的位置/格式；否则实现代理可能绕过该 gate。"
+      ],
+      "requiredArtifactPatches": [
+        "PRD 额外补丁：在 VPS-A safety 下加入 fail-closed 与 backup amplification。\n```diff\n--- a/.trellis/tasks/06-09-creative-cloud-assets-sync/prd.md\n+++ b/.trellis/tasks/06-09-creative-cloud-assets-sync/prd.md\n@@\n - VPS-A deployment safety: DB-backed uploads must refuse writes when root disk usage approaches the documented warning threshold or free space would fall below the configured reserve; this guard is required even for canary mode.\n+- VPS-A deployment safety must fail closed: on production-like deployments, DB-backed creative asset upload is disabled unless the database backend is explicitly enabled with small canary caps and a configured disk-headroom reserve. Missing/invalid canary limit config must reject uploads, not fall back to the non-VPS 2GiB/user logical default.\n+- The disk-headroom reserve must account for automatic DB backup amplification on VPS-A because live `new-api.db` and its backups share the same constrained root disk. For DB-backed canary, the guard must leave enough room for current free-space reserve plus at least the next full `new-api.db` backup after the accepted upload.\n@@\n - [ ] Pre-start/deployment gate records whether the approved target is local/test/small VPS-A canary or broad VPS-A production. DB-backed MVP may start only for the former; broad VPS-A production requires S3-compatible storage scope upgrade first.\n+- [ ] Runtime config gate fails closed for DB-backed assets on production-like deployments: upload is disabled unless canary caps and backup-aware disk reserve are explicitly configured.\n```",
+        "Design 额外补丁：把 canary reserve 从“本次写入后还有空间”升级为 backup-aware，并定义生产默认禁用。\n```diff\n--- a/.trellis/tasks/06-09-creative-cloud-assets-sync/design.md\n+++ b/.trellis/tasks/06-09-creative-cloud-assets-sync/design.md\n@@\n - Before accepting a DB-backed upload, check aggregate creative DB asset bytes and an injected disk-headroom provider. Refuse writes if the upload would exceed configured caps, approach the documented 90% root usage threshold, or reduce free space below the configured reserve.\n+- Production-like DB-backed upload must fail closed unless `database` storage is explicitly enabled for a canary and `CREATIVE_ASSET_DB_GLOBAL_MAX_BYTES`, `CREATIVE_ASSET_DB_USER_MAX_BYTES`, and `CREATIVE_ASSET_DB_RESERVED_FREE_BYTES` are set to small safe values. Do not silently use the non-VPS 2GiB/user logical default on VPS-A.\n+- The injected disk-headroom provider must be backup-aware for VPS-A. Because automatic backups copy `new-api.db` under `/home/admin/apps/new-api/backups/auto` on the same root disk, the reserve calculation must include at least one next full DB-backup copy after the accepted upload, or the upload must be refused.\n@@\n - Candidate future config keys: `CREATIVE_ASSET_STORAGE=database|s3`, `CREATIVE_ASSET_DB_GLOBAL_MAX_BYTES`, `CREATIVE_ASSET_DB_USER_MAX_BYTES`, `CREATIVE_ASSET_DB_RESERVED_FREE_BYTES`, `CREATIVE_ASSET_S3_ENDPOINT`, `CREATIVE_ASSET_S3_BUCKET`, `CREATIVE_ASSET_S3_REGION`, `CREATIVE_ASSET_S3_ACCESS_KEY`, `CREATIVE_ASSET_S3_SECRET_KEY`. S3 keys are design placeholders; do not require them for the MVP DB adapter.\n+- Candidate DB safety config must include an explicit enable/disable switch such as `CREATIVE_ASSET_DB_UPLOAD_ENABLED=false` by default for production-like deployments; local/test can inject permissive limits in tests.\n```",
+        "Implement 额外补丁：让 pre-start gate 和 tests 可执行，而不是只写判断原则。\n```diff\n--- a/.trellis/tasks/06-09-creative-cloud-assets-sync/implement.md\n+++ b/.trellis/tasks/06-09-creative-cloud-assets-sync/implement.md\n@@\n - [ ] Record the approved deployment target before start: `local/test/small-canary` may use the DB-backed MVP with caps and disk guards; `vps-a-broad-production` blocks this DB-only implementation plan until S3-compatible storage is added to PRD/design/implement.\n+- [ ] Record the approved deployment target in this file before start using exactly one value: `approvedDeploymentTarget=local-test-small-vps-a-canary` or `approvedDeploymentTarget=vps-a-broad-production`. The second value blocks `task.py start` until S3-compatible storage scope is added.\n@@\n    - VPS-A DB canary caps and disk-headroom guard reject uploads before live DB/backups can consume reserved root-disk space\n+   - production-like DB upload fails closed when canary caps/reserve are missing, and backup-aware disk-headroom tests reserve space for at least the next full `new-api.db` backup copy\n@@\n - If approved deployment target is local development, tests, or small VPS-A canary, continue with DB-backed adapter only. Required gates: strict global/user caps, injected disk-headroom guard, feature flag/kill switch, and rollback path that disables asset upload/hydration without deleting asset/ref tables.\n+- If approved deployment target is local development, tests, or small VPS-A canary, continue with DB-backed adapter only. Required gates: strict global/user caps, injected backup-aware disk-headroom guard, production fail-closed upload enable flag, feature flag/kill switch, and rollback path that disables asset upload/hydration without deleting asset/ref tables.\n```",
+        "Implement 验证命令补丁：把 SW pass-through 检查纳入可执行命令。\n```diff\n--- a/.trellis/tasks/06-09-creative-cloud-assets-sync/implement.md\n+++ b/.trellis/tasks/06-09-creative-cloud-assets-sync/implement.md\n@@\n If a new asset test file is created, include it explicitly in Vitest. Minimum frontend command becomes:\n@@\n ```\n+\n+Service-worker pass-through coverage is mandatory because `/creative/api/assets/:id/content` can be requested as image/audio/video or ordinary fetch/XHR. Add either a focused SW test/helper test or a static assertion script, and include its command here. The command must prove the `/creative/api/assets/*` pass-through branch executes before image/video/audio/static/debug-XHR cache handlers in `apps/web/src/sw/index.ts` and that no `caches.open(...)` path receives those requests.\n+\n+Example accepted validation shape after adding such a test/script:\n+\n+```bash\n+cd /mnt/f/code/project/opentu\n+NX_DAEMON=false pnpm exec nx run web:build-sw\n+# plus the focused SW pass-through test/static assertion command added by the implementation\n+```\n \n Frontend changes require:\n```"
+      ],
+      "nonBlockingNotes": [
+        "只读核对完成；未编辑文件。",
+        "已查看 Trellis task artifacts、vps-capacity-evidence.md、object-storage-options.md、指定 VPS 文档、new-api/opentu 相关代码。",
+        "`python3 ./.trellis/scripts/task.py validate 06-09-creative-cloud-assets-sync` 通过；implement.jsonl/check.jsonl 均为 13 entries。",
+        "当前结论不是升级默认 MVP 到 S3；而是补强 DB canary 的 fail-closed、backup-aware guard、SW 可执行验证后再请求 start。"
+      ]
+    },
+    {
+      "area": "creative-cloud-assets-sync / VPS-A capacity re-plan / Layer 3 adversarial review",
+      "verdict": "needs-patch",
+      "blockingIssues": [
+        "结论方向基本正确：按 VPS-A 40G 根盘、90% `system_disk_overloaded`、`new-api.db` 与 backups 同盘这些证据，广泛生产路径不应继续 DB-only；但当前修订仍不能直接进入实现。",
+        "仍有工件矛盾：`research/object-storage-options.md`、`implement.jsonl`、`check.jsonl` 仍写“DB MVP / future S3 / 不扩 scope”，会把后续 sub-agent 拉回旧口径。",
+        "“DB canary fallback”这个词与“生产 S3 配置失败不得 fallback 到 DB”冲突；必须改成“explicit DB canary mode only”，避免实现成自动降级。",
+        "S3 生产路径的配置矩阵不足：未明确 storage mode、prod/canary 判定、DB canary enable flag、S3 required fields、启动/路由级 fail-closed 行为。",
+        "S3 一致性仍欠规格：上传对象成功但 DB metadata 失败、DB unique dedupe 冲突、删除对象失败、missing object restore 场景需要 pending/available 状态或等价可见性规则、retry/GC 队列与测试。",
+        "S3 adapter 测试仍偏薄：需要覆盖 Range 透传、Head/ETag/version、no redirect/no signed URL、S3 失败不回 DB、日志脱敏、fake client 断言不整包读入内存、optional live scratch bucket smoke。",
+        "VPS 风险没有完全转移：new-api 代理流式传输会增加 VPS-A 网络/CPU/并发压力；需要下载/Range 并发或速率 gate，不能只看磁盘。",
+        "`objectKey` 示例 `creative-assets/<user-id>/<asset-id>` 与“opaque”不完全一致；建议不要暴露原始 user id，用 owner scope HMAC/随机 tenant prefix。"
+      ],
+      "requiredArtifactPatches": [
+        "更新 `.trellis/tasks/06-09-creative-cloud-assets-sync/research/object-storage-options.md`：把“Keep DB-backed blob storage as MVP default / future S3”替换为“S3-compatible adapter is MVP production-capable path; DB only local/test/explicit tiny canary”。",
+        "更新 `implement.jsonl` 第 12 条 reason：改为“revised evidence requiring S3-compatible adapter in MVP for any public/VPS-A production rollout; DB only local/test/tiny canary”。",
+        "更新 `check.jsonl` 第 12 条 reason：改为“check must verify S3-compatible adapter/config/tests are implemented; DB storage is not accepted for broad production”。",
+        "在 `prd.md` 的生产对象存储要求里补：`DB canary is not fallback; no automatic fallback from s3-compatible to database; production startup/enablement fails closed when S3 config is incomplete or unhealthy.`",
+        "在 `design.md` 新增配置矩阵：`CREATIVE_ASSET_STORAGE=database|s3-compatible`、`CREATIVE_ASSET_SYNC_ENABLED`、`CREATIVE_ASSET_DATABASE_CANARY_ENABLED`、DB caps/reserve、S3 endpoint/bucket/region/access key/secret、path-style/local-test flag；说明 prod/public rollout 下 `database` 非显式 canary即拒绝启用。",
+        "在 `design.md` 把 `CreativeAssetStorage` 接口改成 streaming contract：`Put(ctx, reader, size, ...)`、`Get(ctx, key/range) -> io.ReadCloser`、`Head`、`Delete`；禁止实现把 64MiB 对象整包读入常驻内存。",
+        "在 `design.md` 补 S3 写入一致性：对象不可见前不提交可见 metadata；DB commit 失败 best-effort delete；unique dedupe 冲突删除多余对象；metadata row 指向 missing object 时 fail-closed 并记录脱敏审计。",
+        "在 `implement.md` Phase A tests 追加：S3 config validation matrix、fake S3 Head/Put/GetRange/Delete、DB canary-not-fallback、S3 failure compensation、delete retry/GC、missing object fail-closed、log/response no endpoint/key/signed URL。",
+        "在 `implement.md` Phase D 追加：若新增 AWS S3 SDK，验证 `go.mod/go.sum` 变更；正常测试不需要 live credentials；live smoke 仅在 scratch bucket env 显式设置时运行。",
+        "在 rollout gate 追加：实时记录 `new-api.db`、SQLite WAL/SHM、`backups/auto`、备份保留/放大系数；DB canary cap 必须按 live DB+backup reserve 计算，而不是只按 asset logical bytes。",
+        "在 S3 deployment gate 追加：bucket public access block、无 public ACL/policy、CORS disabled or server-only restrictive、least-privilege key、secret rotation、versioning/lifecycle 与 DB backup retention 对齐、restore drill 记录。",
+        "把 object key 例子改成 `creative-assets/<owner-scope-token>/<asset-id>`，其中 owner-scope-token 是不可逆随机/HMAC 前缀，不是原始 user id/email/content hash。"
+      ],
+      "nonBlockingNotes": [
+        "本轮只做只读审查，未编辑文件。",
+        "`prd.md/design.md/implement.md` 中用户列出的主要 patch 方向可接受，但需要把上面缺口一起并入后再 `task.py start`。",
+        "正式选择 R2/B2/Tigris 前仍需按官方当前价格、区域、配额、SLA 重新核验；当前计划应只把它们作为候选。"
+      ]
+    },
+    {
+      "area": "Creative Cloud Binary Asset Sync / VPS-A 容量复盘规划 Layer 3",
+      "verdict": "needs-patch",
+      "blockingIssues": [
+        "方向判断基本正确：若目标是当前 new-api 公网 /creative 跨设备媒体同步，VPS-A 的 40G root、90% 磁盘保护、live DB 与自动备份同盘，决定应升级为 S3-compatible 生产路径；DB-only 只能是 local/test/canary。",
+        "当前 Trellis artifacts 仍有硬冲突：prd/design/implement 的拟改内容没有覆盖 research/object-storage-options.md、research/codebase-evidence.md、implement.jsonl、check.jsonl；这些文件仍会把子代理带回 DB-backed MVP / future S3 方案。",
+        "“broad production rollout” 仍不可由代码判定：需要明确 rollout mode、kill switch、DB canary allow flag、缺省值和 fail-closed 规则，否则实现很容易在 VPS-A 缺 S3 配置时静默回退 DB。",
+        "ObjectKey 文案有潜在自相矛盾：生产必须在 new-api DB 内部持久化 server-only ObjectKey，但 API responses / Opentu snapshots / logs 不能暴露 ObjectKey、bucket URL、signed URL 或 credentials；PRD 必须写清这个例外。",
+        "S3 进入 MVP 后，一致性测试仍不足：需要覆盖 S3 Put 成功但 DB insert/metadata transaction 失败、duplicate race 产生 orphan、delete 顺序、object delete 失败、Head 不存在、S3 unhealthy 时不提交可引用 broken asset。",
+        "生产代理流量风险未充分落地：new-api 会代理 S3 内容，必须要求 streaming、Range 转发、context cancel、超时和并发/内存上限；否则虽然不吃 root disk，仍可能吃爆 VPS-A 带宽、goroutine 或内存。",
+        "R2 可以作为推荐首选，但还不是已批准部署事实；artifact 需要把真实 bucket/secret/provider owner、价格复核、smoke upload/download/range/delete 作为 release gate，而不是 implementation 假设。"
+      ],
+      "requiredArtifactPatches": [
+        "prd.md：在用户拟替换的 Confirmed product decisions 后追加一句：`Internal server-only exception: new-api may persist an opaque CreativeAsset.ObjectKey in its own DB for StorageBackend=s3, but ObjectKey must be non-URL, non-secret, not content-hash-only, and must never be returned to Opentu, document snapshots, asset API JSON, localStorage, or logs.`",
+        "prd.md：新增 Deployment mode requirements：`CREATIVE_ASSET_SYNC_ENABLED=false|true`; `CREATIVE_ASSET_ROLLOUT_MODE=local|canary|production`; `CREATIVE_ASSET_STORAGE=database|s3`. `production` requires `s3` plus complete S3 config and fails closed otherwise. `database` is accepted only for local/test or `canary` with `CREATIVE_ASSET_DB_CANARY_ENABLED=true`, low global/user caps, reserved-free guard, monitoring, and kill switch. The server must never automatically fall back from s3 to database.",
+        "prd.md：把 S3 storage requirements 扩展为：private bucket/prefix; credentials least-privilege for PutObject/GetObject/HeadObject/DeleteObject only where possible; no public read; no ListBucket dependency for request path; provider credentials and endpoint secrets are env/deployment secrets only.",
+        "prd.md：Acceptance criteria 增加：`[ ] S3 fake/in-process tests cover Put/Get/Head/Range/Delete, object-key opacity, no URL/credential exposure, and no real bucket/network/credentials.`；`[ ] S3 object write + DB metadata failure, duplicate race, delete failure, and missing object cases leave no committed broken referenced asset; any orphan cleanup is non-secret and retryable.`；`[ ] Asset content is streamed through new-api with Range and cancellation without buffering full objects in memory.`",
+        "design.md：除用户拟改内容外，把 Storage adapter seam 改为当前范围，并明确接口返回 stream metadata：`Store(...) -> ObjectKey/ETag/size`; `Open(ctx, objectKey, range) -> io.ReadCloser plus size/contentRange/status`; `Head`; `Delete`. Handlers depend only on interface，不能直接依赖 DB 或 S3 SDK。",
+        "design.md：新增 consistency ordering：Upload 在 64MiB cap 内用 bounded memory/temp spool 计算 hash/MIME/size；先同用户 dedupe；S3 写入并 Head/size/hash 校验后才提交 DB metadata；DB 提交失败则 best-effort delete object 并记录非秘密 orphan debt；不得先提交可见 S3 row 再补写 object。Delete 对未引用资产先在 DB transaction 中移除可见 row/ref 状态，再 best-effort 删除 object；反向顺序会制造 broken asset，必须禁止。",
+        "design.md：把 object key 示例从 raw user-id 改为 opaque owner prefix，例如 `creative-assets/u/<opaque-user-prefix>/<asset-id>/<random>`；禁止 email、username、raw user id、content-hash-only key、public URL 或 provider-specific URL。",
+        "design.md：配置列表补齐并统一命名：保留用户列出的 S3/DB env，同时加入 `CREATIVE_ASSET_SYNC_ENABLED`, `CREATIVE_ASSET_ROLLOUT_MODE`, `CREATIVE_ASSET_DB_CANARY_ENABLED`；把旧的 `CREATIVE_ASSET_S3_ACCESS_KEY` / `SECRET_KEY` 统一为 `CREATIVE_ASSET_S3_ACCESS_KEY_ID` / `CREATIVE_ASSET_S3_SECRET_ACCESS_KEY`。",
+        "implement.md：应用用户拟改 Phase A/S3 变更后，再加 RED tests：storage mode matrix、missing S3 config fail-closed、no auto DB fallback、DB canary requires caps+disk guard+kill switch、fake S3 Put/Get/Head/Range/Delete、secret-scrubbed S3 config/errors/logs、object-key opacity、upload/DB failure orphan cleanup、duplicate race cleanup、delete ordering、streaming/cancellation/no full-buffer assertion。",
+        "implement.md：Phase D Go command 改为包含 S3/storage：`GOCACHE=/tmp/go-build-cache go test ./service ./controller ./model ./router -run 'Test.*Creative.*Asset|Test.*Creative.*Storage|Test.*S3' -count=1`，并保留现有 broader Go/Vitest/build/diff checks。",
+        "research/object-storage-options.md：替换 Current recommendation / Planning consequence；新结论应写明：scope 已升级，S3-compatible backend 是 VPS-A broad production MVP 要求；DB blobs 只允许 local/test/capped canary/emergency fallback；R2 只是 preferred first deployment target，价格/配额需在 provider freeze 前按官方页复核；implementation 必须 generic S3-compatible。",
+        "research/codebase-evidence.md：在 Planning implications 增加 superseding note：`2026-06-09 VPS capacity review supersedes the earlier lowest-dependency DB MVP recommendation for production scope; DB remains useful for local/test/canary, but production MVP implementation now needs S3CompatibleCreativeAssetStorage.`",
+        "implement.jsonl：把 object-storage-options.md 的 reason 改为：`Planning evidence for upgraded S3-compatible production MVP path and DB local/test/canary fallback limits.`",
+        "check.jsonl：把 object-storage-options.md 的 reason 改为：`Check must verify implementation includes S3-compatible production adapter, DB fallback restrictions, fail-closed rollout config, and no bucket URL/credential exposure.`",
+        "research/vps-capacity-evidence.md：小修 source path，把 `docs/superpowers/plans/2026-06-02-grok2api-jiujiu-canary.md` 改为相对 docs root 的 `superpowers/plans/2026-06-02-grok2api-jiujiu-canary.md`，并保留 VPS-E 93% 只是 cluster headroom evidence、不是 asset-store target。"
+      ],
+      "nonBlockingNotes": [
+        "本轮只读检查了 Trellis artifacts、VPS docs、new-api/opentu 相关现状，未编辑文件。",
+        "opentu 当前没有 `openspec/changes/add-creative-cloud-asset-sync` 目录；OpenSpec gate 仍是实现前硬门禁。",
+        "new-api go.mod 当前只有 AWS SDK core/credentials/bedrockruntime，没有 service/s3；实现 S3 adapter 时不能把 Bedrock 依赖误判为已有 S3 能力。",
+        "历史 JSON 研究文件可保留为历史证据，但 sub-agent manifest 和当前 authority artifacts 必须明确 PRD/design/implement 为最新决策。"
+      ]
+    }
+  ],
+  "final": {
+    "status": "planning-ready-after-patch",
+    "layersRun": [
+      "已按 Trellis planning-only 处理；未编辑文件，未创建新任务。",
+      "已读取 trellis-start、当前 task.json、PRD/design/implement、vps-capacity-evidence.md、object-storage-options.md、implement.jsonl/check.jsonl。",
+      "已复核指定 VPS 文档要点：VPS-A 40G root、90% system_disk_overloaded 风险、至少 4G free、new-api.db 与 backups/auto 同盘、VPS-B/D/E 不适合作为公开资产持久层。",
+      "已抽查 sibling repo：new-api 当前只有 /creative/api documents/preferences，无 /creative/api/assets、CreativeAsset、S3 adapter；Opentu 只有 JSON document sync 与本地 media cache 基础。",
+      "已综合 Layer 1/2 evidence 与 Layer 3 adversarial review。"
+    ],
+    "storageDecision": "生产安全结论：升级 MVP。S3-compatible object storage 必须进入本 child 的生产路径；DB-backed blob 只保留为 local/test 和显式 tiny VPS-A canary/emergency mode。不能把 DB-backed + seam-only 宣称为 current VPS-A broad production ready。",
+    "scopeDecision": "本任务应从“DB MVP + future S3 seam”改为“generic S3-compatible production adapter + DB local/test/canary fallback”。Opentu 合同不变：只保存 /creative/api/assets/:id/content；new-api 私有鉴权并代理/stream bytes，绝不向前端暴露 bucket URL、signed URL、ObjectKey 或 credentials。",
+    "mustPatchArtifacts": [
+      ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md：替换第 22 行决策为：2026-06-09 VPS capacity re-plan upgrades MVP scope to include generic S3-compatible object storage for any current VPS-A/public production rollout. DB-backed blob storage remains only local/test and explicitly capped tiny canary/emergency mode. Opentu stores only /creative/api/assets/:id/content; new-api enforces session/owner auth and streams from configured backend. R2 may be preferred deployment candidate, but implementation is generic S3-compatible and must not hard-code provider credentials or bucket URLs.",
+      "prd.md：在 product decisions 后新增 server-only ObjectKey 例外：new-api may persist opaque CreativeAsset.ObjectKey internally for StorageBackend=s3-compatible, but ObjectKey must be non-URL, non-secret, not content-hash-only, and never returned to Opentu, snapshots, asset API JSON, localStorage, or logs.",
+      "prd.md：替换 backend storage requirement：MVP must implement CreativeAssetStorage with both s3-compatible and database adapters. Production/broad VPS-A rollout requires CREATIVE_ASSET_STORAGE=s3-compatible. database is accepted only for local/test or explicit canary with low caps, disk/backup headroom guard, monitoring, and kill switch. No automatic fallback from s3-compatible to database.",
+      "prd.md：改写 limits：64 MiB per asset remains; 2 GiB/user is logical product quota across metadata/backends, not permission to store 2 GiB/user in VPS-A DB blobs. DB-backed mode must additionally enforce much lower global/user caps, e.g. global <=1GiB and user <=256MiB, plus disk/inode/backup-aware headroom guards.",
+      "prd.md：新增 deployment mode requirements：CREATIVE_ASSET_SYNC_ENABLED, CREATIVE_ASSET_ROLLOUT_MODE=local|canary|production, CREATIVE_ASSET_STORAGE=database|s3-compatible. production requires complete S3 config and fails closed otherwise; database requires CREATIVE_ASSET_DATABASE_CANARY_ENABLED plus caps/reserve in canary only.",
+      "prd.md：新增 S3 requirements：private bucket/prefix, no public read/ACL/policy, least-privilege credentials from runtime secrets only, no ListBucket dependency on request path, opaque owner-scoped object keys, no bucket URL/signed URL/provider credential/sourceUrl persisted or logged, Range served through new-api proxy.",
+      "prd.md：Acceptance criteria 新增：fake/local S3 tests cover Put/Get/Head/Range/Delete; missing S3 config fails closed; no DB fallback on S3 failure; upload object success + DB metadata failure, duplicate race, delete failure, and missing object leave no committed broken referenced asset; content streams with Range/cancel without buffering full object; frontend snapshots never expose bucket/signed URLs.",
+      "prd.md：替换 out-of-scope 第 92 行：generic S3-compatible adapter is in MVP scope. Out of scope are direct browser-to-bucket upload, public share links, provider procurement/final pricing commitment, billing UI, and destructive migration/cleanup of existing DB blobs.",
+      ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md：替换 Summary 第 7 行为 S3-in-MVP production design：DB metadata + CreativeAssetStorage seam with s3-compatible adapter for VPS-A production/broad rollout and DB adapter only local/test/canary fallback.",
+      "design.md：模型字段改为 StorageBackend=database|s3-compatible；ObjectKey required for s3-compatible and empty for DB; Data populated only for database; add optional ObjectETag/ObjectVersion for restore/audit; object keys must use opaque owner prefix, e.g. creative-assets/u/<opaque-owner-prefix>/<asset-id>/<random>, not raw user id/email/content hash or URL.",
+      "design.md：VPS-A capacity constraints 改为 hard gate：broad production on current VPS-A requires S3-compatible storage. DB upload is canary-only, default disabled, requires caps, kill switch, fresh capacity evidence, disk stats, inode guard, and backup-aware reserve for live DB growth plus at least next full DB backup copy.",
+      "design.md：Storage adapter seam 改为 current scope：define streaming CreativeAssetStorage Store/OpenRange/Head/Delete or equivalent; implement both S3CompatibleCreativeAssetStorage and DatabaseCreativeAssetStorage; handlers depend only on interface; normal tests use fake/local S3 client and no real credentials/network; no full 64MiB object held in long-lived memory.",
+      "design.md：新增 config matrix：CREATIVE_ASSET_SYNC_ENABLED, CREATIVE_ASSET_ROLLOUT_MODE, CREATIVE_ASSET_STORAGE, CREATIVE_ASSET_DATABASE_CANARY_ENABLED, CREATIVE_ASSET_DB_GLOBAL_MAX_BYTES, CREATIVE_ASSET_DB_USER_MAX_BYTES, CREATIVE_ASSET_DB_RESERVED_FREE_BYTES, CREATIVE_ASSET_S3_ENDPOINT, REGION, BUCKET, PREFIX, ACCESS_KEY_ID, SECRET_ACCESS_KEY, FORCE_PATH_STYLE。真实 secrets 不写入 repo/Trellis/log/test fixture。",
+      "design.md：新增 bootstrap contract：/creative/api/bootstrap or equivalent exposes assetSyncEnabled and non-secret disabled/config reason. Opentu prepares/hydrates assets only when enabled; if disabled and local-only/signed media exists, document sync stays pending/sanitized instead of saving broken cloud docs.",
+      "design.md：GET content contract 补强：new-api always proxies/streams from selected backend, forwards Range, returns 206/416 correctly, honors context cancellation/timeouts, never redirects to provider URL, never returns signed URL/ObjectKey.",
+      "design.md：新增 consistency ordering：hash/MIME/size bounded before write; dedupe same-user before object write when possible; S3 write + Head/size verification before visible DB metadata commit; DB commit failure or duplicate race triggers best-effort orphan delete; delete removes/disables visible metadata/ref state before best-effort object delete; missing object fails closed with scrubbed audit.",
+      "design.md：补 frontend design：Service Worker must early pass through /creative/api/assets/* for image/audio/video/ordinary fetch and avoid app-shell/static/media caches; CreativeWorkspaceCloudRepository example must include revision lookup and suppressOutboundSync/upsert behavior so cold-start import does not emit immediate outbound update.",
+      ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md：Pre-start checklist 替换旧“DB-backed MVP accepted”为 revised scope：S3-compatible storage is required for any VPS-A/public production; DB is local/test/canary fallback only. Record approvedDeploymentTarget exactly, e.g. approvedDeploymentTarget=vps-a-production-s3 or local-test-small-vps-a-canary.",
+      "implement.md：Phase A 改名为 backend TDD for asset model, S3-compatible storage, DB fallback, and API。新增 RED tests：storage mode matrix, missing/unhealthy S3 config fail-closed, no auto DB fallback, fake S3 Put/Get/Head/Range/Delete, object-key opacity, no URL/credential exposure, secret-scrubbed logs/errors, streaming/cancellation/no full-buffer assertion.",
+      "implement.md：Phase A model step 改为 add CreativeAsset/CreativeDocumentAssetRef with StorageBackend/ObjectKey/ObjectETag/ObjectVersion; S3 rows require backend=s3-compatible and non-empty ObjectKey; DB rows use backend=database and Data only.",
+      "implement.md：Phase A storage step 改为 implement both S3CompatibleCreativeAssetStorage and DatabaseCreativeAssetStorage. Add config validation; use fake/local S3 tests; add AWS service/s3 dependency only if needed; no real bucket credentials in normal tests.",
+      "implement.md：Backend tests 追加 consistency cases：S3 Put success + DB transaction failure cleanup, duplicate race orphan cleanup, delete ordering, object delete retry/GC, missing object fail-closed, production refuses database unless explicit canary caps+disk guard+kill switch are active.",
+      "implement.md：Frontend Phase B/C 补：honor assetSyncEnabled bootstrap; invalid cloud refs MUST reject or degrade without saving broken board; asset API calls never send Authorization/apiKey/baseUrl/provider settings; snapshots contain only /creative/api/assets/:id/content.",
+      "implement.md：Validation commands 更新：Go focused run includes Test.*Creative.*Asset|Test.*Creative.*Storage|Test.*S3; add SW pass-through focused test/static assertion command for apps/web/src/sw/index.ts before cache handlers; optional live scratch-bucket smoke only when explicit env is set and must create/get/range/delete disposable object with no public URL returned.",
+      "implement.md：Dynamic workflow ownership 更新：backend branch owns storage interface + S3 adapter + DB fallback + config/security/ref/GC tests; frontend branch owns asset adapter/outbound rewrite/hydration/SW tests; main session owns provider-neutral contract, gates, and final synthesis. No worker may add real credentials or public/signed URLs.",
+      "implement.md：Risk/rollback 更新：if S3 config unhealthy, production asset sync stays disabled; do not silently route production bytes into DB. DB canary can be enabled only explicitly. Dropping tables, clearing DB Data, deleting bucket objects, or migrating/cleanup is destructive and requires separate confirmation.",
+      ".trellis/tasks/06-09-creative-cloud-assets-sync/research/object-storage-options.md：replace Current recommendation/Planning consequence with superseding note：VPS-A production MVP now requires generic S3-compatible adapter; DB blobs are local/test/explicit canary only; R2/B2/Tigris are candidates, not approved facts; official pricing/limits/TOS/region must be rechecked before provider freeze/production.",
+      ".trellis/tasks/06-09-creative-cloud-assets-sync/research/codebase-evidence.md：add superseding Planning implications note：earlier lowest-dependency DB MVP recommendation is superseded for production scope by VPS capacity review; DB remains useful for local/test/canary, but production MVP now needs S3CompatibleCreativeAssetStorage.",
+      ".trellis/tasks/06-09-creative-cloud-assets-sync/research/vps-capacity-evidence.md：fix source path for canary doc to superpowers/plans/2026-06-02-grok2api-jiujiu-canary.md and append caveat：no live 2026-06-09/deployment-window VPS-A df/performance sample was captured; DB canary cannot be enabled without fresh evidence.",
+      ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.jsonl：update object-storage-options reason to：Planning evidence for upgraded S3-compatible production MVP path and DB local/test/canary fallback limits.",
+      ".trellis/tasks/06-09-creative-cloud-assets-sync/check.jsonl：update object-storage-options reason to：Check must verify S3-compatible production adapter, DB fallback restrictions, fail-closed rollout config, and no bucket URL/credential exposure."
+    ],
+    "implementationWorkflowShape": [
+      "Apply artifact patches only, then validate Trellis planning; do not edit product repos until task.py start.",
+      "Phase 0 preflight: record approvedDeploymentTarget, provider-neutral config contract, sibling repo WIP status, OpenSpec gate status, and no real credentials in artifacts.",
+      "Phase A backend TDD in new-api: models/migration, storage interface, S3 fake adapter, DB fallback adapter, config fail-closed matrix, auth/nonce/MIME/quota/Range/ref/GC/security tests.",
+      "Phase B frontend TDD in opentu: asset prepare/upload/rewrite, sanitizer final guard, no provider secrets, bootstrap assetSyncEnabled gate, SW pass-through tests.",
+      "Phase C hydration/cold-start: download new-api content URLs into unifiedCacheService, rewrite local board, revision-aware import, no immediate outbound resync, no broken board save.",
+      "Phase D integration/validation: focused Go storage tests, broader Go tests, focused Vitest, SW assertion/build, opentu build:web, production dist regression if build output changes, diff --check across new-api/opentu/new2fly.",
+      "Phase E Trellis check: verify S3 production path implemented, DB cannot be mistaken for broad VPS-A production, OpenSpec gate completed/excepted, and rollout/rollback notes are consistent."
+    ],
+    "preStartGates": [
+      "Apply the must-patch artifacts and run python3 ./.trellis/scripts/task.py validate 06-09-creative-cloud-assets-sync.",
+      "Complete or explicitly except Opentu OpenSpec: add/associate add-creative-cloud-asset-sync and run openspec validate ... --strict before Opentu code edits.",
+      "Record approvedDeploymentTarget. If it is vps-a-broad-production/current-public-users, S3-compatible adapter remains mandatory before start; DB-only plan must not start.",
+      "Choose provider-neutral implementation contract now; choose actual provider/account/region/bucket/IAM/secret injection before production rollout. Recheck official pricing/limits/TOS at provider freeze; do not rely on stale artifact prices.",
+      "Before any VPS-A DB canary enablement, collect same-rollout-window df -h /, df -i /, GET /api/performance/stats disk_space_info, du -sh new-api.db, WAL/SHM if present, and backups/auto. If evidence missing, >=90%, inode risk, low reserve, or caps unset, DB upload stays disabled.",
+      "No real access key, secret, bucket credential, signed URL, or provider endpoint secret may be committed to repo, Trellis artifacts, logs, fixtures, snapshots, or frontend state.",
+      "Only after patched planning is accepted: task.py start, then implementation/check via Trellis sub-agent workflow with disjoint ownership."
+    ],
+    "openQuestions": [
+      "Final deployment provider is still open: Cloudflare R2 can be recommended candidate, but production must wait for official current price/limit/TOS review and owner approval.",
+      "Live VPS-A capacity was not sampled in this planning pass; only local docs were inspected.",
+      "If the user explicitly redefines MVP as canary-only/dev-test, DB-backed + seam can be a smaller alternate, but it must be labeled not production-ready for current VPS-A broad rollout."
+    ]
+  }
+}

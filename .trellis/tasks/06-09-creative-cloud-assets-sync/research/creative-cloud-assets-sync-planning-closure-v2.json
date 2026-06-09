@@ -1,0 +1,292 @@
+{
+  "workflow": ".codex-flow/generated/creative-cloud-assets-sync-planning-closure-v2.workflow.ts",
+  "journal": ".codex-flow/journal/creative-cloud-assets-sync-planning-closure-v2.jsonl",
+  "layer1": [
+    {
+      "area": "backend-storage-api-model-ref-gc",
+      "verdict": "pass",
+      "covered": [
+        "只读审查完成：已检查 prd.md、design.md、implement.md、implement/check jsonl、research/full-layered-planning-review.json；未编辑文件。",
+        "Trellis 校验通过：task.py validate 06-09-creative-cloud-assets-sync 显示 implement.jsonl/check.jsonl 均有效。",
+        "旧弱/冲突条款已基本替换：SVG 已禁用；raw sourceUrl 不再接受；rollback 不再 drop 表/blob；signed URL 失败必须 pending/block；missing/foreign/malformed asset ref 明确 400 且不保存 document mutation。",
+        "后端合同已显式：browser-session-only、mutating nonce、owner scope、DB-backed blob MVP、same-user content-hash dedupe、CreativeAsset/CreativeDocumentAssetRef、document ref transaction/atomic boundary、referenced delete 409、owner-scoped unreferenced delete/GC。",
+        "安全/存储细节已显式：MIME sniff/allowlist、64MiB/2GiB/10000/1000 quota、private cache/Vary/no-store、no wildcard CORS、Range/206、multipart hardening、cross-DB blob type、quota/concurrency tests、direct document signed-URL sanitizer。"
+      ],
+      "gaps": [
+        "非阻塞提示：CreativeAsset.Data 的 json:\"-\"/禁止直接序列化未在模型字段处单独写死，但响应合同和测试计划已要求只返回 metadata；可在实现时补强。",
+        "非阻塞提示：delete-unreferenced 与 ref-refresh 并发竞态没有像 upload/quota 并发那样单独成条，但 transaction/ref/delete/GC 合同已足够明确进入用户审阅。"
+      ],
+      "artifactRefs": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:28-52",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:73-85",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:30-111",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:204-307",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:26-60",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:151-155",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:179-193",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.jsonl:7",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/check.jsonl:7",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/full-layered-planning-review.json"
+      ]
+    },
+    {
+      "area": "frontend-outbound-upload-rewrite-sanitizer",
+      "verdict": "pass",
+      "covered": [
+        "未编辑文件；仅执行只读审阅，并运行 Trellis context/jsonl validate，implement.jsonl 与 check.jsonl 均通过。",
+        "旧弱条款已实质收紧：signed/credentialed remote URL 失败不再允许作为普通 best-effort 保留；必须匿名获取成功后上传，否则 pending/block，且不得保存原始 URL。",
+        "`sourceUrl` 冲突已消除：PRD 禁止接受/持久化 raw sourceUrl，design 将 multipart 字段改为 sourceKind/hash 等 sanitized debug metadata，implement 要求测试 asset metadata/request/document snapshot 不保存 raw URL。",
+        "SVG 风险已处理：MVP allowlist 删除 `image/svg+xml`，后续 SVG 需要单独 sanitizer/sandbox/CSP/attachment 策略和测试。",
+        "关键前端合同已明确：outbound prepare 必须纯函数式深拷贝，只改写发往 new-api 的 payload；不得污染 live board、queued snapshot 或 409 pending snapshot。",
+        "媒体字段全集已写入 PRD/design/implement：`url`,`urls[]`,`imageUrl`,`videoUrl`,`audioUrl`,`poster`,`src`,`thumbnail`,`thumbnailUrl`,`thumbnailUrls[]`,`previewImageUrl`,`coverUrl`,`clips[].audioUrl/imageUrl/imageLargeUrl`。",
+        "安全边界已补强：最终 outbound guard 覆盖 signed URL query、metadata/unknown fields/traversal misses；asset API 使用 same-origin session，不携带 Authorization/apiKey/baseUrl/provider settings；状态、localStorage、console/log 不得泄漏 data/blob/signed URL。",
+        "回退语义已修正：禁用 preparer 时仅允许无 local-only refs 和无 signed/credentialed remote refs 的纯 JSON sync，否则 pending + sanitized status，不能把已知破损媒体当同步成功。",
+        "cloud asset URL validator、absolute same-origin cloud ref、cache-only signed remote 优先、partial failure 原子性、409 purity、hydration/cold-start 与 service-worker pass-through 均已进入设计或 RED 测试计划。"
+      ],
+      "gaps": [],
+      "artifactRefs": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:43-52",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:56-65",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:72-84",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:58-60",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:141-148",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:181-193",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:243-252",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:266-277",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:304-314",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:63-86",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:194-207",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.jsonl:7",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/check.jsonl:7",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/full-layered-planning-review.json:final.mustPatchArtifacts[1-5,8-9,14-15,20]"
+      ]
+    },
+    {
+      "area": "frontend-hydration-cold-start-workspace",
+      "verdict": "pass",
+      "covered": [
+        "PRD 已明确跨设备冷启动水合目标：远端资产下载到 unifiedCacheService、本地 board 重写为 content-addressed local cache URL，并覆盖 remote id 保留、不立即出站回写、revision 决策和水合失败非敏感状态。",
+        "Design 已补强冷启动流程与 workspace 合同：list/get → hydrate → cache → rewrite → storage upsert → persist revision；明确不得使用会生成新 id 的 createBoard，导入不应触发普通 boardCreated/boardUpdated 出站链路。",
+        "mustPatch 的 cold-start 细节已落入 design/implement：adapter/repository 包含 list/get、new-api 秒级时间转 Opentu 毫秒、folderId fallback、import status/localStorage 只存 boardId/revision presence/reason/recordedAt。",
+        "Cloud asset URL validator 已明确：只接受相对或 absolute same-origin 的 /creative/api/assets/:id/content，拒绝 query/hash/cross-origin/protocol-relative/encoded traversal/malformed/oversized id，并要求 backend ref extraction 与 frontend hydration 共用该规则。",
+        "Traversal 与 RED tests 已覆盖全字段矩阵和旧漏项：url/urls[]/imageUrl/videoUrl/audioUrl/poster/src/thumbnail/thumbnailUrl/thumbnailUrls[]/previewImageUrl/coverUrl/clips.*；同时覆盖 signed URL final guard、partial failure atomicity、sanitized console/status/localStorage。",
+        "implement.jsonl/check.jsonl 已引用 full-layered-planning-review 与 frontend spec；task.py validate 通过。未发现本 area 仍残留会阻断 task start review 的旧弱/冲突条款。"
+      ],
+      "gaps": [],
+      "artifactRefs": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:63",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:81-83",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:158-179",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:254-264",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:273-277",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:309-314",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:88-105",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:194-206",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.jsonl:4",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.jsonl:7",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/check.jsonl:4",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/check.jsonl:7"
+      ]
+    },
+    {
+      "area": "security-privacy-signed-url-auth-quota",
+      "verdict": "needs-fix",
+      "covered": [
+        "PRD 已强合同化：browser-session-only 资产访问、mutating session+nonce、access-token/API-token 不授予资产访问、64MiB/2GiB/10000/1000 quota、SVG MVP 禁用、raw sourceUrl/credentialed signed URL 不落库、document POST/PUT 也必须 sanitizer、private cache/SW pass-through 均已写入。",
+        "Design 已补强核心安全设计：asset id owner scope、same-user hash dedupe、metadata/content 私有缓存头、Range、missing/foreign ref 400 且同事务 refresh refs、signed URL policy、cloud asset URL validator、multipart hardening、quota 并发/原子预留、跨 DB blob、backend document sanitizer。",
+        "Implement plan 已覆盖 RED tests：access-token-only 拒绝、nonce/origin 矩阵、cache headers/no wildcard CORS、MIME/SVG 拒绝、signed URL sanitizer、raw sourceUrl 拒绝、multipart DoS、quota 小限额与并发、cross-DB blob、same-origin frontend asset calls。",
+        "implement.jsonl/check.jsonl 校验通过，并包含 full-layered-planning-review.json、codebase evidence、OpenSpec gate、Trellis guide/backend/frontend indexes 等上下文。"
+      ],
+      "gaps": [
+        "仍有一个旧弱/冲突口径：implement.md:99 写 hydration 可“reject/ignore invalid cloud refs”。这与 design.md:275-277 和 implement.md:203 的“reject query/hash/cross-origin/protocol-relative/path traversal refs”不完全一致，可能误导实现为静默忽略并保存破损/未净化引用；建议改成 MUST reject/degrade without saving broken board。",
+        "OpenSpec gate 目前只是作为 pre-start checklist/manifest 上下文记录，openspec-prestart-gate.md 明确 implementation may proceed only after approval or explicit exception。若按 full review 的 readyToStartCriteria 严格执行，用户批准 task start 前还需确认该 gate 完成或记录例外。"
+      ],
+      "artifactRefs": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:28-52",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:58-84",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:58-90",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:93-103",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:222-290",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:273-307",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:43-55",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:69-86",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:99",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:181-204",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/full-layered-planning-review.json:final.mustPatchArtifacts",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/openspec-prestart-gate.md:11-14"
+      ]
+    },
+    {
+      "area": "verification-tdd-dynamic-implementation-workflow",
+      "verdict": "pass",
+      "covered": [
+        "只读审查完成；未编辑文件。`task.py validate 06-09-creative-cloud-assets-sync` 通过，`implement.jsonl`/`check.jsonl` 均为 11 条且 JSONL 可解析。",
+        "上一轮 `full-layered-planning-review.json` 的 mustPatchArtifacts（约 847-867 行）已基本强制落到 PRD/design/implement，而不是只保留弱提示。",
+        "旧弱/冲突条款已移除或被更强合同覆盖：未再发现 `reject or ignore`、`where practical`、签名 URL 失败不阻塞、SVG allowlist、raw `sourceUrl` 接收、仅 build output 变化才 build、可直接 drop tables 等旧口径。",
+        "PRD 已显式化关键验收：签名/带凭据 URL 不得持久化且失败 pending/block；SVG MVP 禁用；document snapshot/metadata 也做 signed URL sanitizer；asset cache/SW 私有缓存合同；纯 outbound rewrite；cold-start/409/rollback 验收。",
+        "design 已显式化 Layer 1 要求：missing/foreign/malformed refs MUST 400 且不保存；document mutation/ref refresh 原子边界；manual MultipartReader/LimitReader；quota 并发与可注入小限额；跨 DB blob 类型；Range/206；cloud URL validator；cold-start list/get、时间戳转换、folder fallback、sanitized status；kill-switch 安全语义。",
+        "implement.md 已把 TDD/动态实施工作流写清：OpenSpec pre-start gate、Backend Phase A RED tests、Frontend Phase B/C RED tests、强制 frontend build、dist regression、tsconfig baseline/delta、并行实现/串行集成/只读检查形状。",
+        "implement/check JSONL 已包含 full layered review、openspec gate、opentu AGENTS/openspec AGENTS/project.md，足以让 implement/check 子代理加载到本轮修正依据。"
+      ],
+      "gaps": [
+        "`task.json` 仍是 `planning`；本审查只判断工件是否可进入用户 review/approval，不执行 `task.py start`。",
+        "OpenSpec proposal/approval 尚未在当前工件中显示为已完成；但 implement.md 已把它设为 opentu 实现前 gate。若项目 owner 要求 OpenSpec 完成后才允许 Trellis start，则应先关闭该 gate。",
+        "implement.md 前段的初始 Vitest 命令未包含新 `creative-document-assets.test.ts`，后段 210-219 行已给出更严格更新命令；执行时必须以后段更严格命令为准。"
+      ],
+      "artifactRefs": [
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:43-52",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:58-65",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/prd.md:72-84",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:58-85",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:93-103",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:145-148",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/design.md:209-314",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:3-9",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:28-59",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:63-86",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:90-105",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:125-149",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.md:159-235",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/implement.jsonl:7-11",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/check.jsonl:7-11",
+        ".trellis/tasks/06-09-creative-cloud-assets-sync/research/full-layered-planning-review.json:847-875"
+      ]
+    }
+  ],
+  "layer2": [
+    {
+      "area": "layer2-prd-design-implement-traceability",
+      "acceptanceTrace": [
+        "结论：通过。已只读审查 prd.md、design.md、implement.md、implement/check jsonl 与 full-layered-planning-review.json；previous workflow 的 mustPatchArtifacts 已足够并入，可进入用户 review/approve task start。",
+        "AC1 跨设备 image/audio/video 本地虚拟 URL 保存/加载/水合：PRD 69 对应 design 23-29、158-164、254-264、309-314；实现计划对应 implement 88-105、202-205。",
+        "AC2-3 data/blob/虚拟缓存 URL 上传并改写 outbound snapshot：PRD 70-71 对应 design 135-143、150-157、249-252；实现计划对应 implement 63-86、194-199。",
+        "AC4 远程 URL 与 signed URL 策略：PRD 72 对应 design 145-149、181-185、243-248；实现计划对应 implement 69-72、200。",
+        "AC5-7 资产 API auth/owner/nonce、dedupe、document refs、delete/GC：PRD 73-75 对应 design 13-19、54-111、222-241、285-290；实现计划对应 implement 28-59、179-193。",
+        "AC8-13 409、secret sanitizer、拒绝矩阵、cache/header/CORS、signed URL 不落库、prepare purity：PRD 76-81 对应 design 181-193、211-228、273-283、304-307；实现计划对应 implement 48-55、72-86、183-201、206。",
+        "AC14-16 cold-start import、hydration failure、rollback/kill-switch：PRD 82-84 对应 design 158-168、204-207、254-271、309-314；实现计划对应 implement 90-105、151-155、202-207。",
+        "AC17 checks/debt：PRD 85 对应 implement 107-149、208-235；task.py validate 显示 implement.jsonl/check.jsonl 均有效且上下文文件存在。"
+      ],
+      "implementationTrace": [
+        "full-layered-planning-review.json 的 PRD 级 mustPatchArtifacts 已覆盖：remote signed URL pending/block、SVG 禁用、direct document sanitizer、asset cache/SW 合同分别落在 prd.md 43-52、56-59、72、77-80、84。",
+        "design 级 mustPatchArtifacts 已覆盖：sourceUrl 禁止、private cache/header、ref transactionality、URL field matrix、cloud asset URL validator、multipart hardening、quota/concurrency、cross-DB blob、Range、cold-start、kill-switch 分别落在 design.md 58-60、78-85、93-111、211-314。",
+        "implement 级 mustPatchArtifacts 已覆盖：frontend build 必跑、rollback 不 drop 表/blob、OpenSpec pre-start gate、Phase A/B/C RED tests 与 validation updates 分别落在 implement.md 8、28-59、63-105、125-155、177-235。",
+        "implement.jsonl/check.jsonl 将 full-layered-planning-review.json、OpenSpec gate、backend/frontend specs、codebase evidence、parent sprint result 纳入 implement/check 上下文，满足 sub-agent start 前上下文可追踪要求。"
+      ],
+      "blockingContradictions": []
+    },
+    {
+      "area": "layer2-traceability-planning-closure",
+      "acceptanceTrace": [
+        "已只读审阅 prd.md、design.md、implement.md、implement.jsonl、check.jsonl、research/full-layered-planning-review.json；未编辑文件。",
+        "运行 `python3 ./.trellis/scripts/task.py validate 06-09-creative-cloud-assets-sync`，implement.jsonl/check.jsonl 均通过。",
+        "PRD AC 69-71（本地 image/audio/video、data/blob、virtual cache URLs 上传改写与跨设备 hydration）已追踪到 design 的 outbound/hydration/cold-start 合同，以及 implement Phase B/C RED tests。",
+        "PRD AC 72、77、80、81、83（remote/signed URL、secret sanitizer、purity、sanitized failures）已追踪到 design 的 remote refs/security/error-handling/kill-switch 合同，以及 implement Phase B/C sanitizer、pending/block、atomicity、log/status/localStorage 测试。",
+        "PRD AC 73-79（asset API session/nonce/owner scope、dedupe、refs/GC、409、limits/MIME/cache headers/CORS）已追踪到 design 的 backend endpoints/model/ref transaction/quota/cache/range/multipart/cross-DB 合同，以及 implement Phase A RED tests。",
+        "PRD AC 82（cold-start id/revision/no immediate outbound update）已追踪到 design cold-start details 与 implement Phase C import/revision/timestamp/folder fallback tests。",
+        "PRD AC 84-85（rollback/kill-switch 与 target checks）已追踪到 design rollback/kill-switch 条款与 implement 风险/rollback、Phase D validation commands、known debt recording。",
+        "full-layered-planning-review.json 的 mustPatchArtifacts 已被强制性合同或 RED test 纳入当前 PRD/design/implement；未发现会误导 start gate 的残留弱条款。"
+      ],
+      "implementationTrace": [
+        "implement.jsonl/check.jsonl 都包含 full-layered-planning-review.json、codebase evidence、frontend/backend spec indexes、OpenSpec gate evidence，足够把 Layer 1/Layer 2 规划结论带入 implement/check 子流程。"
+      ],
+      "blockingContradictions": []
+    },
+    {
+      "area": "layer-2-traceability-review：pass；只读审阅，未编辑文件",
+      "acceptanceTrace": [
+        "AC69 设备 A/B 冷启动水合：PRD:69 已由 design.md:158-179、254-264、309-314 和 implement.md:88-105、202-206 覆盖。",
+        "AC70 data/blob 上传改写：PRD:70 已由 design.md:135-156 和 implement.md:63-67、198 覆盖。",
+        "AC71 virtual cache/media URL 上传改写：PRD:71 已由 design.md:117-140 和 implement.md:64、75-83、198 覆盖。",
+        "AC72 stable remote 与 signed/credentialed URL 策略：PRD:72 已由 design.md:145-149、181-185、243-248 和 implement.md:69-74、200 覆盖。",
+        "AC73 资产 API session/owner/nonce/cross-user：PRD:73 已由 design.md:13-20、58-90、222-228 和 implement.md:28-55、181-188 覆盖。",
+        "AC74 同用户 content-hash 去重：PRD:74 已由 design.md:34-45、285-290 和 implement.md:28-41 覆盖。",
+        "AC75 document→asset refs 与 GC/delete：PRD:75 已由 design.md:93-111、237-242 和 implement.md:33-35、41、53、58、189 覆盖。",
+        "AC76 409 conflict 不覆盖/不泄漏：PRD:76 已由 design.md:183-187、237-242 和 implement.md:72-73、155、189、196 覆盖。",
+        "AC77 secret sanitizer：PRD:77 已由 design.md:189-195、304-307 和 implement.md:54-55、72、74、200-201 覆盖。",
+        "AC78 oversized/MIME/auth/nonce/cross-user 拒绝矩阵：PRD:78 已由 design.md:211-228、279-302 和 implement.md:42-55、181-192 覆盖。",
+        "AC79 私有 cache/header/no public CORS：PRD:79 已由 design.md:78-85、222-228 和 implement.md:47-49、188 覆盖。",
+        "AC80 signed URL 不落库，包括 direct document POST/PUT：PRD:80 已由 design.md:193、243-248、304-307 和 implement.md:54-55、72、200 覆盖。",
+        "AC81 outbound preparation 纯函数：PRD:81 已由 design.md:150-156、249-252 和 implement.md:73、196 覆盖。",
+        "AC82 cold-start 保留 remote id、避免 immediate outbound、revision 决策：PRD:82 已由 design.md:158-179、254-264、309-314 和 implement.md:90-105、205 覆盖。",
+        "AC83 hydration failure 不保存 broken board 且状态非敏感：PRD:83 已由 design.md:264、314 和 implement.md:202-206 覆盖。",
+        "AC84 rollback/kill-switch 不 drop 表/blob：PRD:84 已由 design.md:204-208、266-271 和 implement.md:151-157 覆盖。",
+        "AC85 checks/debt 记录：PRD:85 已由 implement.md:107-149、208-235 覆盖；implement.jsonl/check.jsonl 经 task.py validate 通过。"
+      ],
+      "implementationTrace": [
+        "full-layered mustPatchArtifacts 1-4 已落入 PRD：remote URL MVP 策略、SVG 禁用、direct document sanitizer、asset cache/SW 合同均在 prd.md:47-52、58-59、72、79-80。",
+        "mustPatchArtifacts 5-15 已落入 design：sourceUrl 禁止、私有 header/cache、ref transaction、全字段 traversal、cloud asset URL validator、multipart hardening、quota/concurrency、cross-DB blob、Range、cold-start/import 细节、kill-switch 语义覆盖在 design.md:58-60、78-85、95-103、119-149、211-314。",
+        "mustPatchArtifacts 16-20 已落入 implement：OpenSpec gate、backend/frontend RED tests、build/web 验证、rollback、hydration/cold-start、validation command updates 覆盖在 implement.md:8、42-55、88-105、107-157、177-235。",
+        "implement.jsonl 和 check.jsonl 都引用 full-layered-planning-review.json、frontend/backend spec index、codebase evidence、OpenSpec gate；task.py validate 06-09-creative-cloud-assets-sync 输出 All validations passed。"
+      ],
+      "blockingContradictions": []
+    },
+    {
+      "area": "Layer 2 traceability：PRD AC → design.md / implement.md，只读审查",
+      "acceptanceTrace": [
+        "逐项追踪 prd.md:69-85；除下列 blocker 外，AC 69-82、84-85 均能在 design.md 与 implement.md 找到对应合同/测试计划。",
+        "mustPatchArtifacts 的核心安全/隐私/配额/缓存/SW/DB blob/Range/OpenSpec 上下文已基本纳入 PRD、design、implement 与 jsonl manifest；task.py validate 通过。"
+      ],
+      "implementationTrace": [
+        "未编辑文件。读取 prd.md、design.md、implement.md、implement.jsonl、check.jsonl、research/full-layered-planning-review.json、research/openspec-prestart-gate.md。",
+        "关键交叉点：prd.md:83 要求 hydration 失败不保存 broken local-only URLs；design.md:264、275-277 与 implement.md:203 强化为 reject/不保存 broken board。"
+      ],
+      "blockingContradictions": [
+        "implement.md:99 仍写 hydration 可“reject/ignore invalid cloud refs”，与 prd.md:83、design.md:264、275-277、implement.md:203 的强语义冲突。这里的 `ignore` 可能让实现静默保留/保存未净化或不可水合引用；应改为 MUST reject/degrade without saving broken board/status sanitized only。",
+        "OpenSpec gate 仍是实际 start/implementation 前置阻塞：implement.md:8 与 openspec-prestart-gate.md:13-14 要求创建/关联 `add-creative-cloud-asset-sync`、strict validate，并获得 approval 或显式例外。若用户要批准 `task.py start` 即进入可实现状态，则当前工件尚未证明该 gate 已完成或有例外记录。"
+      ]
+    },
+    {
+      "area": "creative-cloud-assets-sync 规划收口 Layer 2 traceability：通过；可交给用户 review/approval，未执行 task.py start，未编辑文件",
+      "acceptanceTrace": [
+        "只读审查范围覆盖 `prd.md`、`design.md`、`implement.md`、`implement.jsonl`、`check.jsonl`、`research/full-layered-planning-review.json`；`task.py validate 06-09-creative-cloud-assets-sync` 通过，两个 JSONL 均为 11 行且可解析。",
+        "AC69-71 本地 image/audio/video、`data:`、`blob:`、`/__aitu_cache__/`、`/asset-library/`、`/__aitu_generated__/audio/` 上传/改写/跨设备 hydration：设计落在 `design.md:21-28,135-143,150-164,254-265`。",
+        "AC72/AC80 remote/signed URL 策略与 snapshot/metadata/asset metadata 不持久化凭据 URL：设计落在 `design.md:145-148,181-193,243-247,304-307`。",
+        "AC73/AC78 session-only、owner-scope、nonce-on-mutation、拒绝 access-token-only、跨用户、超限、MIME/SVG：设计落在 `design.md:13-19,58-90,211-228,279-290`。",
+        "AC74-75 same-user hash dedupe、document→asset ref refresh、delete/GC referenced vs unreferenced：设计落在 `design.md:32-52,93-111,230-241,285-290`。",
+        "AC76/AC81 409、不覆盖远端、不泄漏 conflict/status、outbound rewrite 纯函数：设计落在 `design.md:150-156,181-187,249-252`。",
+        "AC82-83 cold-start import、保留 remote document id、不立即 outbound update、revision 冲突、hydration failure 不保存 broken board 且状态非敏感：设计落在 `design.md:158-179,254-265,309-314`。",
+        "AC77/AC79 secret sanitizer、private cache headers、Vary/no-store、nosniff、无 wildcard CORS、SW pass-through：设计落在 `design.md:78-85,189-195,222-228,304-307`。",
+        "AC84 rollback/kill-switch 不 drop 既有 asset/ref tables/blobs：设计落在 `design.md:204-207,266-271`。",
+        "AC85 target checks/known debt 记录：实施计划落在 `implement.md:107-149,208-235`，并由 `implement.jsonl/check.jsonl:1-11` 注入检查上下文。"
+      ],
+      "implementationTrace": [
+        "Backend Phase A RED tests 覆盖 AC73-80：auth/nonce/access-token-only、owner scope、dedupe、refs/GC、document sanitizer、asset metadata/sourceUrl、headers、multipart DoS、MIME/SVG、Range、cloud URL parser、cross-DB blob、quota concurrency，见 `implement.md:26-59,177-193`。",
+        "Frontend Phase B RED tests 覆盖 AC70-72/77/81：local/data/blob/virtual refs、完整 traversal、same URL one upload、remote signed URL cache/anonymous fetch/block、final outbound guard、purity、SW pass-through、status/log sanitizer，见 `implement.md:61-86,194-201`。",
+        "Frontend Phase C RED tests 覆盖 AC69/82/83：hydrate cloud refs 到 `unifiedCacheService`、same-origin credentials、MIME/size/quota validation、cold-start list/get/import、revision matrix、timestamp seconds→milliseconds、folder fallback、no immediate outbound update，见 `implement.md:88-105,202-207`。",
+        "动态实施形状已把 Layer 1 要求落为可执行 gate：serial preflight、new-api/opentu disjoint branches、serial integration、read-only checks、main synthesis/Trellis check，见 `implement.md:159-175`。",
+        "OpenSpec gate、full layered review、opentu AGENTS/openspec project context 已进入 `implement.md:3-24` 与 `implement.jsonl/check.jsonl:7-11`；实施前不会只依赖弱提示。",
+        "必须 patch 项中 remote URL、SVG 禁用、document sanitizer、private cache/SW、sourceUrl 禁止、MUST 400 refs、cloud URL validator、manual MultipartReader/LimitReader、quota concurrency、cross-DB blob、Range、cold-start、kill-switch、强制 frontend build/validation 已在 PRD/design/implement 中形成强合同，而非仅保留研究备注。"
+      ],
+      "blockingContradictions": []
+    }
+  ],
+  "final": {
+    "status": "planning-ready",
+    "layersRun": [
+      "backend-storage-api-model-ref-gc",
+      "frontend-outbound-upload-rewrite-sanitizer",
+      "frontend-hydration-cold-start-workspace",
+      "security-privacy-signed-url-auth-quota",
+      "verification-tdd-dynamic-implementation-workflow",
+      "layer2-prd-design-implement-traceability",
+      "Layer 3 final readiness synthesis"
+    ],
+    "startReady": true,
+    "findings": [
+      "只读复核完成，未编辑文件；`task.py validate 06-09-creative-cloud-assets-sync` 通过，implement/check JSONL 均有效。",
+      "上一轮 full-layered `mustPatchArtifacts` 已实质并入 PRD/design/implement：signed URL pending/block、SVG MVP 禁用、raw sourceUrl 禁止、direct document sanitizer、private cache/SW pass-through、session/nonce/owner scope、atomic refs、cloud URL validator、multipart/quota/concurrency/cross-DB blob/Range/cold-start/kill-switch/TDD/build gates 均已形成强合同。",
+      "未发现仍需 planning patch 的阻断项。`implement.md:99` 的 `reject/ignore` 属弱措辞风险，但已被 PRD/design 与 implement.md 后段的 reject/no-save/atomic failure 条款压住；实现与检查时必须以后者为准。",
+      "`task.json` 仍为 planning；本轮没有执行 `task.py start`。"
+    ],
+    "remainingPatches": [],
+    "recommendedDefaults": [
+      "实现时默认 DB-backed blob MVP、SVG 禁用、Range/206 支持、429-style `creative_asset_quota_exceeded`、signed URL 不落库。",
+      "对 invalid cloud refs 统一按 reject/degrade-without-saving-broken-board 处理，不允许 silent ignore 后保存破损 board。"
+    ],
+    "requiredPreStartGates": [
+      "用户确认批准当前 PRD/design/implement 进入 task start。",
+      "Opentu OpenSpec gate：创建/关联 `add-creative-cloud-asset-sync`，`openspec validate ... --strict` 通过，并获得 approval 或记录显式例外。",
+      "执行 `task.py start 06-09-creative-cloud-assets-sync` 后才允许进入实现；实现前记录多仓 git/diff/tsconfig baseline。"
+    ]
+  }
+}

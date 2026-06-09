@@ -1,0 +1,240 @@
+{
+  "workflow": ".codex-flow/generated/creative-cloud-assets-sync-planning.workflow.ts",
+  "journal": ".codex-flow/journal/creative-cloud-assets-sync-planning.jsonl",
+  "reviews": [
+    {
+      "branch": "backend API/model review",
+      "status": "needs-plan-fix",
+      "confirmed": [
+        "只做了只读审查；未编辑文件，且 `.trellis/tasks/06-09-creative-cloud-assets-sync/task.json` 仍是 `planning`。实现仍必须等 `python3 ./.trellis/scripts/task.py start .trellis/tasks/06-09-creative-cloud-assets-sync` 成功后才能开始。",
+        "规划 artifacts 已齐：`prd.md`、`design.md`、`implement.md`、`research/codebase-evidence.md`、`implement.jsonl`、`check.jsonl`。",
+        "new-api 当前 `/creative/api` 只有 bootstrap/models/preferences/documents，无 assets：`/mnt/f/code/project/new-api/router/web-router.go:56-69`。文档 CRUD 在 `controller/creative.go:158-313`，模型仅 `CreativeDocument` JSON/metadata/revision：`model/creative.go:57-68`。",
+        "现有 auth/nonce 模式清楚：API group 用 `CreativeSessionHeaderBridge()+UserAuth()`：`router/web-router.go:56-60`；unsafe document/preference routes 包 `CreativeRequireNonce()`：`router/web-router.go:64-69`；nonce 同时校验 Origin/Referer 与 `X-Creative-CSRF`/`X-Creative-Nonce`：`middleware/creative.go:77-113`；controller 还用 `creativeRequireSession` 拒绝 access-token 模式：`controller/creative.go:389-394`。",
+        "DB-backed blob MVP 技术上可行：GORM MySQL `[]byte` 默认 `longblob`：`/home/windc0x/go/pkg/mod/gorm.io/driver/mysql@v1.4.3/mysql.go:411-420`；Postgres 是 `bytea`：`gorm.io/driver/postgres@v1.5.2/postgres.go:200-201`；SQLite 是 `blob`：`github.com/glebarez/sqlite@v1.9.0/sqlite.go:190`。",
+        "opentu 当前 document sync 只构造/sanitize JSON snapshot：`packages/drawnix/src/services/creative-document-sync.ts:430-447`，create/put 只发 `/creative/api/documents` JSON 并带 creative headers：`creative-document-sync.ts:470-530`，flush 中没有资产上传/水合：`creative-document-sync.ts:892-915`。",
+        "opentu 可复用资产基础存在：`isVirtualMediaUrl` 覆盖 `/asset-library/`、`/__aitu_cache__/`、`/__aitu_generated__/audio/`：`utils/virtual-media-url.ts:1-38`；`unifiedCacheService.getCachedBlob`：`services/unified-cache-service.ts:1330-1377`；`cacheLocalMediaByContent`：`unified-cache-service.ts:1383-1417`；现有 JSON export traversal 只覆盖 `url/imageUrl/videoUrl/poster/src`：`data/embedded-media.ts:41-45`。"
+      ],
+      "risks": [
+        "规划写了“explicit maximum asset size / default size cap”，但没有给出具体字节值、错误码、是否可配置，也没有说明如何在 `BodyStorageCleanup`/multipart 读入前阻断超大请求。DB blob 可行，但缺少硬 cap 会造成内存/DB 膨胀风险。",
+        "MIME allowlist 仍是原则描述，没有列出允许的 MIME、sniffing 优先级、`mediaType` 与 sniffed MIME 不一致时的行为。",
+        "实现计划只明确 `POST /creative/api/assets` nonce 测试；`DELETE /creative/api/assets/:id` 的 nonce/origin 测试、GET content 的 browser-session-only/access-token 拒绝测试还不够明确。",
+        "ref/GC 模型方向正确，但计划未强制补 `user_id, asset_id` 查询索引；仅 `(user_id, document_id, asset_id)` 主键不适合高频判断 asset 是否仍被引用。",
+        "document→asset ref refresh 缺少必须测试：missing/foreign asset id 是否 400、失败时 document mutation 是否原子回滚、409/idempotent mutation 是否不刷新 refs。",
+        "`POST /assets` 的 `sourceUrl`/metadata 持久化策略不明确；如果保存 remote signed URL/query，可能绕过当前 document sanitizer。",
+        "migration surface 需要更具体：不仅是 `model/main.go` AutoMigrate，还要覆盖 `migrateDBFast` 列表、`model/creative_test.go` 与 `controller/creative_test.go` 的 test DB AutoMigrate setup。"
+      ],
+      "requiredChanges": [
+        "在 `design.md`/`implement.md` 固化资产大小策略：新增命名常量，例如 `CreativeAssetMaxBytes`，明确默认值、是否可由 env 覆盖、超限返回 413、未知 ContentLength 时用 `io.LimitReader(max+1)` 校验；并说明不要仅依赖全局 `MaxRequestBodyMB`。",
+        "在设计中列出服务端 MIME allowlist 与检测规则：服务端以内容 sniff/文件头为准，client `mimeType/mediaType` 只作 hint；不在 allowlist 返回 400；`mediaType` 必须从最终 MIME 推导或与其一致。",
+        "把 backend test plan 改成明确覆盖：POST upload 缺 session/缺 nonce/错 nonce/cross-origin；DELETE 缺 nonce/错 nonce/cross-origin；GET metadata/content 不需要 nonce但必须 browser session，Authorization access token 模式必须拒绝；cross-user GET/DELETE 返回 404。",
+        "补 ref/GC 设计细节：`CreativeDocumentAssetRef` 除 `(user_id, document_id, asset_id)` unique/primary 外，增加 `(user_id, asset_id)` index；document delete 清 refs；asset delete/GC 只按 owner scope 判断 unreferenced。",
+        "补 document ref refresh 的原子性计划：create/update/delete 应在同一 DB transaction 中刷新/删除 refs；snapshot 中引用 missing/foreign asset id 的 MVP 行为固定为 400 且不保存 document；409 conflict 和 idempotent replay 不得改变 refs。",
+        "明确 asset metadata/sourceUrl 策略：MVP 最安全是不要持久化 `sourceUrl`；如果保留，必须先 strip/redact token/signature/credential query，并补响应/DB 断言不含签名 URL、Authorization、apiKey、baseUrl。",
+        "把 migration checklist 写具体：`model/main.go` 的 `migrateDB` 与 `migrateDBFast` 都加新模型；`setupCreativeModelTestDB` 和 `setupCreativeControllerTestDB` AutoMigrate 也加 `CreativeAsset`、`CreativeDocumentAssetRef`。"
+      ],
+      "acceptanceGaps": [
+        "`model/creative_test.go` 需要新增：same-user content hash dedupe、cross-user same hash isolation、owner-scoped get/delete、referenced delete 409、unreferenced delete success、ref refresh replace/clear、foreign/missing asset ref 400/rollback。",
+        "`controller/creative_test.go` 需要新增：multipart upload success wrapper 不包含 raw `Data`；content GET 返回 bytes、Content-Type、Content-Length、private cache header；size/MIME 拒绝；browser-session-only；nonce/origin for POST/DELETE；cross-user 404。",
+        "`router/web_router_test.go` 需要新增：`/creative/api/assets` 与 `/creative/api/assets/:id/content` 命中 API JSON/blob route，不被 SPA fallback 吞掉；错误 method 不返回 creative app shell。",
+        "需要增加 migration smoke 或 AutoMigrate assertion，确保 SQLite test DB、normal migrate、fast migrate 都建出 asset/ref 表。",
+        "opentu 侧虽然非本 branch 主焦点，但计划应保留：`audioUrl`、`previewImageUrl`、`imageLargeUrl`、`thumbnail` 等字段测试，因为现有 `embedded-media.ts` 只覆盖 `url/imageUrl/videoUrl/poster/src`。"
+      ],
+      "implementationNotes": [
+        "结论：总体架构方向可用，但 backend/API/model 计划还不够严谨，建议先补上述 planning gaps，再运行 `task.py start`。",
+        "本次主要检查了 `.trellis/tasks/06-09-creative-cloud-assets-sync/*`、父任务 sprint result、`new-api` 的 router/controller/model/middleware/test surface，以及 `opentu` 的 creative document sync、virtual media URL、unified cache、embedded media traversal。"
+      ]
+    },
+    {
+      "branch": "frontend upload/rewrite review",
+      "status": "needs-plan-fix",
+      "confirmed": [
+        "只读完成：未编辑文件，任务仍是 `.trellis/tasks/06-09-creative-cloud-assets-sync/task.json` 的 `status: planning`；实现仍必须等 `task.py start` 后才能开始。",
+        "总体方向正确：PRD/design/implement 已覆盖 new-api 私有资产 API、opentu 预上传、快照重写、冷启动 hydration、409 冲突和 sanitizer。",
+        "已核对代码：`opentu/packages/drawnix/src/services/creative-document-sync.ts`、`unified-cache-service.ts`、`utils/virtual-media-url.ts`、`data/embedded-media.ts`、workspace service/storage、以及 `new-api/router/web-router.go`、`controller/creative.go`、`model/creative.go`、`middleware/creative.go`。",
+        "结论：计划还不够精确，建议先补计划再启动实现。"
+      ],
+      "risks": [
+        "`CreativeDocumentCloudAdapterLike` 在 `creative-document-sync.ts:110-123` 没有 `list()`，但冷启动设计需要 list documents；当前 class 有 `list()` 在 `creative-document-sync.ts:458-468`，接口/测试替身会卡住。",
+        "现有 `flushSnapshot` 在 `creative-document-sync.ts:892-915` 接收 pending snapshot；若资产重写原地修改，会污染 pending snapshot，409 后可能留下云 URL，而计划只泛泛说“不 mutate local board”。",
+        "现有 `embedded-media.ts:21-23,41-45,74-76` 只识别 `/__aitu_cache__/`、`/asset-library/` 和 image/video 字段；计划字段仍漏了代码中真实存在的 `thumbnailUrl`、`thumbnailUrls[]`、`urls[]`、`coverUrl` 等。",
+        "远程 `http(s)` URL 策略仍模糊：PRD 要“不泄漏 credentials”，但 stable remote URL 默认保留；对 `token/signature/x-amz-*` 等签名查询参数失败上传时如何处理未定。",
+        "冷启动导入若误用 `workspaceService.createBoard()` 会生成新 id（`workspace-service.ts:402-406`），若误用 `saveBoard()` 会 emit `boardUpdated`（`workspace-service.ts:938-964`）并可能触发回写；计划需明确用 repository 抑制回声并保留 document id。",
+        "hydration 需要给 `unifiedCacheService.cacheLocalMediaByContent(blob,type)` 提供 media type（`unified-cache-service.ts:1383-1417`），但 `/creative/api/assets/:id/content` URL 本身无扩展名；计划未明确从 metadata/Content-Type 推断。"
+      ],
+      "requiredChanges": [
+        "在 `design.md`/`implement.md` 明确新增 `CreativeDocumentCloudAdapterLike.list()` 或独立 document repository，并更新测试 fake。",
+        "在前端计划中要求资产准备函数是纯函数/深拷贝：输入 board、pending snapshot 不被修改；只返回 outbound payload。把“409 后 pending snapshot 仍保留本地 URL”写入测试清单。",
+        "把 shared media traversal 的目标文件和字段集写死：至少覆盖 `url,imageUrl,videoUrl,audioUrl,poster,src,thumbnail,thumbnailUrl,thumbnailUrls[],previewImageUrl,coverUrl,urls[],clips[].audioUrl,clips[].imageUrl,clips[].imageLargeUrl`；并说明是否替换/复用 `embedded-media.ts`，避免重复规则漂移。",
+        "补远程 URL credential 策略：对带 `token/signature/expires/x-amz-*/x-goog-*/oss*` 等查询参数的 URL，明确是匿名 fetch 成功即上传、失败则 strip/omit/block 哪一种；不能既“失败不阻塞”又“保留签名 URL”。",
+        "补 workspace import contract：`upsertBoardFromCloud` 必须保留 remote document id、先持久化 revision、避免触发普通 outbound sync，必要时直接用 `workspaceStorageService.saveBoard()` + `workspaceService.reload()`。",
+        "补 media type 推断规则：upload/hydrate 从 Blob MIME、Content-Type、asset metadata、URL 扩展推断 `image|audio|video`，空/不允许 MIME 要失败并保留 pending。",
+        "后端计划也应补一个具体 MVP size cap 和 MIME allowlist；当前 PRD 只说“explicit maximum/allowlist”，但没有数值。"
+      ],
+      "acceptanceGaps": [
+        "新增 Vitest：`flushPending` 上传并重写 outbound payload 后，原始 `Board.elements`、queued document、409 后 pending snapshot 都仍是本地 URL。",
+        "新增 Vitest：asset upload failure 时不调用 document `create/put`，pending mutation 保留，status 不泄漏 blob/data 内容或 secrets。",
+        "新增 Vitest：同一 URL 多处出现只上传一次，并覆盖 image/audio/video、`data:`、`blob:`、`/__aitu_cache__/`、`/asset-library/`、`/__aitu_generated__/audio/`。",
+        "新增 Vitest：遍历真实 nested task/audio shapes，覆盖 `TaskResult.url/urls/thumbnailUrl/thumbnailUrls/previewImageUrl/clips` 和 audio node `audioUrl/previewImageUrl`。",
+        "新增 Vitest：hydration 以 `credentials: same-origin` 下载 cloud content URL，按 MIME 写入 `cacheLocalMediaByContent`，将所有 cloud refs 改成本地 content-addressed URL。",
+        "新增 Vitest：cold-start list/get/import 缺失 board；已有本地 board 且 revision 不明/冲突时不覆盖并冻结。",
+        "新增安全测试：远程签名 URL、sourceUrl/clientAssetId/asset metadata 不持久化 token、signature、Authorization、baseUrl、provider settings。"
+      ],
+      "implementationNotes": [
+        "关键现状：`buildCreativeWorkspaceDocumentSnapshot` 在 `creative-document-sync.ts:430-447` 已 sanitizer 并构造 snapshot；adapter create/put 又在 `481-483`、`516-530` 做最终 outbound guard。",
+        "`virtual-media-url.ts:1-38` 已集中定义 `/asset-library/`、`/__aitu_cache__/`、`/__aitu_generated__/audio/`；计划应强制复用它。",
+        "`unified-cache-service.ts:1330-1377` 可按 virtual URL 取 Blob；`404-421` 和 `1383-1417` 可生成 content-addressed 本地 URL，audio 会落到 `/__aitu_generated__/audio/content-...`。",
+        "new-api 当前只有 documents：`router/web-router.go:56-69`，文档 CRUD 在 `controller/creative.go:174-313`，模型只含 `CreativeDocument`（`model/creative.go:57-68`），nonce middleware 在 `middleware/creative.go:77-113`；资产 API 确实尚不存在。",
+        "父任务 sprint 结果确认 Item 5 仍是该 child gate；本轮不应把实现混入 planning review。"
+      ]
+    },
+    {
+      "branch": "frontend hydration/cold-start review",
+      "status": "needs-plan-fix",
+      "confirmed": [
+        "只读审查完成；未编辑文件。ACE/codegraph MCP 调用被取消，已用 rg/nl/sed 只读回退。",
+        "Trellis 任务存在且为 planning：`.trellis/tasks/06-09-creative-cloud-assets-sync/task.json`；实现前必须先运行并成功完成 `python3 ./.trellis/scripts/task.py start .trellis/tasks/06-09-creative-cloud-assets-sync`。",
+        "规划工件齐全：`prd.md`、`design.md`、`implement.md`、`research/codebase-evidence.md`。整体方向正确：new-api 增加 owner-scoped `/creative/api/assets`，opentu 出站上传/重写，冷启动入站水合到 `unifiedCacheService`。",
+        "new-api 当前仅注册 `/creative/api/documents` 等文档接口，无 `/creative/api/assets`：`/mnt/f/code/project/new-api/router/web-router.go:56-69`；文档模型只存 JSON：`model/creative.go:57-68`；文档 CRUD 在 `controller/creative.go:158-313`。",
+        "opentu 当前 `CreativeDocumentCloudSyncService` 只监听本地 `boardCreated/boardUpdated/boardDeleted` 并 flush 出站快照：`creative-document-sync.ts:619-704,892-915`；`CreativeDocumentCloudAdapter.list/get` 存在但 sync service 未用 list 做远程导入：`creative-document-sync.ts:450-508`。",
+        "现有冲突冻结逻辑是出站 409 专用且私有：`CreativeDocumentCloudSyncService.freezeBoard` 在 `creative-document-sync.ts:1003-1019`；冲突状态会避免暴露远端内容：测试见 `creative-document-sync.test.ts:476-536,719-794`。",
+        "工作区可用导入底层是 `workspaceStorageService.saveBoard(board)` 和 `workspaceService.reload()`：`workspace-storage-service.ts:346-349`、`workspace-service.ts:1278-1315`；不能直接用 `workspaceService.createBoard` 保留远端 id，因为它生成新 UUID：`workspace-service.ts:402-453`。",
+        "本地缓存水合所需 API 已存在：`unifiedCacheService.getCachedBlob`、`cacheMediaFromBlob`、`cacheLocalMediaByContent`，见 `unified-cache-service.ts:1223-1417`；虚拟 URL 判断在 `utils/virtual-media-url.ts:1-38`。"
+      ],
+      "risks": [
+        "当前计划足以证明总体架构，但 frontend hydration/cold-start 分支仍有几个可导致实现歧义的缺口；建议先修正文档再 start。",
+        "如果冷启动导入误用 `workspaceService.createBoard/saveBoard/reloadBoard`，会生成新 board id 或触发 `boardCreated/boardUpdated` 出站同步环，破坏 documentId↔boardId 映射。",
+        "如果入站 asset 下载失败仍导入含 `/creative/api/assets/:id/content` 的 board，本地显示可能依赖服务端 URL 或直接破图，未满足“水合为本地 cache URL”的验收。"
+      ],
+      "requiredChanges": [
+        "在 `design.md` 的 Workspace integration 和 `implement.md` Phase C 明确：冷启动导入必须把远端 `CreativeDocumentSnapshot` 映射成完整 `Board`，保留 `document.id` 为 `board.id`，映射 `title/name`、`metadata.folderId/order`、`snapshot.elements/viewport/theme`、时间戳 fallback；默认实现用 `workspaceStorageService.saveBoard(board)` 后 `workspaceService.reload()`，或新增等价 public upsert，禁止用会生成新 id 的 `workspaceService.createBoard`。",
+        "在 `design.md`/`implement.md` 明确扩展 `CreativeDocumentCloudAdapterLike` 支持 `list()`，并把冷启动流程写成：`adapter.list()` → 对缺失本地 board 的 summary 调 `adapter.get(id)` → hydrate assets → storage upsert → persist revision。当前接口类型只含 create/get/put/delete：`creative-document-sync.ts:110-123`。",
+        "补充现有 board 冲突决策表：本地不存在则导入并保存远端 revision；本地存在且 revision 相同则不覆盖/可跳过；本地存在但 revision 缺失或不同则记录并冻结 cloud-import conflict，不覆盖本地 board，不把远端 snapshot/content/secret 写入 status 或 localStorage。计划还应要求新增 service-internal `recordCloudImportConflict`/等价方法，而不是从 repository 层直接碰私有 map。",
+        "补充入站 hydration 失败策略：对 `/creative/api/assets/:id/content` 去重下载，使用 same-origin credentials；若 401/404/network/MIME/size 校验失败，必须中止该 board 导入并记录非敏感错误/冲突，不能把未水合的 cloud URL 当成本地可用 URL 保存。",
+        "补充冷启动导入不触发出站同步的验证要求：storage upsert + reload 后不应产生 `boardCreated/boardUpdated` 事件进入 `pendingSnapshots`；若新增 public WorkspaceService upsert，也必须保证不触发普通本地编辑同步路径。"
+      ],
+      "acceptanceGaps": [
+        "缺少明确验收/测试：已有本地 board 且 revision 相同、不同、缺失三种冷启动行为。",
+        "缺少明确验收/测试：`/creative/api/assets/:id/content` 下载失败或返回非法 MIME/超限时不会保存破损 board。",
+        "缺少明确验收/测试：冷启动导入保存远端 board id，不通过 `createBoard` 生成新 id，且不会立即排队出站 PUT/POST。",
+        "缺少明确验收/测试：重复出现的同一 cloud content URL 只下载/缓存一次，并全部重写为同一个 content-addressed local URL。"
+      ],
+      "implementationNotes": [
+        "结论：计划方向和范围正确，但本分支不建议直接 start；先把上述冷启动导入、冲突、水合失败和 workspace API 约束写入 `design.md`/`implement.md`。",
+        "修完计划后再做 Trellis 1.4 review gate；实现仍必须等 `task.py start` 把状态从 planning 切到 in_progress。"
+      ]
+    },
+    {
+      "branch": "security/privacy/operations review",
+      "status": "needs-plan-fix",
+      "confirmed": [
+        "只读审阅完成：未编辑文件，未运行 task.py start；该子任务仍是 .trellis/tasks/06-09-creative-cloud-assets-sync/task.json 的 planning 状态。",
+        "计划主线是对的：PRD/design 已覆盖 /creative/api/assets、owner scope、nonce、dedupe、document refs、hydration、409 conflict 与 DB-backed blob MVP。",
+        "我检查了 Trellis 工件：prd.md、design.md、implement.md、research/codebase-evidence.md；new-api 的 router/web-router.go、controller/creative.go、middleware/creative.go、middleware/auth.go、common/gin.go、common/body_storage.go、model/creative.go；opentu 的 creative-document-sync.ts、creative-cloud-sanitizer.ts、creative-mode.ts、embedded-media.ts、virtual-media-url.ts、unified-cache-service.ts、workspace-service.ts、workspace-storage-service.ts。"
+      ],
+      "risks": [
+        "signed remote URL 泄漏：opentu 当前 sanitizer 主要按字段名/高置信 secret 值过滤，creative-cloud-sanitizer.ts:1-24、124-185 没有对 url/src/imageUrl 等字符串里的签名查询参数做剥离；而 design.md:140-143 默认保留 http(s) URL，可能把 X-Amz-Signature、token、key、expires 等持久化到云端快照。",
+        "DB blob 运维风险：design.md:41-42 只说 SizeBytes/Data，prd.md:33 与 design.md:190 只说 size cap；implement.md:124-126 也只要求尽量先限大小。缺少明确默认上限、用户总量配额、数量配额、DB 列类型和迁移/回滚策略。",
+        "私有内容访问策略不够精确：design.md:78-85 说 GET content session auth/private cache，但 implement.md:31-36 没有未登录拒绝、access-token 路径拒绝/允许决策、CORS 头、nosniff、Vary/Cache-Control 断言。new-api UserAuth 在 middleware/auth.go:36-55 会回退 Authorization access token，和“current browser session user”目标需要明确取舍。",
+        "CORS/auth header 行为测试不足：opentu CreativeDocumentCloudAdapter 当前文档 API用 credentials:'same-origin' 和 getCreativeSessionAuthHeaders()，见 creative-document-sync.ts:450-554；资产适配器计划只写了 multipart + auth headers，未规定不得发送 Authorization/API key，也未规定 remote best-effort fetch 必须 credentials:'omit'、referrerPolicy:'no-referrer'。",
+        "浏览器本地 quota/hydration 失败未定义：unifiedCacheService.cacheLocalMediaByContent 可能因 quota 抛错，见 unified-cache-service.ts:1320、1383-1416；Phase C 只说 cache/rewrite，未说明缓存失败时是否保留 cloud URL、如何标记 pending/degraded、如何避免写入不可用虚拟 URL。",
+        "rollback 仍偏概念：design.md:199-202 和 implement.md:122-128 有方向，但没有具体 feature flag/service injection 名称、禁用顺序、数据保留/备份策略；“drop tables”类回滚需要额外确认。"
+      ],
+      "requiredChanges": [
+        "在 prd.md/design.md/implement.md 加 signed URL sanitizer 规则：对所有持久化 URL 字段（url/src/imageUrl/videoUrl/audioUrl/poster/thumbnail/previewImageUrl、metadata/sourceUrl/client metadata）剥离或拒绝凭据查询参数；覆盖 X-Amz-*, X-Goog-*, AWSAccessKeyId, GoogleAccessId, Signature, Policy, Expires, token, key, access_token 等；新增前端测试证明云端 snapshot 和 asset metadata 不含这些参数。",
+        "把 backend storage limits 写成可执行合同：明确默认 per-asset cap、per-user total bytes cap、per-user asset count cap、per-document ref cap；超限状态码与错误体；在 model/controller 测试中覆盖。",
+        "明确 DB blob 迁移细节：CreativeAsset.Data 的 DB 类型（MySQL/Postgres/SQLite）、SizeBytes 索引策略、不要索引 blob、AutoMigrate 位置、回滚时默认保留表和数据；只有显式确认后才允许 drop asset/ref 表。",
+        "补充私有 content endpoint 计划与测试：未登录 GET /content 拒绝；browser session owner 可读；cross-user 404；access-token/New-Api-User 是否拒绝需明确，若坚持 browser-only 则 handler 必须调用 creativeRequireSession（controller/creative.go:389-394 同现有 document handlers）；响应必须无 Access-Control-Allow-Origin:*，包含 Cache-Control: private、Content-Type、Content-Length、X-Content-Type-Options:nosniff。",
+        "补充前端资产适配器 auth/CORS 测试：upload 使用 credentials:'same-origin' + X-Creative-CSRF/X-Creative-Nonce；download 使用 credentials:'same-origin'；任何 asset API 调用不得带 Authorization、apiKey、baseUrl；remote best-effort fetch 必须 credentials:'omit'、referrerPolicy:'no-referrer'，且不复制 headers/cookies。",
+        "补充 hydration quota 策略和验收：cacheLocalMediaByContent 失败时不得静默破坏 board；应保留 cloud URL 回退显示或记录可恢复 pending/degraded 状态，且不得把未成功缓存的本地 virtual URL 当作唯一持久引用。",
+        "把 rollback 改成 runbook：命名一个前端 feature flag/service injection 点来关闭 prepare/hydrate；后端可禁用 /creative/api/assets routes 但保留表；列出 orphan cleanup/GC 可恢复步骤；增加一次 rollback drill 验收项。"
+      ],
+      "acceptanceGaps": [
+        "现有 AC 覆盖 secret fields，但没有 signed URL query 参数剥离。",
+        "现有 AC 覆盖 per-asset size，但没有 server-side 总量/数量 quota。",
+        "现有 AC 覆盖 owner/cross-user，但没有 unauth/token-auth/CORS/header 断言。",
+        "现有 AC 覆盖 hydration happy path，但没有浏览器缓存 quota failure。",
+        "现有 AC 没有 rollback/kill-switch 验收。"
+      ],
+      "implementationNotes": [
+        "结论：当前计划不建议直接 start implementation。补齐上述计划修正后，再执行 task.py start 进入实现。"
+      ]
+    },
+    {
+      "branch": "verification/TDD review",
+      "status": "needs-plan-fix",
+      "confirmed": [
+        "PLANNING ONLY 已遵守：未编辑文件，未运行 task.py start。当前 `.trellis/tasks/06-09-creative-cloud-assets-sync/task.json` 仍为 `status: planning`，`task.py current --source` 为 none。",
+        "Trellis 校验通过：`.trellis/tasks/06-09-creative-cloud-assets-sync/implement.jsonl` 与 `check.jsonl` 各 6 条，`task.py validate 06-09-creative-cloud-assets-sync` 通过。",
+        "PRD/design/implement 主体足够接近可开工：PRD AC 覆盖跨设备 hydration、data/blob/cache URL、remote URL、安全、dedupe、refs/GC、409 与 sanitizer；design 明确 DB-backed blob MVP、`CreativeAsset`/`CreativeDocumentAssetRef`、`/creative/api/assets`、outbound rewrite 与 cold-start flow。",
+        "已检查 sibling repo 证据：`new-api/router/web-router.go:56-69` 现有 `/creative/api/documents` 路由且无 `/assets`；`new-api/middleware/creative.go:77-113` 为 nonce 保护；`new-api/model/creative.go:57-68,497-648` 仅有 `CreativeDocument`；`opentu/packages/drawnix/src/services/creative-document-sync.ts:430-554,892-980` 现有文档 sync/create/put/delete/conflict；`unified-cache-service.ts:1330-1417` 可读 blob 并 content-address cache；`virtual-media-url.ts:1-38` 覆盖 `/__aitu_cache__`、`/asset-library`、`/__aitu_generated__/audio`。",
+        "当前三仓 whitespace gate 已实际只读运行通过：`git -C /mnt/f/code/project/new-api diff --check`、`git -C /mnt/f/code/project/opentu diff --check`、`git -C /mnt/f/code/project/new2fly diff --check` 均 exit 0。"
+      ],
+      "risks": [
+        "实现前必须由主会话运行 `python3 ./.trellis/scripts/task.py start 06-09-creative-cloud-assets-sync`；未 start 前编辑 sibling repos 会违反 Trellis gate。",
+        "`new-api` 与 `opentu` 当前均有大量既有 WIP/dist/untracked 状态，实施/检查代理必须显式避免回滚或误归因。",
+        "`opentu/packages/drawnix/tsconfig.spec.json` 已知 exit 2 债务来自父任务记录；不能把 full spec typecheck 当作本任务通过条件，除非先修复并复跑。"
+      ],
+      "requiredChanges": [
+        "在 `implement.md` 增补精确资产限制测试：明确默认 `MAX_ASSET_BYTES` 与 MIME allowlist；Phase A 测试必须覆盖超限拒绝、非 allowlist MIME 拒绝、server-side sniff/不信任 client MIME。当前 PRD 要求见 `prd.md:33`，design 风险见 `design.md:189-190`，但 `implement.md:20-40` 未列测试。",
+        "在 `implement.md` Phase A 增补 mutating nonce 覆盖：不仅 `POST /creative/api/assets`，还要测试 `DELETE /creative/api/assets/:id` 缺失/错误 nonce 返回 forbidden；同时测试 GET metadata/content 不要求 nonce但必须 session-auth。",
+        "在 `implement.md` Phase A 增补 document ref 安全测试：保存 snapshot/metadata 中包含其他用户 `/creative/api/assets/:id/content` 应 400 且不刷新 refs/不变更文档；成功 create/update/delete 后 refs 替换/删除应在事务或等价一致性边界内验证。",
+        "在 Vitest 命令中加入新测试文件路径，或强制所有新增用例都扩展到 `src/services/creative-document-sync.test.ts`。当前 `implement.md:44` 允许新建 `creative-document-assets.test.ts`，但 `implement.md:90-93` 的命令不会运行它。",
+        "把 opentu build 从条件项改为本任务 frontend 改动后的必跑项，并写出精确 new-api dist 回归命令：`cd /mnt/f/code/project/new-api && GOCACHE=/tmp/go-build-cache go test . -run TestCreativeProductionRootDistMatchesRouterDistAndContract -count=1`。当前 `implement.md:96-103` 只说“if affects build output / parent task test”，不够精确。",
+        "补充 tsconfig.spec 债务处理规则：start 后先跑一次 `cd /mnt/f/code/project/opentu/packages/drawnix && TMPDIR=/dev/shm pnpm exec tsc -p tsconfig.spec.json --noEmit --pretty false` 作为当前 baseline；完成后再跑并记录是否新增 creative asset sync 相关错误。不得只引用旧 Sprint1 结果。",
+        "在 `implement.md` 增加“Post-start dynamic workflow / sub-agent execution strategy”：start 成功并确认 active task 后，再进入实施；所有实现/检查代理 prompt 必须以 `Active task: .trellis/tasks/06-09-creative-cloud-assets-sync` 开头，并声明已是 `trellis-implement`/`trellis-check`、不得嵌套派生；推荐并行仅限 disjoint cwd：backend 写 `/mnt/f/code/project/new-api`、frontend 写 `/mnt/f/code/project/opentu`，dist sync/new-api production test 必须在 frontend build 后串行执行，最后跑 `trellis-check`/read-only synthesis。"
+      ],
+      "acceptanceGaps": [
+        "AC `stable remote http(s)` 仍有歧义：PRD 要求 failed best-effort fetch 不阻塞，但 design 说 remote 默认保持不 fetch。计划需明确 MVP 是“不 fetch remote，测试 fetch 未调用且 URL 保留”，还是“启用 best-effort fetch 并测试失败不阻塞”。",
+        "AC `/__aitu_cache__/`、`/asset-library/`、`/__aitu_generated__/audio/` 需要在测试矩阵中逐项出现；当前 `implement.md:45` 只写 generic virtual cache URL，可能漏掉 generated audio prefix。",
+        "AC image/audio/video 跨设备 hydration 需要至少一个端到端-ish Vitest 覆盖三类 mediaType；当前 Phase C 只说 remote refs rewrite，未明确三类都覆盖。",
+        "Design 要求 content GET 返回 private cache headers（`design.md:82-85`），现有 implement 测试只列 bytes/MIME/owner；需补 `Cache-Control: private...` 断言。"
+      ],
+      "implementationNotes": [
+        "建议补完上述 plan fixes 后即可 start；无需重写 PRD/design 主体。",
+        "当前 exact checks 应保留并扩展：Go focused+broad、Vitest 包含 asset 新测试、mandatory build:web、new-api production dist test、三仓 diff --check、tsconfig.spec baseline/delta。",
+        "已检查的关键路径/符号包括：`CreativeRequireNonce`、`CreativeDocument`、`CreateCreativeDocument`、`UpdateCreativeDocumentSnapshot`、`DeleteCreativeDocument`、`CreativeDocumentCloudSyncService.flushSnapshot`、`CreativeDocumentCloudAdapter`、`buildCreativeWorkspaceDocumentSnapshot`、`unifiedCacheService.getCachedBlob`、`unifiedCacheService.cacheLocalMediaByContent`、`isVirtualMediaUrl`。"
+      ]
+    }
+  ],
+  "synthesis": {
+    "status": "needs-plan-fix",
+    "summary": [
+      "结论：当前不建议 start。5 个 review branch 均为 `needs-plan-fix`；虽然规划工件齐全且校验曾通过，但计划仍有会影响安全、数据模型、前端同步和验收命令的具体缺口。",
+      "本轮只读综合；未编辑文件。Trellis 上下文显示该子任务仍在 active tasks 中且为 `planning`，当前 task resolver 为 none。",
+      "实现必须等计划修正完成后，再由主会话运行 `task.py start` 成功进入 `in_progress`。"
+    ],
+    "artifactChangesNeeded": [
+      "在 `design.md` / `implement.md` 固化 backend 限额合同：默认 per-asset cap、per-user total bytes cap、per-user asset count cap、per-document ref cap、是否 env 覆盖、超限状态码/错误体；上传用 `io.LimitReader(max+1)`，不要只依赖全局 body limit。",
+      "明确 MIME allowlist 与检测规则：服务端以内容 sniff/文件头为准，client MIME 只作 hint；最终 MIME 推导 `mediaType`；不一致/不允许返回 400；content 响应断言 `Content-Type`、`Content-Length`、`Cache-Control: private`、`X-Content-Type-Options: nosniff`。",
+      "补全 auth/nonce/CORS 合同：POST/DELETE assets 必须 nonce+origin；GET metadata/content 不要 nonce但必须 browser session；明确拒绝或处理 Authorization access-token 路径；asset API 不得发送 Authorization/apiKey/baseUrl；remote fetch 必须匿名、`credentials: omit`、`referrerPolicy: no-referrer`。",
+      "补全模型、索引、迁移：`CreativeAsset`、`CreativeDocumentAssetRef` 的 DB blob 类型、不要索引 blob、`(user_id, asset_id)` 索引、normal/fast migrate、model/controller test DB AutoMigrate、rollback 默认保留表和数据。",
+      "补全 document ref 原子性：create/update/delete 与 ref refresh/delete 在同一事务或等价一致性边界；missing/foreign asset ref 返回 400 且不保存；409/idempotent replay 不改变 refs；referenced delete 409；GC/delete 只 owner-scoped 判断。",
+      "补 signed URL/sourceUrl 策略：推荐 MVP 不持久化 `sourceUrl`；所有 URL/metadata 字段必须剥离或拒绝 `X-Amz-*`、`X-Goog-*`、Signature、Policy、Expires、token、key、access_token 等凭据查询参数，并补测试证明云端 snapshot/metadata 不含 secret。",
+      "补前端 adapter/cold-start 合同：`CreativeDocumentCloudAdapterLike` 增加 `list()`；cold start 为 `list -> get -> hydrate -> storage upsert -> persist revision`；保留 remote document id 为 board id；禁止用会生成新 id 的 `createBoard`；导入不得触发普通 outbound sync。",
+      "补 frontend outbound 纯函数要求：资产准备/重写必须 deep-copy，不修改原始 `Board.elements`、queued snapshot、pending snapshot；409 后 pending 仍保留本地 URL。",
+      "固定 shared media traversal 字段集：至少覆盖 `url,imageUrl,videoUrl,audioUrl,poster,src,thumbnail,thumbnailUrl,thumbnailUrls[],previewImageUrl,coverUrl,urls[],clips[].audioUrl,clips[].imageUrl,clips[].imageLargeUrl`，并明确复用/替换 `embedded-media.ts`，避免双份规则漂移。",
+      "明确 remote http(s) MVP 策略：建议“只上传本地 virtual/data/blob/cache 资产；稳定无凭据 remote URL 经 sanitizer 后保留；带签名/凭据的 remote URL 不可原样持久化，匿名 fetch 成功才上传，否则保留 pending/阻断保存”。",
+      "补 hydration 失败策略：content 下载用 same-origin credentials、去重；401/404/network/MIME/size/quota 失败不得保存未水合 cloud URL 或虚假 local virtual URL；应中止导入并记录非敏感 recoverable conflict/degraded 状态。",
+      "补测试/验证命令：新增 asset 测试文件必须被 Vitest 命令覆盖；frontend 改动后 `build:web` 必跑；记录 `tsconfig.spec` baseline/delta；加入 new-api production dist 回归命令；保留三仓 `diff --check`。",
+      "补 rollback/kill-switch runbook：前端 feature flag/service injection 关闭 prepare/hydrate；后端可禁用 routes 但保留表；orphan cleanup/GC 可恢复步骤；禁止未经确认 drop asset/ref 表。"
+    ],
+    "startReadiness": [
+      "不满足 start 条件：规划工件存在，但仍需把上述合同写入 `prd.md`/`design.md`/`implement.md`。",
+      "计划修正后建议先运行 `python3 ./.trellis/scripts/task.py validate 06-09-creative-cloud-assets-sync`，必要时做一次轻量 1.4 review gate。",
+      "start 成功后再允许任何 new-api/opentu 代码编辑；实现代理 prompt 必须以 `Active task: .trellis/tasks/06-09-creative-cloud-assets-sync` 开头。"
+    ],
+    "remainingQuestions": [
+      "无必须阻塞用户的问题；建议按上面的推荐默认策略直接修计划。若产品方不同意 remote signed URL 阻断/匿名上传策略，需要在 start 前明确改写 PRD。"
+    ],
+    "recommendedStartCommand": "python3 ./.trellis/scripts/task.py start .trellis/tasks/06-09-creative-cloud-assets-sync",
+    "dynamicWorkflowNext": [
+      "Phase 0 串行：运行 start，确认 `task.py current --source` 指向该任务；记录 new-api/opentu 既有 WIP，禁止回滚或归因既有改动；跑 tsconfig.spec baseline。",
+      "Phase 1 并行写入仅限 disjoint cwd：Backend trellis-implement 写 `/mnt/f/code/project/new-api`；Frontend trellis-implement 写 `/mnt/f/code/project/opentu`。不要让两个 writable agents 同时写同一 cwd；若要拆 frontend outbound/hydration，需串行或使用独立 worktree。",
+      "Backend branch：实现 asset models/routes/controller/storage limits/MIME/session/nonce/ref transaction/migrations；补 Go model/controller/router/migration tests。",
+      "Frontend branch：实现 asset adapter、upload/rewrite、sanitizer、media traversal、hydration/cold-start workspace upsert/conflict；补 Vitest 覆盖 mutation safety、三类媒体、signed URL、quota/download failure。",
+      "Phase 2 串行集成：对齐 API contract，运行 frontend build；如 build 产物影响 new-api dist，再串行运行 new-api production dist regression。",
+      "Phase 3 并行 read-only check：backend tests/security headers、frontend tests/sanitizer/hydration、migration/rollback checklist、cross-repo diff ownership。",
+      "Phase 4 主会话 synthesis：运行/收集 Trellis check，确认无新增 tsconfig creative 相关错误，三仓 `diff --check`，再决定是否进入 finish-work。"
+    ]
+  }
+}
