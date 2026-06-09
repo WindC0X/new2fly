@@ -1,0 +1,7 @@
+{"file":".trellis/tasks/06-07-opentu-new-api/prd.md","reason":"Primary source requirements and future implementation acceptance criteria for the Opentu/new-api integration."}
+{"file":".trellis/tasks/06-07-opentu-new-api/product-decisions.md","reason":"Approved product decisions for creative access, auth mode, provider/model scope, billing, asset storage, and UI style."}
+{"file":".trellis/tasks/06-07-opentu-new-api/integration-assessment.md","reason":"Prior source-level risk assessment and implementation route to compare against current state."}
+{"file":".trellis/tasks/06-08-add-return-to-console-button-in-opentu/prd.md","reason":"Return-to-console acceptance requirements for embedded Opentu."}
+{"file":".trellis/tasks/06-08-add-return-to-console-button-in-opentu/context.md","reason":"Known Phase 0.5 state, deployment layout, and verification expectations."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-repository, multi-layer review heuristics."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Review heuristic for duplicated routing/provider/billing logic."}
