@@ -1,0 +1,5 @@
+{"file":".trellis/tasks/06-09-cross-repo-development-goal-audit/prd.md","reason":"Final audit must be checked against documented acceptance criteria."}
+{"file":".trellis/tasks/06-09-cross-repo-development-goal-audit/design.md","reason":"Final audit must cover all planned audit branches."}
+{"file":".trellis/tasks/06-09-cross-repo-development-goal-audit/implement.md","reason":"Final audit should record validation command outcomes from the execution plan."}
+{"file":".trellis/tasks/06-07-opentu-new-api/integration-assessment.md","reason":"Check whether findings align with known integration risks and phase boundaries."}
+{"file":".trellis/tasks/06-08-add-return-to-console-button-in-opentu/prd.md","reason":"Check current implementation against return-navigation acceptance criteria if using Phase 0.5 baseline."}

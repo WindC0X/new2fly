@@ -1,0 +1,3 @@
+{"file":".trellis/workflow.md","reason":"Authoritative Trellis phase and task workflow rules for this audit task."}
+{"file":".trellis/spec/backend/index.md","reason":"Available backend spec index; confirms whether backend conventions exist or are placeholder-only."}
+{"file":".trellis/spec/frontend/index.md","reason":"Available frontend spec index; confirms whether frontend conventions exist or are placeholder-only."}

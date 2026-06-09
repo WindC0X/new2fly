@@ -1,0 +1,2 @@
+{"file":".trellis/tasks/06-07-opentu-new-api/prd.md","reason":"Quality check should verify implementation against documented requirements and acceptance criteria."}
+{"file":".trellis/tasks/06-07-opentu-new-api/integration-assessment.md","reason":"Quality check should validate risk mitigations, provider failover behavior, and asset sync scope."}

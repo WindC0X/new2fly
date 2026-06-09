@@ -1,0 +1,9 @@
+{"file":".trellis/workflow.md","reason":"Authoritative Trellis phase gates and inline-mode planning/start requirements."}
+{"file":".trellis/tasks/06-09-cross-repo-development-goal-audit/prd.md","reason":"Current audit requirements and acceptance criteria."}
+{"file":".trellis/tasks/06-09-cross-repo-development-goal-audit/design.md","reason":"Audit branch design and reporting contract."}
+{"file":".trellis/tasks/06-09-cross-repo-development-goal-audit/implement.md","reason":"Ordered audit execution and validation plan."}
+{"file":".trellis/tasks/06-07-opentu-new-api/prd.md","reason":"Original Opentu/new-api integration requirements."}
+{"file":".trellis/tasks/06-07-opentu-new-api/integration-assessment.md","reason":"Detailed technical goals, risks, and phase roadmap for integration."}
+{"file":".trellis/tasks/06-07-opentu-new-api/phase-0-summary.md","reason":"Phase 0 completion state and known limitations."}
+{"file":".trellis/tasks/06-08-add-return-to-console-button-in-opentu/prd.md","reason":"Phase 0.5 return-navigation requirements."}
+{"file":".trellis/tasks/06-08-add-return-to-console-button-in-opentu/SUMMARY.md","reason":"Phase 0.5 status, delivered goals, and pending audit context."}

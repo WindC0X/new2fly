@@ -1,0 +1,6 @@
+# Local tool/runtime outputs
+.codegraph/
+.codex-flow/
+
+# Local Claude permission overrides
+.claude/settings.local.json

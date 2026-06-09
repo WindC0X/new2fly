@@ -1,0 +1,6 @@
+{"path": "/mnt/f/code/project/new2fly/.trellis/tasks/06-08-add-return-to-console-button-in-opentu/prd.md", "reason": "Verify all requirements and acceptance criteria are met"}
+{"path": "/mnt/f/code/project/opentu/apps/web/src/components/ReturnButton.tsx", "reason": "Check new component implementation - conditional rendering, styling, navigation"}
+{"path": "/mnt/f/code/project/opentu/apps/web/src/utils/embed-detection.ts", "reason": "Check detection logic implementation"}
+{"path": "/mnt/f/code/project/opentu/apps/web/src/app/app.tsx", "reason": "Verify ReturnButton is properly integrated", "lines": "1-100"}
+{"path": "/mnt/f/code/project/opentu/dist/apps/web/index.html", "reason": "Verify build output has correct base path /creative/"}
+{"path": "/mnt/f/code/project/new-api/web/creative/dist/index.html", "reason": "Verify deployed build in new-api has button code"}

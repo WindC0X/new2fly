@@ -1,0 +1,8 @@
+{"path": "/mnt/f/code/project/new2fly/.trellis/tasks/06-08-add-return-to-console-button-in-opentu/prd.md", "reason": "Main requirements document - read first to understand objectives"}
+{"path": "/mnt/f/code/project/new-api/.trellis/tasks/task-opentu-return-button.md", "reason": "Detailed implementation guide with code examples and step-by-step instructions"}
+{"path": "/mnt/f/code/project/opentu/apps/web/src/app/app.tsx", "reason": "Main app component - need to integrate ReturnButton here", "lines": "1-50"}
+{"path": "/mnt/f/code/project/opentu/apps/web/src/main.tsx", "reason": "Entry point - understand app initialization"}
+{"path": "/mnt/f/code/project/opentu/apps/web/vite.config.ts", "reason": "Build configuration - verify VITE_BASE_URL handling", "lines": "1140-1150"}
+{"path": "/mnt/f/code/project/opentu/apps/web/package.json", "reason": "Dependencies and build scripts"}
+{"path": "/mnt/f/code/project/new-api/router/web-router.go", "reason": "Backend routing - understand how /creative/ is served", "lines": "1-100"}
+{"path": "/mnt/f/code/project/new-api/web/default/src/hooks/use-sidebar-data.ts", "reason": "Reference for Creative Workspace menu integration (already done)", "lines": "75-90"}
