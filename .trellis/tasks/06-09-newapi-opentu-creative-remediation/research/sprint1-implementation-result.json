@@ -1,0 +1,184 @@
+{
+  "generatedAt": "2026-06-09T12:00:00+08:00",
+  "workflow": ".codex-flow/generated/newapi-opentu-creative-remediation-sprint1.workflow.ts",
+  "journal": ".codex-flow/journal/newapi-opentu-creative-remediation-sprint1.jsonl",
+  "status": "partial",
+  "implementationResults": [
+    {
+      "line": 97,
+      "repo": "/mnt/f/code/project/new-api",
+      "status": "success",
+      "changedFiles": [
+        "controller/creative.go",
+        "controller/creative_test.go",
+        "router/web-router.go",
+        "router/web_router_test.go",
+        "relay/constant/relay_mode.go",
+        "relay/constant/relay_mode_test.go",
+        "relay/common/relay_info.go",
+        "relay/common/relay_info_test.go",
+        "service/task_billing_test.go"
+      ],
+      "implemented": [
+        "读取了 new2fly 当前任务的 prd/design/implement 与 remediation-audit-synthesis.json。",
+        "为 POST /creative/relay/v1/images/generations 增加 creative relay 路由，复用 chat 相同 middleware 链。",
+        "在 controller/creative.go 抽出 creativeRelayWithSessionBroker 共享临时 session-broker token/context 逻辑；chat 行为保持使用 RelayFormatOpenAI，image 使用 RelayFormatOpenAIImage。",
+        "Path2RelayMode 支持 /creative/relay/v1/images/generations，RelayInfo 继续归一化为 /v1/images/generations 并保留 image relay mode。",
+        "补充路由存在、错误方法、未授权、nonce、forbidden field、RelayFormatOpenAIImage 与 RelayModeImagesGenerations 覆盖。",
+        "修正 service/task_billing_test.go 的 truncate 测试清理为测试开始与结束都清库，避免 exact check 中已有 creative billing 测试日志污染。"
+      ],
+      "testsRun": [
+        "git status --short：exit 0（仓库已有多项 modified/untracked creative 相关文件，按要求未回退）",
+        "gofmt -l on changed/untracked .go files：exit 0，无输出",
+        "git diff --check：exit 0",
+        "GOCACHE=/tmp/go-build-cache go test ./router ./controller ./middleware ./relay/common ./relay/constant ./service -run 'Test(.*Creative.*|.*RelayMode.*|.*Image.*|.*Forbidden.*|.*Nonce.*|.*Billing.*)' -count=1：exit 0"
+      ],
+      "remaining": [],
+      "notes": [
+        "未触碰 sibling opentu。",
+        "最终 git status 仍包含任务开始前已有的 modified/untracked 文件；本次只在 new-api 内做最小 image relay 修复与必要测试调整。"
+      ]
+    },
+    {
+      "line": 119,
+      "repo": "/mnt/f/code/project/opentu",
+      "status": "success",
+      "changedFiles": [
+        "apps/web/public/version.json",
+        "apps/web/src/app/app.tsx",
+        "apps/web/src/components/ReturnButton.tsx",
+        "apps/web/src/components/ReturnButton.test.tsx",
+        "apps/web/src/utils/embed-detection.ts",
+        "packages/drawnix/src/plugins/with-tool.ts",
+        "packages/drawnix/src/services/async-image-api-service.ts",
+        "packages/drawnix/src/services/audio-api-service.ts",
+        "packages/drawnix/src/services/character-api-service.ts",
+        "packages/drawnix/src/services/creative-session-broker.ts",
+        "packages/drawnix/src/services/creative-session-broker.test.ts",
+        "packages/drawnix/src/services/media-executor/fallback-executor.ts",
+        "packages/drawnix/src/services/task-invocation-route.ts",
+        "packages/drawnix/src/services/video-api-service.ts",
+        "packages/drawnix/src/utils/gemini-api/auth.creative-embedded.test.ts",
+        "packages/drawnix/src/utils/settings-manager.ts"
+      ],
+      "implemented": [
+        "已读取父任务与子任务 Trellis 工件。",
+        "已建立 packages/drawnix/tsconfig.spec.json 基线：exit 2；明显包含既有测试类型债务，也包含 creative 相关既有测试类型错误。",
+        "embedded /creative 下强制 text/image/video/audio 默认 active route 写入 new-api-creative session-broker，即使已有 legacy apiKey/baseUrl。",
+        "settings-manager 在 embedded 且 managed profile 可用时解析路由为 new-api-creative，apiKey 为空，authType=session-broker。",
+        "媒体/视频/音频 fallback 路径继承 route.authType，避免 session-broker 被降级成 bearer。",
+        "task invocation route 允许 session-broker profile 空 apiKey；character direct API 在 embedded 下显式禁用；tool iframe 初始化不再传 legacy apiKey/baseUrl。",
+        "新增 app-level embedded-only 返回控制台按钮，/creative 下显示，点击跳转 /dashboard，standalone 不显示。",
+        "已用 VITE_BASE_URL=/creative/ 构建生产 assets；dist 中可检索到“返回控制台”，index.html 使用 /creative/assets 路径。"
+      ],
+      "testsRun": [
+        "基线：cd packages/drawnix && TMPDIR=/dev/shm pnpm exec tsc -p tsconfig.spec.json --noEmit --pretty false：exit 2。",
+        "RED：vitest creative-session-broker + auth.creative-embedded：exit 1，新增 legacy direct credential 回归测试按预期失败。",
+        "RED：vitest apps/web/src/components/ReturnButton.test.tsx：exit 1，按预期因 ReturnButton 缺失失败。",
+        "GREEN：pnpm exec vitest run apps/web/src/components/ReturnButton.test.tsx --environment jsdom --pool=threads --maxWorkers=1 --minWorkers=1：2/2 passed。",
+        "构建：NX_DAEMON=false VITE_BASE_URL=/creative/ pnpm build:web：passed。",
+        "git status --short：已运行，仍显示用户声明的既有 modified/untracked creative 文件。",
+        "git diff --check：passed。",
+        "pnpm exec tsc -p packages/drawnix/tsconfig.lib.json --noEmit：passed。",
+        "cd packages/drawnix && ../../node_modules/.bin/vitest run src/services/creative-session-broker.test.ts src/services/provider-routing/provider-transport.session-broker.test.ts src/utils/gemini-api/auth.creative-embedded.test.ts src/services/creative-display-policy.test.ts --config vitest.config.ts --pool=threads --maxWorkers=1 --minWorkers=1：4 files / 21 tests passed。"
+      ],
+      "remaining": [
+        "packages/drawnix/tsconfig.spec.json 仍有基线类型债务，未在本次范围内清理。",
+        "父任务中的 Video/Suno/MJ relay 与 cloud asset sync 仍属已拆分后续子任务范围。"
+      ],
+      "notes": [
+        "未回滚既有 modified/untracked creative 文件；未触碰无关 .ace-tool/ 和 packages/drawnix/audio-test.pptx。",
+        "pnpm 命令持续打印 .npmrc 的 ${NPM_TOKEN} 替换警告，但未阻止构建或目标检查。"
+      ]
+    },
+    {
+      "line": 150,
+      "repo": "/mnt/f/code/project/new-api",
+      "status": "success",
+      "changedFiles": [
+        "main_creative_dist_test.go",
+        "web/creative/dist/**",
+        "router/web/creative/dist/**"
+      ],
+      "implemented": [
+        "已验证 /mnt/f/code/project/opentu/dist/apps/web 为 2026-06-09 构建：index.html 存在，入口 JS/CSS 均引用 /creative/assets，sw.js/version.json 存在，无 fixture marker。",
+        "已确认 ReturnButton 构建产物可检：assets/startup-app-0wW24Ige.js 中包含“返回控制台”和 /dashboard。",
+        "已用 opentu/dist/apps/web 同步替换 new-api/web/creative/dist，并同步 router/web/creative/dist。",
+        "新增 main 包生产 dist 防回归测试 TestCreativeProductionRootDistMatchesRouterDistAndContract：比较 main.go 嵌入的 root creative dist 与 router copy 的 index/sw/version/入口 JS/入口 CSS 哈希，并断言无 fixture marker。",
+        "按 TDD 验证：新增测试在同步前因 root/router index 哈希不一致失败；同步后通过。"
+      ],
+      "testsRun": [
+        "GOCACHE=/tmp/go-build-cache go test . -run TestCreativeProductionRootDistMatchesRouterDistAndContract -count=1（同步前预期失败；同步后通过）",
+        "git status --short（已运行；显示既有 WIP 与本次 dist 同步变更）",
+        "gofmt -l on changed/untracked .go files（无输出）",
+        "git diff --check（通过）",
+        "python/hash script comparing web/creative/dist, router/web/creative/dist, opentu/dist/apps/web for index.html, sw.js, version.json, _headers, _redirects（全部哈希一致）",
+        "grep -R -n -E 'creative fixture|creativeServiceWorkerFixture|9\\.9\\.9-test|creative-test-commit' web/creative/dist router/web/creative/dist（无匹配；grep exit 1 为预期）",
+        "GOCACHE=/tmp/go-build-cache go test . ./router ./controller ./middleware ./model ./relay/common ./relay/constant ./service -run 'Test(.*Creative.*|.*ContainsCreative.*|SetWebRouterKeepsCreativeRoutesGinSafe|.*RelayMode.*|.*Billing.*|.*Cache.*|.*CSP.*|.*Provenance.*|.*Header.*|.*Permissions.*|.*Production.*|.*Fixture.*|.*Image.*|.*Nonce.*)' -count=1（全部通过）"
+      ],
+      "remaining": [],
+      "notes": [
+        "保留了进入任务前已存在的 WIP，未回滚无关文件。",
+        "opentu version.json: version=0.9.6, buildTime=2026-06-09T03:17:19.444Z, gitCommit=unknown。"
+      ]
+    }
+  ],
+  "verificationSynthesis": {
+    "line": 195,
+    "status": "partial",
+    "covered": [
+      "Item 1：已修复。`new-api/main.go` 仍嵌入生产路径 `web/creative/dist`，当前 `opentu/dist/apps/web`、`new-api/web/creative/dist`、`new-api/router/web/creative/dist` 的 `index.html/sw.js/version.json/_headers/_redirects` 哈希一致；`version.json` buildTime 为 `2026-06-09T03:17:19.444Z`；入口资源为 `/creative/assets/index-Bhsy9ZA3.css` 和 `/creative/assets/index-DFFdajJX.js`。",
+      "Item 2：已修复。`router/web-router.go` 已注册 `POST /creative/relay/v1/images/generations`，`controller/creative.go` 用 `RelayFormatOpenAIImage` 走同一 creative session-broker 链路，relay mode/info 也映射到 image generation。",
+      "Item 6：安全绕过层面已修复。opentu embedded `/creative` 下会强制 `text/image/video/audio` route 解析到 `new-api-creative` session-broker，transport 会剥离 auth/query secret 并要求 same-origin relative path；legacy direct key/baseUrl 不再赢过 managed route。注意：video/audio/部分 async image 的完整可用性仍属于 Item 3 子任务，不等于 Sprint1 已交付异步媒体功能。",
+      "Item 4：代码和构建产物已实现，但 Trellis 子任务元数据仍是 child pending。`apps/web/src/components/ReturnButton.tsx` 已存在，`apps/web/src/app/app.tsx` 已渲染 `<ReturnButton />`，`ReturnButton.test.tsx` 覆盖 `/creative` 显示、standalone 不显示；dist 中可检到“返回控制台”和 `/dashboard`。但 `.trellis/tasks/06-08-add-return-to-console-button-in-opentu/task.json` 仍为 `planning`。",
+      "Items 3/5：已拆分。Item 3 已拆为 `06-09-creative-async-video-relay`、`06-09-creative-suno-relay`、`06-09-creative-mj-relay`；Item 5 已拆为 `06-09-creative-cloud-assets-sync`。这些 child task 当前均为 `planning`。"
+    ],
+    "remainingGates": [
+      "Trellis 元数据门：父任务仍 `in_progress [0/5 done]`；`06-08-add-return-to-console-button-in-opentu` 虽已实现代码，但 task 仍 `planning`，需要补验收并推进/归档。",
+      "Item 3 child gates：完成 `06-09-creative-async-video-relay`、`06-09-creative-suno-relay`、`06-09-creative-mj-relay` 的路径规范、session-broker、nonce/forbidden fields、async submit/fetch、幂等、CAS/refund、channel/key affinity 测试。",
+      "Item 5 child gate：完成 `06-09-creative-cloud-assets-sync` 的 `/creative/api/assets` 或等价设计/实现，覆盖 blob/data/local-cache URL、远程 URL、删除/GC、409 冲突、跨设备冷启动。",
+      "new-api broad gate：`cd /mnt/f/code/project/new-api && GOCACHE=/tmp/go-build-cache go test ./controller ./middleware ./model ./relay/common ./relay/constant ./router ./service -count=1`。",
+      "new-api full/release gate（若作为最终发布验收）：`cd /mnt/f/code/project/new-api && GOCACHE=/tmp/go-build-cache go test ./... -count=1`。",
+      "opentu spec gate 当前未关：`cd /mnt/f/code/project/opentu/packages/drawnix && TMPDIR=/dev/shm pnpm exec tsc -p tsconfig.spec.json --noEmit --pretty false`；Sprint1 journal 记录该命令 exit 2，需要修复或逐项证明 unrelated 后拆分。",
+      "opentu targeted Vitest full integration gate：`cd /mnt/f/code/project/opentu/packages/drawnix && ../../node_modules/.bin/vitest run src/utils/__tests__/ai-model-selection-storage.test.ts src/components/ai-input-bar/ModelDropdown.test.tsx src/components/ai-input-bar/ModelSelector.test.tsx src/services/creative-session-broker.test.ts src/services/creative-display-policy.test.ts src/services/creative-document-sync.test.ts src/services/creative-model-preference-sync.test.ts src/services/provider-routing/provider-transport.session-broker.test.ts src/hooks/use-creative-document-sync-status.test.tsx src/utils/gemini-api/auth.creative-embedded.test.ts --config vitest.config.ts --pool=threads --maxWorkers=1 --minWorkers=1`。",
+      "opentu build rerun gate（若后续再改 opentu）：`cd /mnt/f/code/project/opentu && NX_DAEMON=false VITE_BASE_URL=/creative/ pnpm build:web`，然后重新同步 new-api 两个 dist 目录。",
+      "Browser smoke/E2E gate：fresh authenticated new-api `/creative`，验证 ReturnButton 返回 `/dashboard`；image generation 请求命中 `/creative/relay/v1/images/generations`，无 `Authorization/apiKey/baseUrl` 泄漏；seeded legacy direct credentials 不发生 direct upstream fallback。",
+      "最终 hygiene gate：两仓和 orchestration repo 重新跑 `git diff --check`；本次只读复核中这三个 repo 当前 `git diff --check` 均无输出/exit 0。"
+    ],
+    "evidence": [
+      "Sprint1 journal：new-api image relay implementation reported success；targeted Go regex suite passed；dist sync phase reported production/router/opentu dist hash comparison passed and no fixture marker。",
+      "Current code：`new-api/router/web-router.go:72-83` 注册 chat 与 images creative relay；`controller/creative.go:338-365` 分别调用 `RelayFormatOpenAI` / `RelayFormatOpenAIImage`；`relay/constant/relay_mode.go:71-73` 识别 `/creative/relay/v1/images/generations`。",
+      "Current code：`new-api/main_creative_dist_test.go:35-61` 覆盖生产 root dist、router dist、入口 asset、fixture marker；`main.go:50-54` 是实际生产 embed path。",
+      "Current artifacts：三个 dist 根目录均为 222 个文件、137 个 assets；核心文件哈希一致；未命中 `creative fixture|creativeServiceWorkerFixture|9.9.9-test|creative-test-commit`。",
+      "Current opentu code：`creative-session-broker.ts:270-282` 不再因已有 legacy credentials 跳过 managed route；`settings-manager.ts:1788-1834,1908-1981` embedded 下优先返回 session-broker route；`provider-transport.ts:119-127,186-192,257-265` 对 session-broker 剥离敏感 auth/query 并拒绝 absolute upstream path。",
+      "Current opentu tests：`creative-session-broker.test.ts:224-270` 覆盖 legacy direct credentials 仍强制 managed route；`auth.creative-embedded.test.ts:206-309` 覆盖 seeded legacy credentials 后 `text/image/video/audio` 都解析到 `new-api-creative`。",
+      "Current ReturnButton：`apps/web/src/components/ReturnButton.tsx`、`apps/web/src/utils/embed-detection.ts`、`apps/web/src/app/app.tsx:916-919`；`apps/web/src/components/ReturnButton.test.tsx` 有 embedded/standalone 两个用例。",
+      "Workflow/task state：父任务 children 包含 5 个 child；ReturnButton、video、suno、mj、cloud-assets child task 均仍为 `planning`。"
+    ],
+    "recommendedNext": [
+      "先关闭 metadata 漂移：对 ReturnButton child 跑验收并将状态推进，不要让“已实现但 planning”长期存在。",
+      "下一步优先跑 opentu `tsconfig.spec.json`，按 integration vs legacy 分类；不要在未归因前声明父任务完成。",
+      "在处理 Items 3/5 子任务前，保持当前 Sprint1 修复范围冻结，只做验证/小修，避免把 async 媒体和资产同步混入父任务。"
+    ]
+  },
+  "postWorkflowChecks": [
+    {
+      "name": "new-api-broad-go-test",
+      "log": ".codex-flow/evidence/sprint1/new-api-broad-go-test.log",
+      "exitCode": 0,
+      "tail": "ok  \tgithub.com/QuantumNous/new-api\t0.096s\nok  \tgithub.com/QuantumNous/new-api/controller\t0.170s\nok  \tgithub.com/QuantumNous/new-api/middleware\t0.031s\nok  \tgithub.com/QuantumNous/new-api/model\t0.054s\nok  \tgithub.com/QuantumNous/new-api/relay/common\t0.031s\nok  \tgithub.com/QuantumNous/new-api/relay/constant\t0.011s\nok  \tgithub.com/QuantumNous/new-api/router\t0.101s\nok  \tgithub.com/QuantumNous/new-api/service\t0.291s"
+    },
+    {
+      "name": "opentu-targeted-vitest-full",
+      "log": ".codex-flow/evidence/sprint1/opentu-targeted-vitest-full.log",
+      "exitCode": 0,
+      "tail": "  hasRemoteSnapshot: true\n}\n\n ✓ src/services/creative-document-sync.test.ts (18 tests) 22ms\nstderr | src/services/creative-session-broker.test.ts > initializeCreativeManagedSessionBroker bootstrap auth > returns error and clears stale auth material for wrong auth.mode\n[CreativeSessionBroker] initialization failed: creative bootstrap auth.mode must be session-broker\n\nstderr | src/services/creative-session-broker.test.ts > initializeCreativeManagedSessionBroker bootstrap auth > returns error and clears stale auth material for missing nonce\n[CreativeSessionBroker] initialization failed: creative bootstrap auth.nonce is required\n\n ✓ src/services/creative-session-broker.test.ts (8 tests) 30ms\n ✓ src/services/creative-model-preference-sync.test.ts (4 tests) 9ms\n ✓ src/services/provider-routing/provider-transport.session-broker.test.ts (6 tests) 12ms\n ✓ src/services/creative-display-policy.test.ts (3 tests) 4ms\n\n Test Files  10 passed (10)\n      Tests  58 passed (58)\n   Start at  11:54:33\n   Duration  141.69s (transform 5.12s, setup 38ms, collect 24.49s, tests 867ms, environment 94.25s, prepare 16.11s)\n"
+    },
+    {
+      "name": "opentu-tsconfig-spec",
+      "log": ".codex-flow/evidence/sprint1/opentu-tsconfig-spec.log",
+      "exitCode": 2,
+      "tail": "  Type '{ sourceContent: string; content: string; title: string; tags: string[]; modelType: string; } | { sourceContent: string; content: string; title: undefined; tags: undefined; modelType: undefined; }' is not assignable to type '{ sourceContent: string; content: string; title: undefined; tags: undefined; modelType: undefined; }'.\n    Type '{ sourceContent: string; content: string; title: string; tags: string[]; modelType: string; }' is not assignable to type '{ sourceContent: string; content: string; title: undefined; tags: undefined; modelType: undefined; }'.\n      Types of property 'title' are incompatible.\n        Type 'string' is not assignable to type 'undefined'.\nsrc/services/prompt-history-service.test.ts(575,46): error TS2345: Argument of type '(content: string) => boolean' is not assignable to parameter of type 'NormalizedProcedure<() => boolean>'.\n  Target signature provides too few arguments. Expected 1 or more, but got 0.\nsrc/utils/__tests__/ai-model-selection-storage.test.ts(27,7): error TS2322: Type '\"GEMINI\"' is not assignable to type 'ModelVendor | null | undefined'.\nsrc/utils/__tests__/ai-model-selection-storage.test.ts(33,7): error TS2322: Type '\"GOOGLE\"' is not assignable to type 'ModelVendor | null | undefined'.\nsrc/utils/__tests__/ai-model-selection-storage.test.ts(53,7): error TS2322: Type '\"DEEPSEEK\"' is not assignable to type 'ModelVendor | null | undefined'.\nsrc/utils/__tests__/ai-model-selection-storage.test.ts(72,7): error TS2322: Type '\"DEEPSEEK\"' is not assignable to type 'ModelVendor | null | undefined'.\nsrc/utils/__tests__/ai-model-selection-storage.test.ts(78,7): error TS2322: Type '\"GEMINI\"' is not assignable to type 'ModelVendor | null | undefined'.\nsrc/utils/__tests__/ai-model-selection-storage.test.ts(117,7): error TS2322: Type '\"OTHER\"' is not assignable to type 'ModelVendor | null | undefined'.\nsrc/utils/__tests__/ai-model-selection-storage.test.ts(122,7): error TS2322: Type '\"KLING\"' is not assignable to type 'ModelVendor | null | undefined'.\nsrc/utils/__tests__/ai-model-selection-storage.test.ts(218,7): error TS2322: Type '\"GPT\"' is not assignable to type 'ModelVendor | null | undefined'.\nsrc/utils/__tests__/frame-preview-snapshot.test.ts(88,42): error TS2345: Argument of type '{ id: string; type: string; name: string; points: number[][]; children: never[]; }' is not assignable to parameter of type 'PlaitFrame'.\n  Types of property 'type' are incompatible.\n    Type 'string' is not assignable to type '\"frame\"'.\nsrc/utils/__tests__/model-grouping.test.ts(38,13): error TS2353: Object literal may only specify known properties, and 'text' does not exist in type 'ProviderCapabilities'.\nsrc/utils/__tests__/model-grouping.test.ts(51,13): error TS2353: Object literal may only specify known properties, and 'text' does not exist in type 'ProviderCapabilities'.\n../utils/src/logger/index.ts(8,15): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', or 'nodenext'."
+    }
+  ]
+}

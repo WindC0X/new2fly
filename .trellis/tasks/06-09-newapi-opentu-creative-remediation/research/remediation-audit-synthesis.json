@@ -1,0 +1,329 @@
+{
+  "journal": ".codex-flow/journal/newapi-opentu-creative-remediation-audit.jsonl",
+  "branches": [
+    {
+      "branch": "read-only-audit:.trellis/tasks/06-09-newapi-opentu-creative-remediation:item-1",
+      "status": "ok",
+      "confirmed": [
+        "生产入口是 `/mnt/f/code/project/new-api/main.go:50-54`：`//go:embed web/creative/dist` 与 `web/creative/dist/index.html`；`main.go:199-205` 把该 FS 传给 router。",
+        "当前生产 dist 与最新 opentu dist 不一致：`new-api/web/creative/dist` 为 222 files / 35188242 bytes / buildTime `2026-06-07T23:46:42.001Z`；`new-api/router/web/creative/dist` 与 `opentu/dist/apps/web` 均为 222 files / 35295772 bytes / buildTime `2026-06-08T17:30:07.747Z`，且二者全量同名 hash 差异为 0。",
+        "`new-api/web/creative/dist` 不是 fixture，但相对最新 opentu/router dist 已过期：与 opentu 比较有 `48` 个仅 opentu 有的 hash 文件、`48` 个仅生产路径有的 hash 文件、`5` 个同名文件 hash 不同。",
+        "三个目录均未发现 fixture marker；三个 `index.html` 均使用 `/creative/assets/...` 入口引用。",
+        "Docker/build 期望生产路径也是 `new-api/web/creative/dist`：`/mnt/f/code/project/new-api/Dockerfile:39-40` 注释并 `COPY ./web/creative/dist ./web/creative/dist`；opentu 构建输出为 `dist/apps/web`：`opentu/package.json:28`、`opentu/apps/web/vite.config.ts:1146,1216`。",
+        "`router/web_router_test.go` 覆盖的是 router 包相对路径 `/mnt/f/code/project/new-api/router/web/creative/dist`，不是生产 root 路径；证据：`router/web_router_test.go:34-38` 的 `//go:embed web/creative/dist`，以及 `:145,:170,:176,:178,:181,:278` 均读取 `testCreativeBuildFS`。"
+      ],
+      "disproved": [
+        "外部审计若暗示生产 dist 是 fixture：未证实；当前三个目录 fixture_marker_files 均为 0。",
+        "`new-api/router/web/creative/dist` 不是生产 `main.go` 的嵌入路径；它只是 router 包测试可嵌入的相对目录。"
+      ],
+      "openQuestions": [
+        "未在本地两个仓库内找到实际 CI copy/sync 脚本；Dockerfile 只声明 `web/creative/dist` 由 CI 预置。"
+      ],
+      "recommendedFixes": [
+        "最小安全修复：将 `/mnt/f/code/project/opentu/dist/apps/web/` 原样同步到 `/mnt/f/code/project/new-api/web/creative/dist/`，保留 `main.go` 与 Dockerfile 当前生产路径，不改到 router 路径。",
+        "短期若继续保留 router fixture：同步 `/mnt/f/code/project/new-api/router/web/creative/dist/`，并新增测试断言 root 生产 dist 与 router fixture 的 `version.json/index.html/entry assets` hash 一致。",
+        "更稳的测试：在 new-api 根包新增 `main` 包测试，直接读取生产 `creativeBuildFS` / `creativeIndexPage`，断言无 fixture marker、`/creative/assets` 入口存在、entry JS/CSS 可读、`version.json` provenance 正确；这样 stale `new-api/web/creative/dist` 会失败。",
+        "避免重复漂移的后续改进：用一个 repo-local sync/check 脚本固定 `opentu/dist/apps/web -> new-api/web/creative/dist`，并在 CI/Docker build 前执行 hash/provenance 校验。"
+      ],
+      "evidence": [
+        "`/mnt/f/code/project/new-api/main.go:50-54` embeds `web/creative/dist`; `main.go:204-205` passes `CreativeBuildFS: creativeBuildFS`.",
+        "hashes: production index `5f8aa900eea31b969cebe5e32393678d31bcc9623ba230cce8962fd14236147a`, version `1f7e87afef770d9863e45a49c1eab8ab7af8251bde70aaa1d7fe843f5f927b70`; router/opentu index `3b34d9c7f310cbd6275d0531e04d7ada972b4c723a2e8735be0ba468b4de4e5b`, version `14ef5650547f0063112e43f43cfa2f36fa52688aa59e44b7a11c4274a4543ab3`.",
+        "entry refs: production `/creative/assets/index-Blrpm-7x.js`, `/creative/assets/index-C2C9RW9e.css`; router/opentu `/creative/assets/index-DPE6xIll.js`, `/creative/assets/index-Bhsy9ZA3.css`.",
+        "router/opentu entry asset hashes match: JS `fd73be8bc8ee6b387d6efc6be436c4f5856eb39d7bdcb62e6e0ffd4cc52d8d51`, CSS `c252c421e18e3175ebbd31a32fd8a0e8283104b13b2b01eb6d833c6ae31f8614`; production entry assets differ.",
+        "`/mnt/f/code/project/new-api/Dockerfile:39-40`; `/mnt/f/code/project/opentu/package.json:28-29`; `/mnt/f/code/project/opentu/apps/web/vite.config.ts:1146,1216`; `/mnt/f/code/project/opentu/Dockerfile:16`.",
+        "`/mnt/f/code/project/new-api/router/web_router_test.go:169-190` names `TestCreativeEmbeddedProductionBuildContract` but walks only `testCreativeBuildFS` from router-relative embed path, so it does not validate actual production root dist."
+      ]
+    },
+    {
+      "branch": "read-only-audit-creative-relay-endpoint-coverage",
+      "status": "ok",
+      "confirmed": [
+        "new-api 当前只挂载了 1 个 /creative/relay/v1 业务路由：POST /creative/relay/v1/chat/completions -> controller.CreativeRelayChatCompletions。证据：/mnt/f/code/project/new-api/router/web-router.go:72-81",
+        "该 creative relay v1 路由链为：RouteTag(\"relay\") -> BodyStorageCleanup -> SystemPerformanceCheck -> CreativeSessionHeaderBridge -> UserAuth -> CreativeRequireNonce -> CreativeRejectForbiddenRelayFields -> CreativeRelaySessionBroker -> Distribute。证据：/mnt/f/code/project/new-api/router/web-router.go:72-79",
+        "/creative/relay/v1/images/generations 当前未挂载。若去掉 /creative/relay 前缀，请求会映射到现有 /v1/images/generations -> RelayFormatOpenAIImage -> relay.ImageHelper。证据：/mnt/f/code/project/new-api/router/relay-router.go:112-114, /mnt/f/code/project/new-api/controller/relay.go:35-40",
+        "opentu 嵌入模式管理 profile 的 baseUrl 是 /creative/relay/v1，authType 是 session-broker，text/image/video/audio 路由会默认指向该 profile。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-mode.ts:1-5, /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:219-287",
+        "opentu chat 在非 Google OpenAI-compatible 路径会调用 /chat/completions，因此嵌入模式路径为 /creative/relay/v1/chat/completions；该路径已由 new-api creative relay 覆盖。证据：/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/apiCalls.ts:576-604,715-744",
+        "opentu 同步 image 会调用 /images/generations，因此嵌入模式路径为 /creative/relay/v1/images/generations；该路径当前 new-api 未覆盖。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/image-api.ts:142-169, /mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/services.ts:345-353",
+        "opentu video 存在 /videos 与 /v1/videos 两套调用：部分 adapter service 使用 /videos 但在 session-broker 下因 apiKey 为空被客户端阻断；media-api/fallback 路径使用 /v1/videos，叠加 baseUrl /creative/relay/v1 会形成 /creative/relay/v1/v1/videos。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts:149-156,289-294, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/video-api.ts:106-113, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-executor.ts:623-675",
+        "opentu Suno 默认 submit/poll 为 /suno/submit/music 与 /suno/fetch/{id}，binding 推断会 trim-v1；但 audio service 在 session-broker creative profile 下因 apiKey 为空会阻断。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/endpoint-binding-inference.ts:83-104, /mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts:855-889,948-955",
+        "opentu MJ adapter 会去掉 baseUrl 末尾 /v1 并调用 /mj/submit/imagine 与 /mj/task/{taskId}/fetch；如果有 MJ 模型被选中，它会打到 /creative/relay/mj/...，当前 new-api creative 路由未覆盖。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:29-35,54-92",
+        "new-api 现有普通 video/MJ/Suno 都是异步任务链：video 挂在 /v1/videos 等，Suno 挂在 /suno，MJ 挂在 /mj；任务提交/查询涉及 RelayTask、RelayTaskFetch、RelayMidjourney、CAS 状态更新、退款和原任务 channel/key 亲和。证据：/mnt/f/code/project/new-api/router/video-router.go:19-31, /mnt/f/code/project/new-api/router/relay-router.go:179-223, /mnt/f/code/project/new-api/controller/relay.go:403-443,470-603, /mnt/f/code/project/new-api/relay/relay_task.go:33-106, /mnt/f/code/project/new-api/model/task.go:404-417"
+      ],
+      "disproved": [
+        "外部审计若声称 /creative/relay/v1/images/generations 已经可用：不成立，当前只看到 chat/completions 被挂载。",
+        "外部审计若建议直接把所有 image/video/Suno/MJ endpoint 一次性简单 mount：不成立；video/Suno/MJ 属于异步任务链，且 opentu 侧存在 apiKey guard、double-v1、路径 trim、multipart/model 解析和任务结算语义差异。"
+      ],
+      "openQuestions": [
+        "opentu 当前线上 catalog 是否实际暴露并默认选择 MJ/Suno/async video/async image 模型；静态代码只能确认路径和阻断条件，不能确认运行时模型列表。",
+        "new-api creative relay 若复用同一 CreativeRelaySessionBroker，非 JSON 或无 model 的任务请求如何选择 group；当前 readCreativeRelayModel 只从 JSON body 的 model 字段取值。证据：/mnt/f/code/project/new-api/middleware/creative.go:152-175"
+      ],
+      "recommendedFixes": [
+        "第一实现切片：只做同步 image generation。新增 POST /creative/relay/v1/images/generations，复用现有 creative relay middleware，抽出/复用 CreativeRelayChatCompletions 的临时 session token 设置逻辑，然后调用 Relay(c, types.RelayFormatOpenAIImage)。这是最小闭环，因为 opentu 已经发送 /creative/relay/v1/images/generations，且请求通常是 JSON。",
+        "第一切片测试建议：覆盖 session auth/nonce、禁止 Authorization/敏感字段、临时 token context、/creative/relay/v1/images/generations 正确进入 RelayFormatOpenAIImage。",
+        "拆分候选 1：async image/video。统一 opentu /videos vs /v1/videos 策略，移除 session-broker 下 apiKey 必填阻断，挂载/重写 /creative/relay/v1/videos、/creative/relay/v1/videos/:id、content 下载路径，并验证 RelayTask 的 CAS/refund/multi-key affinity。",
+        "拆分候选 2：Suno。解除 session-broker apiKey guard，挂载 /creative/relay/suno/... 或做 /creative/relay 前缀 trim 到现有 /suno router，补齐无 model 请求的 group/model 策略和任务结算测试。",
+        "拆分候选 3：MJ。挂载 /creative/relay/mj/... 或做 /creative/relay 前缀 trim 到现有 /mj router，补齐临时 session token、任务 fetch 权限、CAS/退款和原任务 channel/key 亲和测试。"
+      ],
+      "evidence": [
+        "/mnt/f/code/project/new-api/router/web-router.go:72-81",
+        "/mnt/f/code/project/new-api/middleware/creative.go:63-149,152-175",
+        "/mnt/f/code/project/new-api/controller/creative.go:338-358",
+        "/mnt/f/code/project/new-api/router/relay-router.go:112-114,179-223",
+        "/mnt/f/code/project/new-api/router/video-router.go:19-31",
+        "/mnt/f/code/project/new-api/controller/relay.go:35-40,403-443,470-603",
+        "/mnt/f/code/project/new-api/relay/relay_task.go:33-106,362-416",
+        "/mnt/f/code/project/new-api/model/task.go:404-417",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-mode.ts:1-60",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:219-305",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:13-35,119-128,262-293",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/apiCalls.ts:576-604,715-744",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/services.ts:345-353",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/image-api.ts:142-169,248-301",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts:149-156,289-294,356-366",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/video-api.ts:106-156",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts:855-889,948-955",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:29-92"
+      ]
+    },
+    {
+      "branch": "read-only-audit-item-6-embedded-provider-gateway",
+      "status": "partial",
+      "confirmed": [
+        "已确认风险：opentu `/creative` 并未强制所有生成路由使用 `new-api-creative`；`applyManagedDefaults()` 在已有路由凭据时跳过默认路由覆盖，历史/直连 `apiKey/baseUrl` 可继续被 `resolveInvocationRoute()` 解析并被媒体调用链使用。",
+        "fresh embedded 场景较安全：无历史凭据时 broker 会创建 `new-api-creative` session-broker profile，baseUrl 为 `/creative/relay/v1`，apiKey 为空，并设置 text/image/video/audio 默认模型。",
+        "session-broker transport 本身较安全：会移除敏感 Authorization/query key，添加 CSRF/nonce，并使用 same-origin；但只有当解析到的 route/authType 真的是 `session-broker` 时才生效。",
+        "standalone opentu 直连行为是保留行为：legacy Tuzi/default profile、bearer/query API key、URL settings 在非 `/creative` 下仍可工作，不应与 embedded `/creative` 混淆。",
+        "new-api 当前 `/creative/relay/v1` 只挂载了 chat completions；image/video/audio/Suno/MJ 的 creative gateway 路由未证明存在，因此 embedded media 默认/唯一网关无法被现有 new-api 路由证明。"
+      ],
+      "disproved": [
+        "“embedded 生成默认且只能走 new-api gateway”目前被代码反证：历史直连凭据会阻止 broker 覆盖 active route。",
+        "“opentu 所有媒体/视频调用都会自动走 session-broker”目前被代码反证：media executor、adapter context、character API/tool iframe 等仍可从 settings/route 取直连 apiKey/baseUrl。"
+      ],
+      "openQuestions": [
+        "产品意图是否允许 `/creative` 只支持 chat，而 image/video/audio/Suno/MJ 显式禁用？若允许，需要测试证明这些入口不可达或不会回退直连。",
+        "若 `/creative` 需要支持 image/video/audio/Suno/MJ，new-api 需要明确的 relay route、relay mode、计费/幂等/退款测试后才能证明 gateway-only。"
+      ],
+      "recommendedFixes": [
+        "opentu：在 embedded mode 下无条件将 text/image/video/audio active route 设为 `new-api-creative`，或在 `resolveInvocationRoute()` 层拒绝任何非 session-broker/direct route。保留 standalone 行为。",
+        "新增/修改 `packages/drawnix/src/services/creative-session-broker.test.ts`：种入历史 legacy apiKey/baseUrl/custom profile，断言 broker 仍覆盖到 `new-api-creative`，且不会因 `hasInvocationRouteCredentials()` 为 true 跳过。",
+        "新增 `packages/drawnix/src/utils/settings-manager.creative-embedded.test.ts`：seed localStorage/legacy preset 后进入 `/creative`，断言 text/image/video/audio `resolveInvocationRoute()` 均为 `profileId=new-api-creative`、`authType=session-broker`、无直连 apiKey/baseUrl。",
+        "新增 `packages/drawnix/src/services/media-executor/fallback-executor.session-broker.test.ts`：image/video 调用只能 fetch `/creative/relay/v1/...`，无 Authorization/api_key/key，不能请求 `https://api.tu-zi.com` 或自定义 upstream。",
+        "补 `packages/drawnix/src/services/task-invocation-route.ts` 测试/修复：`authType=session-broker` 应允许空 apiKey；embedded 下 legacy task resume 不应重发现直连 profile。",
+        "补 direct bypass 测试/修复：`character-api-service.ts` 必须走 providerTransport/session-broker 或在 `/creative` 禁用；`plugins/with-tool.ts` embedded 下不得向 iframe 发送 apiKey/baseUrl。",
+        "new-api：若支持媒体，补 `/creative/relay/v1/images/generations|edits`、video、Suno/MJ 等路由及 middleware；若不支持，限制 creative catalog 并测试 unsupported endpoint 404/拒绝且不触发直连。",
+        "new-api 测试文件：`router/web_router_test.go`、`relay/constant/relay_mode_test.go`、`relay/common/relay_info_test.go`、`controller/creative_test.go`/`middleware/creative_test.go` 覆盖所有 creative relay family 或显式 unsupported safe exception。"
+      ],
+      "evidence": [
+        "opentu: `packages/drawnix/src/services/creative-mode.ts:55-61` 定义 `isCreativeEmbeddedMode()` 仅匹配 `/creative` 与 `/creative/*`；`creative-mode.ts:1-3` 定义 managed profile 和 `/creative/relay/v1`。",
+        "opentu: `packages/drawnix/src/drawnix.tsx:360-363` app bootstrap 调用 creative broker；broker 内部再判断 embedded mode。",
+        "opentu: `packages/drawnix/src/services/creative-session-broker.ts:199-237` 拉取 `/creative/api/bootstrap`、`/creative/api/models` 并创建 `new-api-creative` session-broker profile，apiKey 为空。",
+        "opentu: `packages/drawnix/src/services/creative-session-broker.ts:271-288` `applyManagedDefaults()` 在 `hasInvocationRouteCredentials(type)` 为 true 时跳过 active route 覆盖，是核心回退风险点。",
+        "opentu: `packages/drawnix/src/utils/settings-manager.ts:88-98,526-555,727-748,971-1200,1856-1921` legacy Tuzi/default profile/preset 与 `resolveInvocationRoute()` fallback 可返回 direct baseUrl/apiKey；`hasInvocationRouteCredentials()` 将 direct 凭据视为可用。",
+        "opentu: `packages/drawnix/src/utils/settings-manager.ts:1330-1347,1417-1443` embedded 会剥离 URL auth 并限制 IndexedDB secret 同步，但不能证明清除内存/localStorage legacy route。",
+        "opentu: `packages/drawnix/src/services/provider-routing/provider-transport.ts:119-209,257-295` session-broker 移除敏感 header/query 并 same-origin；bearer/query auth 仍为 standalone direct 行为。",
+        "opentu: `packages/drawnix/src/services/media-generation/image-generation-service.ts:99-180` 与 `video-generation-service.ts:38-126` 生成入口依赖 `hasInvocationRouteCredentials()` 和 route snapshot。",
+        "opentu: `packages/drawnix/src/services/media-executor/fallback-executor.ts:180-321,565-720,1289-1355` image/video 使用解析到的 route config；session-broker 安全，legacy route 则携带直连 baseUrl/apiKey。",
+        "opentu: `packages/drawnix/src/services/async-image-api-service.ts:75-91,140-175,190-206`、`video-api-service.ts:106-123,146-156,289-294,351-366`、`audio-api-service.ts:111-140,855-889,933-956` 对空 apiKey 的检查会阻塞合法 session-broker，同时允许有 key 的 legacy direct。",
+        "opentu: `packages/drawnix/src/services/task-invocation-route.ts:183-220` strict route 要求 apiKey/baseUrl，未豁免 session-broker；`task-invocation-route.ts:144-175` 可为 legacy task 重发现 direct profile。",
+        "opentu: `packages/drawnix/src/services/character-api-service.ts:36-40,47-77,98-111` 直接用 `geminiSettings.baseUrl/apiKey` 原生 fetch `/v1/videos`，绕过 providerTransport。",
+        "opentu: `packages/drawnix/src/plugins/with-tool.ts:65-77` 将 settings apiKey/baseUrl 传入 tool iframe，embedded 有历史凭据时存在泄露/直连风险。",
+        "opentu tests: `creative-session-broker.test.ts:124-222` 只证明 fresh/no-key embedded 会设置 defaults；未覆盖已有 legacy 凭据。`provider-transport.session-broker.test.ts:14-243` 证明 transport 级 session-broker 安全与 standalone 行为。`auth.creative-embedded.test.ts:46-204` 证明 URL secret 剥离与 session-broker 无 key 可用。",
+        "new-api: `router/web-router.go:56-82` 注册 `/creative/api` 与 `/creative/relay/v1` middleware；`router/web-router.go:72-82` 当前仅 `POST /creative/relay/v1/chat/completions`。",
+        "new-api: `router/relay-router.go:108-117,168-187` 与 `router/video-router.go:19-32` image/MJ/Suno/video 是普通非 creative route，不是 `/creative/relay/v1` gateway。",
+        "new-api: `controller/creative.go:21-67,316-358,429-482` bootstrap 返回 session-broker auth；relay 拒绝 Authorization/provider/baseUrl/apiKey 等 forbidden 字段；chat relay 设置临时 session broker token。",
+        "new-api: `middleware/creative.go:116-149` `CreativeRelaySessionBroker` 按请求 model 在服务端选择用户可用 group，客户端不能指定 provider override。",
+        "new-api: `relay/constant/relay_mode.go:57-72` creative path 仅映射 chat；image mode 只识别普通 `/v1/images/generations`。",
+        "new-api tests: `controller/creative_test.go:293-930` 覆盖 bootstrap/models/nonce/session broker/forbidden fields；`router/web_router_test.go:70-79`、`relay/constant/relay_mode_test.go:9-11`、`relay/common/relay_info_test.go:46-50` 仅覆盖 creative chat。"
+      ]
+    },
+    {
+      "branch": "audit-cloud-sync-assets",
+      "status": "ok",
+      "confirmed": [
+        "/creative/api 当前只暴露 bootstrap/models/model-preference/documents 路由；未发现 creative 资产/Blob 上传下载 API。",
+        "模型偏好同步是 allowlist JSON：客户端/服务端都只保留 modelId/profileId/providerIdHint/vendorHint/updatedAt 等安全字段，并用 revision/baseRevision 做 409 冲突处理。",
+        "文档云同步的快照形状是单个 board 的 elements + viewport + theme，metadata 仅带 folderId/order；服务端把 snapshot/metadata 规范化后作为 JSON 文本保存。",
+        "文档快照发送前客户端会移除敏感字段并阻断高置信 secret 字符串；服务端文档路径只做 JSON canonicalize，不做同等敏感字段/secret 扫描。",
+        "文档 PUT 使用本地保存的 baseRevision；409 后客户端冻结该 board 队列并记录冲突摘要。DELETE 客户端不带 baseRevision，而服务端删除的 baseRevision 是可选项。",
+        "常见媒体引用都是 JSON 内的字符串引用：图片 url，视频通常是 image-like url#video，音频 audioUrl/previewImageUrl；本地素材元数据在 IndexedDB，媒体字节在 Cache Storage。",
+        "因此当前 new-api cloud sync 持久化的是 JSON 快照/元数据/修订号，不持久化 Cache Storage/IndexedDB 中的媒体字节。跨设备仅在远程 URL 仍可访问时可能显示；/__aitu_cache__、/asset-library、/__aitu_generated__、blob: 等本地引用不会可靠存活。"
+      ],
+      "disproved": [
+        "已存在 new-api creative 二进制资产同步 API。",
+        "当前文档云同步能保证 AI 生成图片/音频/视频跨设备可用。",
+        "当前服务端 creative_documents 中保存了媒体 Blob 或对象存储引用。"
+      ],
+      "openQuestions": [
+        "产品是否要求“跨设备打开画板时生成媒体必须可见”。若是，这是发布阻塞；否则可作为已知限制进入子任务。"
+      ],
+      "recommendedFixes": [
+        "建议拆成 child task 实现，不建议塞进当前 remediation：涉及后端存储、上传鉴权、客户端引用改写/补水、配额/GC、兼容旧快照与测试矩阵。",
+        "最小后端：新增 /creative/api/assets（按 contentHash/assetId PUT/GET/HEAD/DELETE 或 signed upload），保存 mime/size/hash/owner/refCount/createdAt，正文走对象存储或 DB blob，并沿用 creative nonce/session 鉴权。",
+        "最小客户端：遍历 board snapshot 中 url/imageUrl/videoUrl/audioUrl/poster/src 等字段，识别虚拟/本地/过期风险 URL；从 unifiedCacheService/assetStorageService 取 Blob，先上传资产，快照中写入 cloud asset ref 或可下载 URL。",
+        "最小拉取/补水：初始化时 list/get 远端 documents，创建/更新本地 board；遇到 cloud asset ref 下载 Blob 到 unifiedCacheService，再恢复为本地虚拟 URL；冲突仍保留 revision/baseRevision 冻结策略。",
+        "补充覆盖：图片/视频/音频、本地上传、AI data URL、/__aitu_cache__、/asset-library、远程过期 URL、409、删除/GC、跨设备冷启动。"
+      ],
+      "evidence": [
+        "new-api/router/web-router.go:56-69 注册 /creative/api/bootstrap、/models、/preferences/model、/documents CRUD，无 assets/blob 路由。",
+        "new-api/model/creative.go:23-55 CreativeModelPreference/CreativeModelPreferenceValue 为 allowlist 偏好 JSON；97-151 PatchCreativeModelPreference 使用 baseRevision/revision 冲突。",
+        "new-api/controller/creative.go:106-155 PATCH model preference 要求 baseRevision，调用 SanitizeCreativeModelPreference，409 返回 revision conflict。",
+        "opentu/packages/drawnix/src/services/creative-model-preference-sync.ts:196-207 构建 baseRevision patch；337-355 遇 409 拉最新偏好并 rebase 后重试。",
+        "new-api/model/creative.go:57-68 CreativeDocument 只有 SnapshotJSON、MetadataJSON、Revision 等文本/元数据字段；459-494 NormalizeCreativeJSONValue 仅 marshal/unmarshal canonicalize。",
+        "new-api/controller/creative.go:204-220 create document 保存 payload.snapshot/metadata；253-279 update document 读取 baseRevision 并保存 snapshot/metadata。",
+        "new-api/model/creative.go:557-607 UpdateCreativeDocumentSnapshot 对比 current.Revision 与 baseRevision，冲突时返回当前文档不覆盖。",
+        "opentu/packages/drawnix/src/services/creative-document-sync.ts:38-42 CreativeWorkspaceBoardSnapshot = elements/viewport/theme；430-447 buildCreativeWorkspaceDocumentSnapshot 写入 board id/title/snapshot/metadata(folderId/order)。",
+        "opentu/packages/drawnix/src/services/creative-document-sync.ts:168-179 客户端文档 payload 先 removeSensitiveCloudFields 并 assertNoHighConfidenceCreativeCloudSecretValues。",
+        "opentu/packages/drawnix/src/services/creative-cloud-sanitizer.ts:1-24 定义敏感字段；147-186 检测并阻断高置信 secret 字符串。",
+        "opentu/packages/drawnix/src/services/creative-document-sync.ts:820-830 从 localStorage 恢复 revisions；892-901 根据 revision create/put；1003-1019 freezeBoard 记录冲突并冻结。",
+        "opentu/packages/drawnix/src/services/creative-document-sync.ts:545-550 delete 只发 DELETE headers；new-api/controller/creative.go:295-310 服务端 delete baseRevision 可选。",
+        "opentu/packages/drawnix/src/types/workspace.types.ts:57-60 Board = metadata + elements；workspace-storage-service.ts:346-349 本地 board 整体存 IndexedDB。",
+        "opentu/packages/drawnix/src/data/image.ts:228-271 本地图片进 assetStorage/unified cache 后元素使用 asset.url；327-355 http/data 图片可能被缓存/改写为本地 URL。",
+        "opentu/packages/drawnix/src/data/video.ts:279-301 视频插入为带 url#video 的 image-like 元素；303-307 仅按 URL 前缀判断 local/external。",
+        "opentu/packages/drawnix/src/types/audio-node.types.ts:27-40 audio 元素核心字段为 audioUrl/previewImageUrl 等；data/audio.ts:414-488 插入时保存 resolvedAudioUrl。",
+        "opentu/packages/drawnix/src/services/asset-storage-service.ts:35-37 /asset-library 前缀；338-373 Blob 写入 unified cache，IndexedDB 只保存 StoredAsset 元数据。",
+        "opentu/packages/drawnix/src/services/unified-cache-service.ts:1223-1318 cacheMediaFromBlob 将 Blob 放入 Cache Storage 并写 IndexedDB 缓存元数据；1330-1376 getCachedBlob 从本地缓存或远程 URL 取 Blob。",
+        "opentu/packages/drawnix/src/services/media-executor/fallback-utils.ts:273-279 注释说明 data/base64 落本地 Cache Storage、远程音频主动缓存、其他 http/https 保留原 URL。",
+        "opentu/packages/drawnix/src/services/creative-document-sync.ts:1044-1055 initialize 只 start 本地 workspace event sync；619-658 订阅 boardCreated/Updated/Deleted 后排队上传，未见生产路径做远端文档初始拉取/本地恢复。"
+      ]
+    },
+    {
+      "branch": "read-only-audit-items-4-7",
+      "status": "ok",
+      "confirmed": [
+        "审计项4成立：opentu 当前未发现返回 new-api 控制台的 UI 控件；`apps/web/src/components/ReturnButton.tsx` 和 `apps/web/src/utils/embed-detection.ts` 均不存在，源码/当前 opentu dist 对 `返回控制台`、`ReturnButton` 无命中。",
+        "已有 Trellis 子任务可复用：`.trellis/tasks/06-08-add-return-to-console-button-in-opentu/task.json` 状态为 `planning`，父任务指向 `06-09-newapi-opentu-creative-remediation`；父任务 `task.json` 也把该子任务列入 `children`。",
+        "推荐插入点：`opentu/apps/web/src/app/app.tsx:915-940` 的顶层 `<div><Drawnix ... /></div>`，可加 app 级 `ReturnButton`；备选为 `packages/drawnix/src/drawnix.tsx:1555-1713`，其已有 embedded-only 固定 UI `CreativeDocumentCloudSyncBadge`。",
+        "可复用检测逻辑：`packages/drawnix/src/services/creative-mode.ts:55-61` 已实现 `/creative`/`/creative/` embedded 判断；若按 06-08 PRD，也可在 app 层新增 `embed-detection.ts`。",
+        "返回目标 `/dashboard` 在 new-api 前端路由中存在：`new-api/web/default/src/routeTree.gen.ts:264-299`。",
+        "审计项7成立：现有任务证据显示只跑过 targeted Go/Vitest/typecheck 子集，未覆盖 opentu `tsconfig.spec.json`、完整 build/full test/E2E；归档审计记录 `tsc -p tsconfig.spec.json --noEmit` exit code 2。",
+        "`tsconfig.spec` 失败判断为“混合型”：不是纯粹 legacy，也不是纯粹集成；`packages/drawnix/tsconfig.spec.json` 覆盖 drawnix 全部测试，当前约 167 个 test/spec 文件；归档失败涉及 creative document/session/status/model-selection 测试，也提到既有测试类型债务。"
+      ],
+      "disproved": [
+        "未找到已经实现的 opentu embedded return-to-console 控件；new-api 默认前端存在 `Back to Dashboard` 翻译和布局入口，但不在 opentu embedded UI/dist 中。"
+      ],
+      "openQuestions": [
+        "需要在实施分支开始时重新跑一次 spec typecheck，拿到当前完整 TS 错误列表后按文件归因；不能直接把所有错误都标为 unrelated legacy。"
+      ],
+      "recommendedFixes": [
+        "复用 `.trellis/tasks/06-08-add-return-to-console-button-in-opentu`，不要新建分叉 UX 方案；按其 PRD 创建 embedded-only `ReturnButton`，点击 `window.location.href = '/dashboard'`。",
+        "实施第一条命令建议：`cd /mnt/f/code/project/opentu/packages/drawnix && TMPDIR=/dev/shm pnpm exec tsc -p tsconfig.spec.json --noEmit --pretty false`，先建立失败基线并分拣 integration vs legacy。",
+        "验证命令候选：opentu spec typecheck 同上；app/lib typecheck：`cd /mnt/f/code/project/opentu && pnpm exec nx run web:typecheck`、`pnpm exec nx run drawnix:typecheck`；build：`VITE_BASE_URL=/creative/ NX_DAEMON=false pnpm build:web`；targeted Vitest：在 `packages/drawnix` 下用 `vitest.config.ts` 跑 creative 相关 10 个文件；full/smoke：`pnpm test`、`pnpm e2e:smoke`。",
+        "new-api 验证候选：targeted `go test ./router ./controller ./middleware ./relay/common ./relay/constant ./service -run 'Test(.*Creative.*|.*RelayMode.*|.*Forbidden.*|.*Nonce.*)' -count=1`；broader `go test ./controller ./middleware ./model ./relay/common ./relay/constant ./router ./service -count=1`；full `go test ./...`；前端 `cd web/default && bun run typecheck && bun run build`。"
+      ],
+      "evidence": [
+        "opentu missing files: `/mnt/f/code/project/opentu/apps/web/src/components/ReturnButton.tsx`, `/mnt/f/code/project/opentu/apps/web/src/utils/embed-detection.ts`.",
+        "opentu app insertion point: `/mnt/f/code/project/opentu/apps/web/src/app/app.tsx:915-940`.",
+        "existing embedded UI pattern: `/mnt/f/code/project/opentu/packages/drawnix/src/components/creative-document-sync-status/CreativeDocumentCloudSyncBadge.tsx:86-134`; rendered at `/mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx:1711-1712`.",
+        "embedded detector: `/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-mode.ts:55-61`.",
+        "06-08 PRD requirements: `.trellis/tasks/06-08-add-return-to-console-button-in-opentu/prd.md:27-36`, `:46-60`, `:210-223`, `:268-278`.",
+        "validation scripts/configs: `/mnt/f/code/project/opentu/package.json:25-39`, `apps/web/project.json:36-43`, `packages/drawnix/project.json:9-14`, `apps/web-e2e/playwright.config.ts:51-65`, `web/default/package.json:6-18`, `new-api/Makefile:17-31`.",
+        "typecheck gap evidence: `.trellis/tasks/archive/2026-06/06-09-deep-goal-audit-new-api-opentu/audit-report.md:88-97`, `workflow-synthesis.json` B7-F1, and `.trellis/tasks/06-09-newapi-opentu-creative-remediation/prd.md:61-69`.",
+        "未运行昂贵测试/构建；本分支只做只读文件检查、rg/find/sed/git status。"
+      ]
+    }
+  ],
+  "synthesis": {
+    "overallStatus": "partial",
+    "rows": [
+      {
+        "item": "1. 生产嵌入 dist 陈旧/不一致",
+        "status": "needs-implementation",
+        "decision": "审计成立；保留 main.go/Dockerfile 的生产路径，优先同步最新 opentu build 到 new-api/web/creative/dist，并补生产嵌入路径测试。",
+        "evidence": [
+          "main.go embeds web/creative/dist；Dockerfile COPY 同一路径。",
+          "new-api/web/creative/dist buildTime=2026-06-07；opentu/router dist buildTime=2026-06-08 且二者 hash 一致。",
+          "router/web_router_test.go 只覆盖 router-relative fixture，不覆盖生产 root dist。"
+        ],
+        "nextAction": "同步 opentu/dist/apps/web -> new-api/web/creative/dist；新增 main/production dist provenance、entry asset、version/hash 测试。"
+      },
+      {
+        "item": "2. /creative/relay/v1/images/generations 缺失",
+        "status": "needs-implementation",
+        "decision": "审计成立且是最小闭环修复；opentu embedded image 会调用该路径，new-api creative relay 当前只挂 chat。",
+        "evidence": [
+          "router/web-router.go 仅注册 POST /creative/relay/v1/chat/completions。",
+          "opentu image-api 调用 /images/generations，baseUrl=/creative/relay/v1。",
+          "普通 /v1/images/generations 已存在但不会自动覆盖 creative 前缀。"
+        ],
+        "nextAction": "新增 POST /creative/relay/v1/images/generations，复用 creative middleware，设置临时 session token 后调用 RelayFormatOpenAIImage；补 nonce/forbidden fields/route-mode 测试。"
+      },
+      {
+        "item": "3. Video/Suno/MJ creative relay 不完整",
+        "status": "split",
+        "decision": "审计成立，但不应一次性简单 mount；涉及异步任务、CAS/refund、原任务 channel/key 亲和、路径 double-v1/trim-v1 与 opentu apiKey guard。",
+        "evidence": [
+          "new-api 普通 video/MJ/Suno 为异步任务链。",
+          "opentu video 存在 /videos 与 /v1/videos；Suno/MJ 走 /suno 或 /mj 前缀变体。",
+          "CreativeRelaySessionBroker 当前主要从 JSON model 字段选 group，非 JSON/无 model 任务策略未定。"
+        ],
+        "nextAction": "拆为 video/async-media、Suno、MJ 子任务；每个子任务先定义路径规范、任务 fetch 权限、幂等/CAS/refund/key-affinity 测试。"
+      },
+      {
+        "item": "4. opentu embedded 返回控制台按钮缺失",
+        "status": "split",
+        "decision": "审计成立；已有 Trellis 子任务 06-08-add-return-to-console-button-in-opentu，应复用而非在父任务重复设计。",
+        "evidence": [
+          "opentu 源码/dist 未命中 ReturnButton/返回控制台。",
+          "父任务已链接该 planning 子任务。",
+          "new-api /dashboard 路由存在。"
+        ],
+        "nextAction": "推进既有子任务：在 embedded-only UI 中加 ReturnButton，点击跳转 /dashboard，并跑 opentu typecheck/build/相关 UI 测试。"
+      },
+      {
+        "item": "5. 二进制/媒体资产云同步缺失",
+        "status": "split",
+        "decision": "审计成立；当前同步是安全 JSON snapshot/preference，不包含 Blob/Cache Storage/IndexedDB 媒体字节；资产同步属于独立后端存储+客户端补水工程。",
+        "evidence": [
+          "/creative/api 无 assets/blob 路由。",
+          "creative_documents 仅存 SnapshotJSON/MetadataJSON/Revision。",
+          "图片/视频/音频常以本地或远程 URL 引用；本地 Blob 在 Cache Storage/IndexedDB，不会随文档跨设备同步。"
+        ],
+        "nextAction": "创建 cloud-assets child task；定义 /creative/api/assets、对象存储/DB blob、hash/refCount/GC、客户端上传引用改写和拉取补水测试；若产品要求跨设备媒体必现，则升级为发布阻塞。"
+      },
+      {
+        "item": "6. embedded mode 未强制 new-api gateway",
+        "status": "needs-implementation",
+        "decision": "审计成立且安全优先级高；历史 direct apiKey/baseUrl 可阻止 broker 覆盖 active route，导致媒体链路回退直连。",
+        "evidence": [
+          "applyManagedDefaults 在 hasInvocationRouteCredentials=true 时跳过 new-api-creative 覆盖。",
+          "providerTransport 仅在 authType=session-broker 时安全剥离敏感 header/query。",
+          "media executor、task route、character API、tool iframe 存在 direct settings/profile 使用路径。"
+        ],
+        "nextAction": "opentu embedded 下强制 text/image/video/audio route 为 new-api-creative 或 resolve 层拒绝非 session-broker；补 legacy credentials seed、fallback executor、task resume、character/tool iframe 防绕过测试。"
+      },
+      {
+        "item": "7. tsconfig.spec/full build/full test/E2E 验证缺口",
+        "status": "needs-implementation",
+        "decision": "审计成立；当前只证明 targeted 子集，必须先建立 spec typecheck 基线，最终跑 broad validation；只有证明 unrelated 的失败才可拆分。",
+        "evidence": [
+          "归档记录显示 tsc -p tsconfig.spec.json --noEmit exit code 2。",
+          "packages/drawnix/tsconfig.spec.json 覆盖约 167 个 test/spec 文件。",
+          "未覆盖完整 opentu build/full Vitest/E2E 与 new-api full Go。"
+        ],
+        "nextAction": "先跑 packages/drawnix tsconfig.spec baseline 并归因；完成修复后跑 new-api targeted/broader Go、opentu typecheck/build/targeted Vitest/full or smoke E2E，并记录失败归因。"
+      }
+    ],
+    "implementationOrder": [
+      "先跑 opentu packages/drawnix tsconfig.spec baseline，分拣 integration vs legacy，避免后续无法归因。",
+      "修复 Item 1：同步生产 creative dist 到 new-api/web/creative/dist，并补生产嵌入路径测试。",
+      "修复 Item 2：实现 /creative/relay/v1/images/generations 最小同步 image relay 与安全测试。",
+      "修复 Item 6：opentu embedded provider gateway 强制 session-broker，并补 direct fallback/bypass 测试。",
+      "推进 Item 4 既有子任务：embedded-only 返回 /dashboard 按钮。",
+      "运行 targeted + broader validation；仅将已证明 unrelated 的 typecheck/test 债务拆出。",
+      "创建并排期 Item 3、Item 5 子任务；除非产品要求它们作为当前发布阻塞。"
+    ],
+    "splitCandidates": [
+      "06-08-add-return-to-console-button-in-opentu（已存在/已链接）：完成 embedded ReturnButton。",
+      "creative-async-video-relay：/creative video 路径规范、task submit/fetch/content、CAS/refund/key-affinity。",
+      "creative-suno-relay：/creative/relay/suno 前缀、无 model/group 策略、任务结算测试。",
+      "creative-mj-relay：/creative/relay/mj 前缀、submit/fetch 权限、CAS/refund/key-affinity。",
+      "creative-cloud-assets-sync：assets API、对象存储/DB blob、客户端引用改写、拉取补水、GC/配额。",
+      "opentu-spec-typecheck-debt（条件）：仅收纳经 baseline 证明与本集成无关的 legacy spec 类型错误。"
+    ],
+    "evidenceSummary": [
+      "7 项外部审计均有实质证据；无 not-applicable，当前 read-only 阶段未产生 fixed 项。",
+      "立即实现主线应聚焦生产 dist、同步 image relay、embedded gateway enforcement、返回按钮与验证基线。",
+      "Video/Suno/MJ 与二进制资产云同步风险大、边界独立，应拆子任务并带明确 acceptance criteria。"
+    ]
+  }
+}
