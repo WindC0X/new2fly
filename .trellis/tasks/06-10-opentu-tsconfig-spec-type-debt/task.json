@@ -3,7 +3,7 @@
   "name": "opentu-tsconfig-spec-type-debt",
   "title": "Opentu tsconfig.spec Type Debt Follow-up",
   "description": "Track and fix broad packages/drawnix tsconfig.spec.json --noEmit test fixture type debt that remains after creative remediation partial config cleanup.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
