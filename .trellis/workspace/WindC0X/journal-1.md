@@ -107,3 +107,38 @@ Used codex-flow dynamic workflows to fix Drawnix spec-test fixture type debt, ve
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Creative async video relay
+
+**Date**: 2026-06-10
+**Task**: Creative async video relay
+**Branch**: `master`
+
+### Summary
+
+Implemented and verified creative async video relay across new-api and Opentu, fixed post-blocker findings with codex-flow verification, recorded evidence/spec contracts, and archived the child task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f7a428d` | (see git log) |
+| `c08bf0c5` | (see git log) |
+| `b5e0e62` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
