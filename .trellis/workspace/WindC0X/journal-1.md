@@ -142,3 +142,36 @@ Implemented and verified creative async video relay across new-api and Opentu, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Archive opentu-new-api assessment
+
+**Date**: 2026-06-10
+**Task**: Archive opentu-new-api assessment
+**Branch**: `master`
+
+### Summary
+
+Closed the completed Opentu/new-api integration assessment documentation task after verifying its PRD documentation acceptance, context manifests, and clean working tree; no code-spec update was needed because the task produced no new executable implementation contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `none` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
