@@ -10,3 +10,8 @@
 {"file": ".codex-flow/generated/creative-media-relay-continuation-finalizer.workflow.ts", "reason": "Media relay finalizer workflow retry"}
 {"file": ".codex-flow/journal/creative-media-relay-continuation-finalizer.jsonl", "reason": "Media relay finalizer journal with 502/503 failure evidence"}
 {"file": ".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/media-relay-continuation-2026-06-10.md", "reason": "Media relay split decision evidence"}
+{"file": ".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/opentu-tsconfig-spec-2026-06-10.md", "reason": "tsconfig.spec verification and remaining failure classification"}
+{"file": ".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/browser-smoke-2026-06-10.md", "reason": "Local curl and Playwright browser smoke evidence"}
+{"file": ".codex-flow/generated/creative-remediation-final-dynamic-verification.workflow.ts", "reason": "Final dynamic workflow for current commit boundary and parent gates"}
+{"file": ".codex-flow/journal/creative-remediation-final-dynamic-verification.jsonl", "reason": "Final dynamic workflow journal"}
+{"file": ".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/final-dynamic-verification-2026-06-10.md", "reason": "Final dynamic verification matrix"}
