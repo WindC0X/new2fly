@@ -17,17 +17,17 @@ Implement or explicitly scope `/creative` Suno relay support with session-broker
 
 ## Acceptance Criteria
 
-- [ ] opentu embedded Suno requests do not require direct API keys.
-- [ ] new-api routes can submit and fetch Suno tasks through session broker.
-- [ ] Tests cover no-model/group strategy, task settlement, refunds, and forbidden fields.
-- [ ] Creative Suno routes are namespaced under the chosen `/creative/relay/v1/suno/...` contract and protected by the same browser-session, same-origin, CSRF/nonce, forbidden-field, and server-side group selection controls as chat/images.
-- [ ] Browser requests cannot pass upstream `Authorization`, `apiKey`, `baseUrl`, `provider`, `channel`, selected key, or owner override material in body, query, or headers.
-- [ ] Submit tests cover pre-consume, task creation, upstream submit failure refund, and duplicate-submit/idempotency behavior.
-- [ ] Fetch/status tests cover same-user success, cross-user rejection/non-leaky not-found, and missing task behavior.
-- [ ] Polling tests prove CAS-guarded status transitions; concurrent failure/success polling cannot double-refund or double-settle.
-- [ ] Refund tests cover wallet and subscription/session-broker billing sources with durable idempotency keys or equivalent once-only guarantees.
-- [ ] Multi-key affinity tests prove fetch/status uses the submit-time selected key, not the raw multi-line channel key pool.
-- [ ] Opentu audio/Suno tests prove embedded session-broker requests work with empty browser upstream `apiKey` while still stripping upstream credentials.
+- [x] opentu embedded Suno requests do not require direct API keys.
+- [x] new-api routes can submit and fetch Suno tasks through session broker.
+- [x] Tests cover no-model/group strategy, task settlement, refunds, and forbidden fields.
+- [x] Creative Suno routes are namespaced under the chosen `/creative/relay/v1/suno/...` contract and protected by the same browser-session, same-origin, CSRF/nonce, forbidden-field, and server-side group selection controls as chat/images.
+- [x] Browser requests cannot pass upstream `Authorization`, `apiKey`, `baseUrl`, `provider`, `channel`, selected key, or owner override material in body, query, or headers.
+- [x] Submit tests cover pre-consume, task creation, upstream submit failure refund, and duplicate-submit/idempotency behavior.
+- [x] Fetch/status tests cover same-user success, cross-user rejection/non-leaky not-found, and missing task behavior.
+- [x] Polling tests prove CAS-guarded status transitions; concurrent failure/success polling cannot double-refund or double-settle.
+- [x] Refund tests cover wallet and subscription/session-broker billing sources with durable idempotency keys or equivalent once-only guarantees.
+- [x] Multi-key affinity tests prove fetch/status uses the submit-time selected key, not the raw multi-line channel key pool.
+- [x] Opentu audio/Suno tests prove embedded session-broker requests work with empty browser upstream `apiKey` while still stripping upstream credentials.
 
 ## Split Decision Evidence
 
