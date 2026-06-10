@@ -1,1 +1,5 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file":".trellis/tasks/06-09-creative-mj-relay/prd.md","reason":"Task acceptance criteria and scoped first-tranche contract to verify."}
+{"file":".trellis/tasks/06-09-creative-mj-relay/design.md","reason":"Technical design decisions for route boundary, task storage, idempotency, billing/CAS, key affinity, and unsupported actions."}
+{"file":".trellis/tasks/06-09-creative-mj-relay/implement.md","reason":"Validation plan and required backend/frontend checks for the child task."}
+{"file":".trellis/spec/backend/creative-async-video-relay.md","reason":"Use as backend quality reference for async creative media billing/idempotency/key-affinity verification."}
+{"file":".trellis/spec/frontend/creative-async-video-relay.md","reason":"Use as frontend quality reference for session-broker media path/idempotency/no-fallback verification."}

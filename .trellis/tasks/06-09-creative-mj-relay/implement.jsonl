@@ -1,1 +1,5 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file":".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/media-relay-continuation-2026-06-10.md","reason":"Parent dynamic-workflow evidence that split MJ due to missing creative route, unsafe legacy async billing/refund/idempotency, and owner/key-affinity gaps."}
+{"file":".trellis/spec/backend/creative-async-video-relay.md","reason":"Analogous backend contract for creative async session-broker routes, idempotency, billing/CAS, and key affinity."}
+{"file":".trellis/spec/backend/creative-async-suno-relay.md","reason":"Analogous backend contract for server-side action/model inference, scoped idempotency, owner-scoped fetch, and stored-key polling."}
+{"file":".trellis/spec/frontend/creative-async-video-relay.md","reason":"Analogous frontend session-broker async media contract for same-origin paths, idempotency, and no direct fallback."}
+{"file":".trellis/spec/frontend/creative-async-suno-relay.md","reason":"Analogous frontend session-broker contract for canonical base URL, empty-key handling, credential stripping, and unsupported backend behavior."}
