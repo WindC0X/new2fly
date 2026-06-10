@@ -1,1 +1,9 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file":".trellis/spec/backend/index.md","reason":"Backend guideline entrypoint for new-api route, middleware, task, billing, and relay work."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend guideline entrypoint for Opentu embedded client and provider transport work."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Drawnix spec-test type-safety rules, including creative embedded no-secret assertions and tsconfig.spec gate."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"Frontend same-origin creative media/no-secret contract relevant to protected video content handling."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Backend owner-scoped creative binary/no-secret response patterns relevant to content proxy behavior."}
+{"file":".trellis/tasks/06-09-creative-async-video-relay/prd.md","reason":"Async-video requirements and acceptance criteria."}
+{"file":".trellis/tasks/06-09-creative-async-video-relay/design.md","reason":"Technical contract, boundaries, validation matrix, lifecycle, and test strategy for async-video."}
+{"file":".trellis/tasks/06-09-creative-async-video-relay/implement.md","reason":"Ordered implementation phases, verification commands, and rollback plan."}
+{"file":".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/media-relay-continuation-2026-06-10.md","reason":"Parent media-relay evidence that split async-video from parent remediation and defines blockers."}

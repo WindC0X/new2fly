@@ -1,1 +1,9 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file":".trellis/spec/backend/index.md","reason":"Backend check entrypoint for route/middleware/billing quality expectations."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend check entrypoint for Opentu provider transport and embedded client quality expectations."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Required strict Drawnix spec-test typecheck and no weakening of security assertions."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"No-secret same-origin creative media behavior to verify for embedded video content flows."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Owner-scoped non-leaky binary/content response patterns to verify on backend content routes."}
+{"file":".trellis/tasks/06-09-creative-async-video-relay/prd.md","reason":"Acceptance criteria used as the check list for async-video completion."}
+{"file":".trellis/tasks/06-09-creative-async-video-relay/design.md","reason":"Design invariants that check must enforce: path contract, validation matrix, CAS, ownership, key affinity."}
+{"file":".trellis/tasks/06-09-creative-async-video-relay/implement.md","reason":"Verification command list and rollback expectations for check agents."}
+{"file":".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/media-relay-continuation-2026-06-10.md","reason":"Parent evidence for why unsafe media routes remain split until child checks pass."}
