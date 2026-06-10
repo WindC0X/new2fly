@@ -23,7 +23,8 @@
     "06-09-creative-async-video-relay",
     "06-09-creative-suno-relay",
     "06-09-creative-mj-relay",
-    "06-09-creative-cloud-assets-sync"
+    "06-09-creative-cloud-assets-sync",
+    "06-10-opentu-tsconfig-spec-type-debt"
   ],
   "parent": null,
   "relatedFiles": [],

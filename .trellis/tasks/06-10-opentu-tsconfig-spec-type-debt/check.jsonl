@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/opentu-tsconfig-spec-2026-06-10.md", "reason": "Parent evidence for remaining tsconfig.spec failures"}
+{"file": ".trellis/tasks/06-09-newapi-opentu-creative-remediation/research/final-dynamic-verification-2026-06-10.md", "reason": "Final dynamic workflow decision to split tsconfig.spec type debt"}
+{"file": "/mnt/f/code/project/opentu/packages/drawnix/tsconfig.spec.json", "reason": "Spec typecheck configuration under follow-up"}
