@@ -245,3 +245,41 @@ Ran dynamic workflows for Creative MJ relay, implemented backend and Opentu sess
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Complete Creative Remediation Parent
+
+**Date**: 2026-06-11
+**Task**: Complete Creative Remediation Parent
+**Branch**: `master`
+
+### Summary
+
+Closed the parent new-api/opentu creative remediation task after confirming all six child deliverables were archived, recording final parent closure evidence, updating PRD acceptance criteria, and archiving the parent task.
+
+### Main Changes
+
+- Confirmed parent `06-09-newapi-opentu-creative-remediation` had progress `[6/6 done]` and all six children were archived.
+- Added `research/final-parent-closure-2026-06-11.md` with child status, evidence commits, verification commands, excluded dirty paths, remaining-work decision, and spec-update judgement.
+- Marked parent PRD acceptance criteria complete and linked the closure report from `check.jsonl`.
+- No additional code-spec update was needed in the final parent turn because executable contracts were already captured by the video/Suno/MJ/asset child specs.
+- Archived the parent task with `task.py archive 06-09-newapi-opentu-creative-remediation`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b1dbf38` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
