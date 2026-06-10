@@ -23,6 +23,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Creative Asset Sync](./creative-asset-sync.md) | Opentu asset prepare/hydrate, sanitizer, and service-worker pass-through contract | Active |
 | [Creative Async Video Relay](./creative-async-video-relay.md) | Opentu session-broker async video paths, idempotency, no-fallback, and credential-stripping contract | Active |
 | [Creative Async Suno Relay](./creative-async-suno-relay.md) | Opentu session-broker Suno paths, empty-key handling, idempotency propagation, unsupported no-fallback, and credential-stripping contract | Active |
+| [Creative Async MJ Relay](./creative-async-mj-relay.md) | Opentu session-broker MJ paths, stable image idempotency, no-fallback unsupported handling, and credential-stripping contract | Active |
 
 ---
 

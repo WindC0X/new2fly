@@ -86,16 +86,24 @@ The first implementation tranche should enable only `submit/imagine`, owner-scop
 
 ## Acceptance Criteria
 
-- [ ] Backend route tests prove canonical `/creative/relay/v1/mj/submit/imagine`, `/creative/relay/v1/mj/task/:task_id/fetch`, and result proxy paths are mounted only through creative middleware.
-- [ ] Backend tests cover browser session success plus API-token-only/session-missing rejection, same-origin rejection, missing/invalid nonce rejection, and forbidden header/query/body field rejection.
-- [ ] Backend tests cover server-derived `mj_imagine`, browser `model`/`notifyHook` rejection, unsupported action failure, and no legacy direct fallback under `/creative`.
-- [ ] Backend submit tests cover pre-consume, upstream submit failure refund, local persistence failure refund, idempotent replay, idempotency conflict, public task id response, and selected channel/key persistence.
-- [ ] Backend fetch/result tests cover same-user success, cross-user non-leaky rejection, missing task, private response headers, and no upstream key/channel/billing leakage.
-- [ ] Backend polling/settlement tests cover CAS single-winner success settlement, CAS single-winner failure refund for wallet and subscription/session-broker billing sources, and no double refund/settlement from concurrent pollers.
-- [ ] Backend channel/key affinity tests prove polling/action-compatible fetches use submit-time selected key for multi-key channels.
-- [ ] Opentu adapter/transport tests prove embedded MJ uses `/creative/relay/v1/mj/submit/imagine` and `/creative/relay/v1/mj/task/{taskId}/fetch`, allows empty API key only for session broker, sends stable idempotency, strips credentials/routing/model material, and does not fall back on unsupported backend responses.
-- [ ] Cross-layer path contract tests prove Opentu and new-api agree on submit/fetch/result URLs.
-- [ ] Targeted backend and frontend test/typecheck commands are recorded with pass/fail evidence before the child task is archived.
+- [x] Backend route tests prove canonical `/creative/relay/v1/mj/submit/imagine`, `/creative/relay/v1/mj/task/:task_id/fetch`, and result proxy paths are mounted only through creative middleware.
+- [x] Backend tests cover browser session success plus API-token-only/session-missing rejection, same-origin rejection, missing/invalid nonce rejection, and forbidden header/query/body field rejection.
+- [x] Backend tests cover server-derived `mj_imagine`, browser `model`/`notifyHook` rejection, unsupported action failure, and no legacy direct fallback under `/creative`.
+- [x] Backend submit tests cover pre-consume, upstream submit failure refund, local persistence failure refund, idempotent replay, idempotency conflict, public task id response, and selected channel/key persistence.
+- [x] Backend fetch/result tests cover same-user success, cross-user non-leaky rejection, missing task, private response headers, and no upstream key/channel/billing leakage.
+- [x] Backend polling/settlement tests cover CAS single-winner success settlement, CAS single-winner failure refund for wallet and subscription/session-broker billing sources, and no double refund/settlement from concurrent pollers.
+- [x] Backend channel/key affinity tests prove polling/action-compatible fetches use submit-time selected key for multi-key channels.
+- [x] Opentu adapter/transport tests prove embedded MJ uses `/creative/relay/v1/mj/submit/imagine` and `/creative/relay/v1/mj/task/{taskId}/fetch`, allows empty API key only for session broker, sends stable idempotency, strips credentials/routing/model material, and does not fall back on unsupported backend responses.
+- [x] Cross-layer path contract tests prove Opentu and new-api agree on submit/fetch/result URLs.
+- [x] Targeted backend and frontend test/typecheck commands are recorded with pass/fail evidence before the child task is archived.
+
+
+## Implementation Evidence
+
+- Dynamic workflow implementation/repair evidence: `evidence/implementation-verification-2026-06-11.md`.
+- Backend spec captured in `.trellis/spec/backend/creative-async-mj-relay.md`.
+- Frontend spec captured in `.trellis/spec/frontend/creative-async-mj-relay.md`.
+- Unsupported legacy MJ actions are intentionally terminal unsupported routes under `/creative`; they require browser-session creative auth and do not fall back to legacy token-auth `/mj`.
 
 ## Out of Scope For First MJ Tranche
 

@@ -22,6 +22,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Creative Asset Sync](./creative-asset-sync.md) | `/creative/api/assets` API, storage, DB, and secret-safety contract | Active |
 | [Creative Async Video Relay](./creative-async-video-relay.md) | `/creative/relay/v1/videos` session-broker async video, idempotency, billing/CAS, and key-affinity contract | Active |
 | [Creative Async Suno Relay](./creative-async-suno-relay.md) | `/creative/relay/v1/suno` session-broker async Suno, server-side action/model inference, idempotency, billing/CAS, and key-affinity contract | Active |
+| [Creative Async MJ Relay](./creative-async-mj-relay.md) | `/creative/relay/v1/mj` session-broker async Midjourney imagine, owner-scoped fetch/image proxy, idempotency, billing/CAS, and key-affinity contract | Active |
 
 ---
 
