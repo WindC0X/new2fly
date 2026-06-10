@@ -20,6 +20,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
 | [Creative Asset Sync](./creative-asset-sync.md) | `/creative/api/assets` API, storage, DB, and secret-safety contract | Active |
+| [Creative Async Video Relay](./creative-async-video-relay.md) | `/creative/relay/v1/videos` session-broker async video, idempotency, billing/CAS, and key-affinity contract | Active |
 
 ---
 

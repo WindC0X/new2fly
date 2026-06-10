@@ -21,6 +21,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Type Safety](./type-safety.md) | Type patterns, validation, Drawnix spec-test fixture contracts | Active |
 | [Creative Asset Sync](./creative-asset-sync.md) | Opentu asset prepare/hydrate, sanitizer, and service-worker pass-through contract | Active |
+| [Creative Async Video Relay](./creative-async-video-relay.md) | Opentu session-broker async video paths, idempotency, no-fallback, and credential-stripping contract | Active |
 
 ---
 
