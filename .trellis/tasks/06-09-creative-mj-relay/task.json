@@ -3,7 +3,7 @@
   "name": "creative-mj-relay",
   "title": "Creative MJ Relay Follow-up",
   "description": "Define and implement /creative MJ relay paths with session broker, submit/fetch permissions, CAS refund, and channel/key affinity tests.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
