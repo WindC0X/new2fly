@@ -57,17 +57,21 @@ See `research/external-audit-fact-check.md` for evidence. Current confirmed fact
 
 ## Acceptance Criteria
 
-- [ ] Dynamic workflow produces a fresh evidence pack for all seven external audit items, with each item marked `confirmed`, `fixed`, `split`, or `not applicable` with file/command evidence.
-- [ ] Production `new-api/web/creative/dist` and the authoritative opentu build are synchronized, or one authoritative embed path is used by both production and tests.
-- [ ] Tests fail on stale production creative dist and pass after synchronization.
-- [ ] `/creative/relay/v1/images/generations` or the implemented image relay equivalent is mounted, protected by the same session-broker / CSRF / nonce / forbidden-field controls, and covered by tests.
-- [ ] Chat route tests remain passing.
-- [ ] Video/Suno/MJ relay scope is either implemented with async/idempotency/refund tests or explicitly split into child task(s) with documented blockers.
-- [ ] Embedded mode cannot unintentionally bypass new-api as provider gateway; tests cover direct provider fallback prevention or an explicit safe exception.
-- [ ] Return-to-console task is linked or implemented and validated in opentu.
-- [ ] Asset sync gap is either closed for the MVP asset types or split into a child task with acceptance criteria; existing document sync safety tests still pass.
-- [ ] `pnpm exec tsc -p packages/drawnix/tsconfig.spec.json --noEmit` is run; failures are fixed or logged as separate scoped follow-up only if unrelated to this integration.
-- [ ] Final report lists exact commands run, pass/fail status, remaining child tasks, and rerun commands.
+- [x] Dynamic workflow produces a fresh evidence pack for all seven external audit items, with each item marked `confirmed`, `fixed`, `split`, or `not applicable` with file/command evidence.
+- [x] Production `new-api/web/creative/dist` and the authoritative opentu build are synchronized, or one authoritative embed path is used by both production and tests.
+- [x] Tests fail on stale production creative dist and pass after synchronization.
+- [x] `/creative/relay/v1/images/generations` or the implemented image relay equivalent is mounted, protected by the same session-broker / CSRF / nonce / forbidden-field controls, and covered by tests.
+- [x] Chat route tests remain passing.
+- [x] Video/Suno/MJ relay scope is either implemented with async/idempotency/refund tests or explicitly split into child task(s) with documented blockers.
+- [x] Embedded mode cannot unintentionally bypass new-api as provider gateway; tests cover direct provider fallback prevention or an explicit safe exception.
+- [x] Return-to-console task is linked or implemented and validated in opentu.
+- [x] Asset sync gap is either closed for the MVP asset types or split into a child task with acceptance criteria; existing document sync safety tests still pass.
+- [x] `pnpm exec tsc -p packages/drawnix/tsconfig.spec.json --noEmit` is run; failures are fixed or logged as separate scoped follow-up only if unrelated to this integration.
+- [x] Final report lists exact commands run, pass/fail status, remaining child tasks, and rerun commands.
+
+## Final Closure
+
+Final parent closure evidence is recorded in `research/final-parent-closure-2026-06-11.md`. All six child deliverables are archived and no parent-scoped follow-up remains.
 
 ## Out of Scope Unless Explicitly Pulled In
 
