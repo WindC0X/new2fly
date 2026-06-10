@@ -3,7 +3,7 @@
   "name": "creative-suno-relay",
   "title": "Creative Suno Relay Follow-up",
   "description": "Define and implement /creative Suno relay paths with session broker, no-model/group strategy, async task settlement, and tests.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
