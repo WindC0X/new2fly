@@ -1,0 +1,127 @@
+{
+  "branch": "backend-persistence-billing-concurrency",
+  "scope": "new2fly Creative contracts vs /mnt/f/code/project/new-api backend persistence、计费、幂等、并发与缓存路径；本分支未审计 opentu 前端实现。",
+  "conclusion": "发现多处会影响 Creative video/Suno/MJ/asset 合同的后端横切风险：提交成功路径缺少原子化，终态 CAS 与计费变更之间没有可恢复事务边界，通道缺失分支会把任务置失败但不退款，资产删除与配额检查存在并发/重试问题。证据仅来自当前 specs 与当前 new-api 源码/测试，未使用旧报告。",
+  "findings": [
+    {
+      "title": "Creative 异步任务提交成功路径未原子化提交 task/idempotency/billing",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "controller/relay.go:594-623",
+        "controller/relay.go:634-640",
+        "model/task.go:235-248",
+        "service/billing.go:34-58"
+      ],
+      "impact": "违反 video/Suno/MJ 合同中“上游成功必须等本地 task、idempotency、settlement/log bookkeeping 安全后才返回”的要求；可能留下已接收但无幂等记录或未正确结算的任务。",
+      "scenario": "上游 submit 成功且 task.Insert 成功后，如果 CompleteCreativeVideoIdempotencyScoped 或 SettleBilling 失败：前者会进入错误分支删除幂等记录并退款，但已插入 task 不回滚；同一 Idempotency-Key 可再次提交，原任务仍可能后续完成且不收费。后者只 SysError 记录，仍 flush 成功响应。",
+      "evidence": "RelayTask 在成功后先 task.Insert，再单独 CompleteCreativeVideoIdempotencyScoped；失败时只删除 idempotency 并 respondTaskError，没有删除/回滚已插入 task。SettleBilling 返回错误只记录日志，不设置 taskErr，随后刷新 buffered response。",
+      "recommendation": "把 task insert + idempotency complete 放进同一 DB 事务；任何 post-insert 失败必须回滚/删除 task 或持久化为可恢复 terminal failure。SettleBilling 失败不得静默放行成功，应阻止 flush 或写入可重试结算状态。",
+      "validation": "需要注入 CompleteCreativeVideoIdempotencyScoped/SettleBilling 失败的集成测试，断言不会遗留可完成 task、不会删除幂等后允许重复上游提交，且客户端不会收到成功。"
+    },
+    {
+      "title": "终态 CAS 与 refund/settle 分离，CAS winner 崩溃或计费失败会永久 0 次结算/退款",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "service/task_polling.go:325-345",
+        "service/task_polling.go:588-614",
+        "service/task_billing.go:150-181",
+        "service/task_billing.go:187-245"
+      ],
+      "impact": "正常轮询路径虽然避免了双重退款/结算，但没有保证 exactly-once 的 at-least-once 部分；终态状态已写入后，进程崩溃或账务更新失败会让任务不再被轮询，钱包/订阅预扣无法恢复。",
+      "scenario": "poller 将任务从 IN_PROGRESS CAS 更新为 FAILURE，随后 RefundTaskQuota 调整钱包/订阅失败或进程退出；任务已是 FAILURE，被 GetAllUnFinishSyncTasks 排除，后续不会重试退款。SUCCESS 后差额结算也同理。",
+      "evidence": "updateVideoSingleTask 和 updateSunoTaskFromResponse 先 UpdateWithStatus，再调用 settleTaskBillingOnComplete/RefundTaskQuota。RefundTaskQuota/RecalculateTaskQuota 遇到账务错误只记录并返回，没有持久化 retry marker。",
+      "recommendation": "引入 durable billing transition/outbox：终态 CAS 与“待退款/待结算”状态同事务写入，由可重试 worker 幂等完成资金/Token/日志变更；或在同一事务内记录 billing mutation 状态，失败时不让任务退出可恢复集合。",
+      "validation": "增加故障注入测试：CAS 成功后模拟 PostConsumeUserSubscriptionDelta/IncreaseUserQuota/DecreaseUserQuota 失败与进程重启，验证任务会重试且只结算/退款一次。"
+    },
+    {
+      "title": "通道缺失轮询分支批量置 FAILURE 但绕过 CAS 和退款",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "service/task_polling.go:117-125",
+        "service/task_polling.go:412-425",
+        "model/task.go:537-541",
+        "service/task_billing.go:150-181"
+      ],
+      "impact": "如果已接收的 Creative video/MJ 任务所属 channel 被删除或缓存读取失败，预扣的钱包/订阅额度会被永久保留，且批量更新无 CAS 保护。",
+      "scenario": "任务提交后 channel 被禁用/删除；TaskPollingLoop 调用 updateVideoTasks，CacheGetChannel 失败后 TaskBulkUpdateByID 将任务置为 FAILURE，但没有调用 RefundTaskQuota，也没有单任务 UpdateWithStatus。",
+      "evidence": "service/task_polling.go 的 CacheGetChannel 错误分支收集 failedIDs 后直接 TaskBulkUpdateByID；model/task.go 明确注释该函数无 CAS 且不应用于涉及 billing 的状态迁移。",
+      "recommendation": "改为逐 task 读取 snapshot，UpdateWithStatus 成功者调用 RefundTaskQuota/写入可重试 refund outbox；失败者跳过。null task id 分支也应使用同一终态退款流程。",
+      "validation": "新增测试：创建有 quota/BillingSource 的未完成 video/MJ task，删除 channel 后运行 DispatchPlatformUpdate，断言只有 CAS winner 标记失败并退款一次。"
+    },
+    {
+      "title": "Creative S3 资产删除先删 DB 元数据再删对象，失败后不可重试",
+      "severity": "Medium",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "service/creative_asset.go:368-386"
+      ],
+      "impact": "违反 asset contract 中 delete object 应 best-effort/retryable 的要求；S3 删除瞬时失败会造成私有对象孤儿，用户重试时已无 DB 元数据可定位对象。",
+      "scenario": "DELETE /creative/api/assets/:id 检查无引用后，DeleteCreativeAssetMetadata 成功；随后 storage.Delete/S3 DeleteObject 返回错误。客户端收到错误，但再次 DELETE 会因 metadata 不存在而 404，对象留在 bucket。",
+      "evidence": "DeleteIfUnreferenced 在 CountCreativeAssetRefs 后先 model.DeleteCreativeAssetMetadata，再 runtime.storage.Delete；无 tombstone、retry queue 或补偿记录。",
+      "recommendation": "改为先删除对象再删除元数据，或把 asset 标记为 deleting 并持久化可重试删除任务；如果选择 best-effort 成功响应，也必须有后台 GC/retry。",
+      "validation": "用 fake S3 注入 DeleteObject 失败，断言 DB 记录仍可用于重试，或存在 durable retry/tombstone。"
+    },
+    {
+      "title": "Creative asset 用户配额检查与插入不在事务内，并发上传可越过上限",
+      "severity": "Medium",
+      "confidence": "Medium",
+      "status": "likely",
+      "repo": "new-api",
+      "files": [
+        "service/creative_asset.go:281-324",
+        "service/creative_asset.go:402-454",
+        "model/creative_asset.go:113-132"
+      ],
+      "impact": "并发上传不同内容时可能超过 UserMaxBytes/UserMaxAssets/DB canary caps，削弱 asset sync 的资源边界。",
+      "scenario": "两个请求同时上传不同 blob，二者都在插入前读取相同 Count/Sum，均通过 checkQuotaAndStorageHealth，然后分别 Store 并 Create；唯一索引只约束同一 content_hash，不能防止总量超额。",
+      "evidence": "CreateOrGet 在无事务/锁的情况下先 GetCreativeAssetByContentHash、checkQuotaAndStorageHealth，再 storage.Store，最后 DB.Create。配额统计是独立 SELECT COALESCE(SUM(...))。",
+      "recommendation": "引入 per-user quota counter/row lock，或在事务中 reserve quota/count 后再写对象；S3 写失败时释放 reserve。为不同 hash 并发上传增加低配额压力测试。",
+      "validation": "需要运行并发测试：设置 UserMaxBytes 仅允许一个对象，同时发起两个不同对象上传，断言只有一个成功且总量不超限。"
+    },
+    {
+      "title": "钱包/Token Redis 配额缓存先于 DB 更新异步变更，失败时会漂移",
+      "severity": "Medium",
+      "confidence": "Medium",
+      "status": "likely",
+      "repo": "new-api",
+      "files": [
+        "model/user.go:883-897",
+        "model/user.go:908-922",
+        "model/token.go:375-391",
+        "model/token.go:405-421",
+        "service/task_billing.go:87-117"
+      ],
+      "impact": "Creative billing/refund 依赖这些 quota 函数；DB 更新失败、事务回滚或 batch update 延迟时，Redis 中用户/Token 剩余额度可能与真实账本不一致，导致后续请求错误放行或错误拒绝。",
+      "scenario": "RedisEnabled=true 时 IncreaseUserQuota/DecreaseUserQuota/IncreaseTokenQuota/DecreaseTokenQuota 先 gopool 异步 HINCRBY，然后才执行 DB 更新或写 batch 队列；若 DB 返回错误或进程在 batch flush 前退出，缓存已经变化。",
+      "evidence": "相关函数在 DB 操作前启动 cacheIncr/cacheDecr goroutine；没有在 DB error 时回滚/删除缓存，也没有事务后提交 hook。",
+      "recommendation": "DB commit 成功后再更新缓存；失败时显式 invalidate 相关 user/token cache。对 batch mode 增加 durable queue 或启动恢复校准。",
+      "validation": "需要 Redis-enabled 故障注入测试：强制 DB 更新失败，验证缓存未变化或被删除并回源 DB。"
+    }
+  ],
+  "reviewed": [
+    "new2fly backend Creative contracts: creative-asset-sync、creative-async-video-relay、creative-async-suno-relay、creative-async-mj-relay。",
+    "new-api route wiring: router/web-router.go 中 /creative/api/assets 与 /creative/relay/v1/{videos,suno,mj} 路由。",
+    "new-api idempotency/task state: controller/creative.go、controller/relay.go、model/task.go。",
+    "new-api polling/billing: service/task_polling.go、service/task_billing.go、service/billing.go、service/billing_session.go、service/funding_source.go。",
+    "new-api asset persistence/storage: model/creative_asset.go、service/creative_asset.go。",
+    "new-api selected-key affinity: relay/common/relay_info.go、model/task.go、service/task_polling.go；正常轮询使用 Task.PrivateData.Key 的路径已存在。",
+    "new-api MJ/Suno adaptors: relay/channel/task/mj/adaptor.go、relay/channel/task/suno/adaptor.go；MJ submit/fetch 使用 mj-api-secret 且删除 Authorization。",
+    "现有测试覆盖了部分 replay/conflict、stored key affinity、CAS loser 不重复退款/结算；但未覆盖本报告中的故障注入和通道缺失补偿路径。"
+  ],
+  "gaps": [
+    "未运行 go test：当前子代理为只读审计环境，避免在 sibling repo 产生测试缓存/临时写入；结论基于静态源码和测试文件检查。",
+    "未连接 MySQL/PostgreSQL/SQLite 矩阵验证；订阅/支付代码中多处 tx.Set(\"gorm:query_option\", \"FOR UPDATE\") 的真实锁语义仍需在支持的 DB 上实测。",
+    "未调用生产端点、外部 provider、S3、Redis 或支付服务；所有 runtime 场景需用本地 fake/故障注入测试验证。"
+  ]
+}

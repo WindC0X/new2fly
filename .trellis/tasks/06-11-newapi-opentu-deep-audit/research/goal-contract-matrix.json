@@ -1,0 +1,82 @@
+{
+  "branch": "goal-contract-matrix",
+  "scope": "new2fly Creative 后端/前端契约 vs 当前 /mnt/f/code/project/new-api 与 /mnt/f/code/project/opentu 源码（只读采样）",
+  "conclusion": "采样确认 asset sync、Suno、MJ、视频的大部分路由/会话/nonce/owner/key-affinity 目标有实现证据；发现 3 个真实契约缺口，集中在异步提交的结算可见性、视频/MJ 轮询异常分支的 CAS/refund、以及前端视频 unsupported/错误清洗。",
+  "findings": [
+    {
+      "title": "异步任务提交会在结算失败后仍完成幂等并向浏览器刷新成功响应",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "controller/relay.go",
+        "relay/relay_task.go"
+      ],
+      "impact": "违反 video/Suno/MJ 契约中“上游成功响应必须等本地任务插入、幂等完成、settlement/log bookkeeping 成功后再可见”的 billing/idempotency invariant。若 SettleBilling 失败，用户仍得到成功任务 id，幂等记录也已完成，后续 replay 会返回同一成功任务，但账户/日志状态可能未正确结算。",
+      "scenario": "上游提交已 accepted，controller 插入 task 并 CompleteCreativeVideoIdempotencyScoped 成功；随后 DB/订阅/额度更新导致 service.SettleBilling 返回错误。当前代码只 SysError 记录错误，然后继续 LogTaskConsumption 并 FlushTo，把成功响应发给浏览器。",
+      "evidence": "relay/relay_task.go:205-210 在提交前预扣费；controller/relay.go:594-618 在 task insert 后立即完成 scoped idempotency；controller/relay.go:619-630 对 SettleBilling 错误仅 common.SysError，不设置 taskErr、不删除幂等、不阻止 buffered success FlushTo。new2fly 契约要求见 .trellis/spec/backend/creative-async-video-relay.md:27、creative-async-suno-relay.md:31、creative-async-mj-relay.md:40。",
+      "recommendation": "将 submit 成功路径改为原子可见顺序：task insert 后先执行结算/日志可失败检查，再完成 idempotency，最后 FlushTo；任何 settlement/logbook 失败都走 taskErr 分支，删除 scoped idempotency 并触发已有 defer refund。补充测试模拟 SettleBilling 返回错误，断言不刷新成功响应、不完成幂等、只退款一次。",
+      "validation": "静态确认；需要新增 Go 单测通过 monkey patch/可注入 billing settle 函数模拟失败，并验证响应、幂等表与用户额度。"
+    },
+    {
+      "title": "video/MJ 轮询在 channel cache lookup 失败时用无 CAS 批量失败更新且不退款",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "service/task_polling.go",
+        "model/task.go"
+      ],
+      "impact": "违反 async video/MJ terminal polling 的“只有一个 CAS winner settle/refund”与失败退款不变量。若任务已预扣费后 channel 被删除、禁用或缓存读取失败，任务会被标记 FAILURE，但用户不会获得 RefundTaskQuota，且批量更新可覆盖并发终态。",
+      "scenario": "TaskPollingLoop/DispatchPlatformUpdate 处理 Midjourney 或其他视频平台任务；updateVideoTasks 无法 model.CacheGetChannel(channelId)，于是收集 DB primary IDs 并 TaskBulkUpdateByID status=FAILURE/progress=100%，直接返回错误。该分支没有调用 UpdateWithStatus，也没有 RefundTaskQuota。",
+      "evidence": "service/task_polling.go:138-148 显示 Midjourney 与其他视频平台都会进入 UpdateVideoTasks；service/task_polling.go:407-429 在 CacheGetChannel 失败时调用 model.TaskBulkUpdateByID 将任务置 FAILURE；model/task.go:537-541 明确警告 TaskBulkUpdateByID 无 CAS，禁止用于 billing/quota 生命周期。new2fly 契约要求见 .trellis/spec/backend/creative-async-video-relay.md:41、creative-async-mj-relay.md:45/61。",
+      "recommendation": "将 CacheGetChannel 失败分支改成逐 task CAS 终态迁移：task.UpdateWithStatus(previousStatus, FAILURE, ...)，仅 CAS 成功者调用 service.RefundTaskQuota 并写消费日志；不要在计费生命周期使用 TaskBulkUpdateByID。补充测试覆盖 channel missing/cache error 后 wallet/subscription 都只退款一次，CAS loser 不重复退款。",
+      "validation": "静态确认；现有 task_polling_affinity_test.go 覆盖正常 MJ CAS refund/settle，但未覆盖 CacheGetChannel 失败分支。"
+    },
+    {
+      "title": "前端视频 session-broker 对 submit/status 错误未完整清洗，unsupported submit 也未转成 sanitized unsupported-backend",
+      "severity": "Medium",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "opentu",
+      "files": [
+        "packages/drawnix/src/services/video-api-service.ts",
+        "packages/drawnix/src/services/media-api/video-api.ts"
+      ],
+      "impact": "违反前端视频契约的 sanitized unsupported/no credential leakage 目标。后端默认 CREATIVE_VIDEO_RELAY_ENABLED=false 时 submit 会返回 404；当前前端 submit 会读取并拼接原始响应体，status 查询也会先 console.error 原始 body 再抛 sanitized error。若后端/upstream 错误体包含 provider、Authorization、apiKey 等敏感材料，可能进入 UI error/apiErrorBody 或控制台日志。",
+      "scenario": "嵌入式 Creative 视频提交到 /creative/relay/v1/videos，后端因 disabled/unsupported 返回 404/405/501 或错误体；videoAPIService.submitVideoGeneration 不走 createCreativeVideoUnsupportedError，直接抛“视频生成提交失败: status - errorText”。queryVideoStatus 虽最终将 404/405/501 转 unsupported，但已经读取并 console.error 了原始 errorText。共享 media-api/video-api submit 同样直接拼接原始 body。",
+      "evidence": "new-api controller/creative.go:50-64 显示 CREATIVE_VIDEO_RELAY_ENABLED 默认 false 且 gate 返回 404。opentu packages/drawnix/src/services/video-api-service.ts:454-468 submit 非 ok 直接 response.text、console.error、apiErrorBody；同文件 524-532 query 在 unsupported 判断前已读取/打印 errorText；packages/drawnix/src/services/media-api/video-api.ts:251-255 共享 submit 也直接拼接 errorText。前端契约要求见 .trellis/spec/frontend/creative-async-video-relay.md:29、38、49。",
+      "recommendation": "对 session-broker submit/status 统一先判断 404/405/501，再抛不含 body 的 unsupported-backend error；非 unsupported 错误也不要把原始 response body 写入 console 或 apiErrorBody，可只保留 status、稳定 code、截断且脱敏后的摘要。补充 Vitest：submit 501 body 含 Authorization/apiKey 时，throw/message/log/apiErrorBody 均不含敏感串且没有 direct fallback。",
+      "validation": "静态确认；现有 video-api-service.session-broker.test.ts 覆盖 status/content unsupported，但没有覆盖 submit unsupported，也未断言 console 不泄漏原始 body。"
+    }
+  ],
+  "reviewed": [
+    ".trellis/spec/backend/creative-asset-sync.md",
+    ".trellis/spec/frontend/creative-asset-sync.md",
+    ".trellis/spec/backend/creative-async-video-relay.md",
+    ".trellis/spec/frontend/creative-async-video-relay.md",
+    ".trellis/spec/backend/creative-async-suno-relay.md",
+    ".trellis/spec/frontend/creative-async-suno-relay.md",
+    ".trellis/spec/backend/creative-async-mj-relay.md",
+    ".trellis/spec/frontend/creative-async-mj-relay.md",
+    "new-api/router/web-router.go",
+    "new-api/middleware/creative.go",
+    "new-api/controller/creative.go",
+    "new-api/controller/creative_asset.go",
+    "new-api/service/creative_asset.go",
+    "new-api/model/creative_asset.go",
+    "new-api/controller/relay.go",
+    "new-api/relay/relay_task.go",
+    "new-api/service/task_polling.go",
+    "new-api/model/task.go",
+    "new-api/relay/channel/task/suno/adaptor.go",
+    "new-api/relay/channel/task/mj/adaptor.go/opentu/packages/drawnix/src/services/creative-document-assets.ts/opentu/packages/drawnix/src/services/creative-document-sync.ts/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts/opentu/packages/drawnix/src/services/video-api-service.ts/opentu/packages/drawnix/src/services/audio-api-service.ts/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts/opentu/apps/web/src/sw/index.ts"
+  ],
+  "gaps": [
+    "未运行测试、未调用任何生产端点、未读取/打印真实密钥；结论基于当前源码静态采样。",
+    "asset sync、Suno、MJ 的正向 conformance 只采样关键路径；未做全量逐测试用例证明。",
+    "没有做运行时故障注入；SettleBilling 失败与 CacheGetChannel 失败路径需通过新增单测或本地测试 DB 注入验证修复。"
+  ]
+}

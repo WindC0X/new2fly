@@ -1,0 +1,16 @@
+{"file":".trellis/workflow.md","reason":"Trellis phase gates and report-only task lifecycle for the audit."}
+{"file":".trellis/tasks/06-11-newapi-opentu-deep-audit/prd.md","reason":"Current audit requirements, scope, and acceptance criteria."}
+{"file":".trellis/tasks/06-11-newapi-opentu-deep-audit/design.md","reason":"Audit branch design and development-goal conformance contract."}
+{"file":".trellis/tasks/06-11-newapi-opentu-deep-audit/implement.md","reason":"Execution plan, validation strategy, and risk controls."}
+{"file":".trellis/spec/backend/index.md","reason":"Backend active Creative contract index for current-project goals."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend active Creative contract index for current-project goals."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Backend asset API/storage/secret-safety goal contract."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"Frontend asset prepare/hydrate/sanitizer/SW pass-through goal contract."}
+{"file":".trellis/spec/backend/creative-async-video-relay.md","reason":"Backend embedded async video relay goal contract."}
+{"file":".trellis/spec/frontend/creative-async-video-relay.md","reason":"Frontend embedded async video session-broker goal contract."}
+{"file":".trellis/spec/backend/creative-async-suno-relay.md","reason":"Backend embedded Suno relay goal contract."}
+{"file":".trellis/spec/frontend/creative-async-suno-relay.md","reason":"Frontend embedded Suno session-broker goal contract."}
+{"file":".trellis/spec/backend/creative-async-mj-relay.md","reason":"Backend embedded Midjourney relay goal contract."}
+{"file":".trellis/spec/frontend/creative-async-mj-relay.md","reason":"Frontend embedded Midjourney session-broker goal contract."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-repository and multi-layer audit heuristics."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse/drift audit heuristics for route/provider/sync patterns."}

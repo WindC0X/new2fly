@@ -1,0 +1,987 @@
+[
+  {
+    "node": "backend-asset-sync-storage",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "backend-asset-sync-storage",
+      "scope": "new2fly Creative Asset Sync 后端合同；静态审计 /mnt/f/code/project/new-api，并抽样核对 /mnt/f/code/project/opentu 上传适配器。未使用旧报告作为证据。",
+      "conclusion": "new-api 已实现 /creative/api/assets 的 POST/GET/content/DELETE、CreativeAsset/CreativeDocumentAssetRef 模型、S3/DB 存储适配、MIME/SVG/大小校验、owner-scope 查询和引用删除 409 的主体路径。但仍有关键合同缺口：配额检查非原子、全局缓存中间件会让部分错误响应缓存、删除不可重试且与引用刷新存在竞态、生产 S3 健康 fail-closed 不完整，以及公开响应字段与 sizeBytes 合同漂移。",
+      "findings": [
+        {
+          "title": "资产配额检查与写入不是原子操作，可并发绕过用户字节/数量上限",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "service/creative_asset.go:281-288",
+            "service/creative_asset.go:317-324",
+            "service/creative_asset.go:402-424",
+            "model/creative_asset.go:113-123"
+          ],
+          "impact": "用户可通过并发上传多个不同内容，在每个请求都通过旧的 Count/Sum 检查后同时写入，导致 S3/DB 存储量超过 UserMaxBytes/UserMaxAssets；这破坏合同要求的 content hash dedupe/quota accounting。",
+          "scenario": "攻击者并发发起 N 个接近上限的 POST /creative/api/assets。每个请求在插入前都看到相同的历史 total/count，全部通过 checkQuotaAndStorageHealth，随后各自 Store 并 DB.Create，最终总量超过配额。",
+          "evidence": "CreateOrGet 先按 contentHash 查重，再调用 checkQuotaAndStorageHealth，随后才 Store 和 DB.Create；checkQuotaAndStorageHealth 使用 CountCreativeAssets 与 SumCreativeAssetBytes 的普通查询，没有事务、锁、配额 reservation 或 CAS。唯一索引只保护同 hash 去重，不能保护不同 hash 的配额总量。",
+          "recommendation": "把配额检查、配额预留和资产元数据写入放入同一事务；对用户资产配额行或用户行加 SELECT ... FOR UPDATE，或引入 CreativeAssetQuotaUsage 表做原子增量/CAS；S3 对象写入失败时回滚 reservation，DB 创建失败时清理对象。补并发测试：小 UserMaxBytes/UserMaxAssets 下并发上传不同文件只能有一个成功。",
+          "validation": "未运行 go test；尝试 GOCACHE=/tmp/codex-go-cache go test ./controller ./service ./model -run 'TestCreativeAsset|TestCreativeDocumentAssetRefs' -count=1 失败，原因是当前沙箱只读，无法 mkdir /tmp/codex-go-cache。"
+        },
+        {
+          "title": "全局 Cache 中间件使部分 Creative API 错误响应以 max-age=604800 返回，违反 private/no-store/nosniff 合同",
+          "severity": "Medium",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "router/web-router.go:43-59",
+            "middleware/cache.go:7-14",
+            "middleware/creative.go:95-128",
+            "controller/creative_asset.go:80-100",
+            "controller/creative_asset.go:271-281"
+          ],
+          "impact": "缺失会让 /creative/api/assets 相关的 401/403/404/503/nonce 错误或内容错误在浏览器/代理层被错误缓存，造成 owner-scoped content URL 的拒绝服务、状态混淆，且错误 JSON 缺少 nosniff。",
+          "scenario": "GET /creative/api/assets/:id/content 在无会话、跨用户 404、存储故障等路径上会先经过 middleware.Cache 设置 Cache-Control: max-age=604800；部分路径在进入 controller 设置 private headers 前就中止，或 content 错误路径直接 creativeAssetError，未覆盖该缓存头。",
+          "evidence": "SetWebRouter 在注册 creativeAPIRouter 前全局 Use(middleware.Cache())；Cache 对非 / 请求设置 max-age=604800。CreativeRequireNonce 的错误响应直接 c.JSON 并 Abort，没有 no-store/nosniff。CreativeGetAssetContent 只有 416 和成功路径调用 creativeSetPrivateContentHeaders；其他 creativeAssetError 路径未设置 private headers。",
+          "recommendation": "在 /creative/api 与 /creative/relay 分组前添加专用中间件，先设置 Cache-Control: private, no-store、Pragma: no-cache、X-Content-Type-Options: nosniff，并确保所有 Abort/error 路径继承；或让全局 Cache 跳过 /creative/api 和 /creative/relay。补集成测试覆盖 SetWebRouter 下的 missing session、missing nonce、cross-user 404、storage disabled/content error headers。",
+          "validation": "静态确认；未能在只读沙箱运行 Go 测试。"
+        },
+        {
+          "title": "DELETE 先删除 DB 元数据再删除对象，失败后无法按 assetId 重试并可能遗留私有对象",
+          "severity": "Medium",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "service/creative_asset.go:368-385",
+            "model/creative_asset.go:141-143",
+            "service/creative_asset.go:610-614",
+            "service/creative_asset.go:728-744"
+          ],
+          "impact": "不满足合同中的 delete object best-effort/retryable。S3 DeleteObject 失败时，DB 行已删除，用户再次 DELETE 只能得到 404，后台也失去 ObjectKey/Version 元数据，导致对象孤儿和存储成本/数据保留风险。",
+          "scenario": "DELETE /creative/api/assets/:assetId 对未引用 S3 资产执行：DeleteCreativeAssetMetadata 成功删除 DB 行；随后 storage.Delete 因 S3 临时错误返回失败。API 返回错误，但资产元数据已经丢失，后续无法通过 assetId 找到 ObjectKey 重试删除。",
+          "evidence": "DeleteIfUnreferenced 在 CountCreativeAssetRefs 后立即 model.DeleteCreativeAssetMetadata，然后才 runtime.storage.Delete。S3 Delete 只是直接调用 DeleteObject，无 retry queue、tombstone、pending_delete 状态或事务性 outbox。",
+          "recommendation": "改为事务内标记 pending_delete/deleting 并保留 ObjectKey；对象删除成功后再 finalize metadata 删除。失败时保留可重试状态并由后台任务重试。至少应先尝试对象删除，成功后再删 DB；同时记录幂等删除状态。补测试：FakeS3 DeleteObject 第一次失败时，DB 元数据仍可用于第二次重试。",
+          "validation": "静态确认；未能运行测试。"
+        },
+        {
+          "title": "文档引用刷新与资产删除之间没有事务/锁，referenced delete 409 可被竞态绕过",
+          "severity": "Medium",
+          "confidence": "Medium",
+          "status": "likely",
+          "repo": "new-api",
+          "files": [
+            "service/creative_asset.go:368-380",
+            "model/creative_asset.go:151-191",
+            "model/creative_asset.go:205-237",
+            "controller/creative.go:349-367",
+            "controller/creative.go:440-459"
+          ],
+          "impact": "同一用户并发保存文档和删除资产时，DELETE 可能在引用写入前看到 ref count 为 0 并删除资产，随后文档保存插入 CreativeDocumentAssetRef 或持久化包含已删除资产的 snapshot，破坏 referenced delete 409 与 document snapshot sanitization 的一致性。",
+          "scenario": "请求 A 更新文档：ValidateCreativeDocumentAssetRefs 先确认 asset 存在；请求 B 同时 DELETE 该 asset，CountCreativeAssetRefs 为 0 后删除；请求 A 继续 RefreshCreativeDocumentAssetRefs，把已删除 assetId 写入 refs，之后文档内容 URL 返回 404。",
+          "evidence": "ValidateCreativeDocumentAssetRefs、Create/UpdateCreativeDocumentSnapshot、RefreshCreativeDocumentAssetRefs 是分离步骤；DeleteIfUnreferenced 的 CountCreativeAssetRefs 与 DeleteCreativeAssetMetadata 也不是同一把锁保护的事务。模型层没有外键或锁来保证 asset 与 ref 的生命周期一致。",
+          "recommendation": "将文档 mutation 的 asset 验证、文档写入、ref refresh 放入同一事务，并对涉及的 CreativeAsset 行加锁；DELETE 也应在同一事务中锁定 asset 与 refs 后判断并标记删除。补并发测试模拟 update/delete 交错，确保要么 DELETE 409，要么文档 mutation 失败且不落 stale refs。",
+          "validation": "需要运行并发集成测试验证具体 DB 隔离行为；当前仅静态确认缺少事务/锁。"
+        },
+        {
+          "title": "公开 asset JSON 字段与后端合同不一致：返回 size 和 timestamps，而非只返回 sizeBytes 合同形态",
+          "severity": "Low",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api + opentu",
+          "files": [
+            "service/creative_asset.go:102-110",
+            "service/creative_asset.go:475-488",
+            "controller/creative_asset.go:56-60",
+            "packages/drawnix/src/services/creative-document-assets.ts:760-764"
+          ],
+          "impact": "后端合同示例要求返回 { id, url, contentHash, mimeType, mediaType, sizeBytes } 且只暴露公开字段；当前返回 size、createdTime、updatedTime。虽然未泄漏 ObjectKey/S3 字段，但会造成严格客户端或验收测试与合同漂移。",
+          "scenario": "集成方按 new2fly 后端合同读取 asset.sizeBytes 做展示/配额确认时得到 undefined；同时响应包含合同未列出的 createdTime/updatedTime。opentu 当前只解包 url，因此不会立即暴露，但跨项目合同不一致。",
+          "evidence": "CreativeAssetPublic 的 JSON tag 是 size 而不是 sizeBytes，并额外定义 CreatedTime/UpdatedTime。CreativeAssetPublicResponse 填充 Size/CreatedTime/UpdatedTime。opentu unwrapAssetContentUrl 只接受 url/contentUrl，未校验 sizeBytes。",
+          "recommendation": "将公开 DTO 改为 sizeBytes，并移除或明确纳入合同的 timestamps；增加 controller JSON shape 测试，断言不含 ObjectKey/StorageBackend/bucket/sourceUrl 且字段名与合同完全一致。",
+          "validation": "静态确认；未能运行测试。"
+        },
+        {
+          "title": "生产 S3 unhealthy fail-closed 只检查配置字段完整性，bootstrap 可能报告 enabled 直到首次上传才失败",
+          "severity": "Medium",
+          "confidence": "Medium",
+          "status": "needs-runtime-verification",
+          "repo": "new-api",
+          "files": [
+            "service/creative_asset.go:198-233",
+            "service/creative_asset.go:236-246",
+            "service/creative_asset.go:548-572",
+            "controller/creative.go:176-195"
+          ],
+          "impact": "合同要求缺失/不健康的生产 S3 配置 fail closed。当前 NewCreativeAssetRuntime 只检查 endpoint/region/bucket/access key/secret 非空，Status 因 storage 非 nil 就返回 enabled；bucket 权限错误、endpoint 不可达、签名不兼容等不健康状态要到上传 Store/HeadObject 才暴露，前端 bootstrap 仍会启用资产同步。",
+          "scenario": "生产配置字段齐全但 bucket 权限错误。CreativeBootstrap 返回 assetSync.enabled=true；opentu 开始上传，所有资产同步在首次 PutObject/HeadObject 才失败，用户文档保存被阻塞或进入降级错误。",
+          "evidence": "NewCreativeAssetRuntime 对 s3-compatible 仅调用 creativeS3ConfigComplete；Status 只检查 disabled/storage nil。真正的 PutObject 后 HeadObject 验证只在 Store 中执行，不在初始化或状态探针中执行。",
+          "recommendation": "增加启动/定期 health probe：对 bucket/prefix 做最小权限 HeadBucket/Put+Head+Delete 测试或可配置 health object；健康失败时 Status 返回 disabled 且前端 bootstrap 不启用。补 fake S3 unhealthy client 测试，断言 production runtime Status fail-closed 且不落 DB。",
+          "validation": "需要可写测试环境中添加/运行 fake unhealthy S3 runtime 测试；当前未调用任何真实或生产端点。"
+        }
+      ],
+      "reviewed": [
+        "new2fly/.trellis/spec/backend/creative-asset-sync.md: API、DB、storage、validation/error/test 合同。",
+        "new-api/router/web-router.go: Creative API/relay route wiring and middleware order。",
+        "new-api/controller/creative_asset.go: POST/GET/content/DELETE handlers, multipart validation, headers, error mapping。",
+        "new-api/service/creative_asset.go: runtime config, DB/S3 storage adapters, MIME/SVG/range/hash/quota/delete behavior。",
+        "new-api/model/creative_asset.go: CreativeAsset、CreativeDocumentAssetRef、owner-scoped queries、asset ref parsing/validation。",
+        "new-api/model/main.go: AutoMigrate 注册 CreativeAsset 和 CreativeDocumentAssetRef。",
+        "new-api/controller/creative.go: document create/update/delete asset ref refresh and forbidden field scanning。",
+        "new-api/middleware/creative.go 与 middleware/auth.go: session bridge、nonce/same-origin、UserAuth access-token handling。",
+        "new-api/controller/creative_asset_test.go、service/creative_asset_test.go、model/creative_asset_test.go: 现有测试覆盖范围。",
+        "opentu/packages/drawnix/src/services/creative-document-assets.ts: upload/download adapter 对 /creative/api/assets 的基本响应消费。"
+      ],
+      "gaps": [
+        "未读取或使用旧审计报告、归档任务、workspace journals、.codebuddy 报告作为证据。",
+        "验证命令受只读文件系统限制失败：GOCACHE=/tmp/codex-go-cache go test ./controller ./service ./model -run 'TestCreativeAsset|TestCreativeDocumentAssetRefs' -count=1 无法创建 /tmp/codex-go-cache。",
+        "未做 MySQL/PostgreSQL 实库迁移验证；当前证据仅来自 GORM 模型/AutoMigrate 注册和 SQLite-oriented tests。",
+        "未调用任何真实 S3/生产端点；S3 unhealthy fail-closed finding 需要 fake unhealthy client 或本地兼容服务复验。"
+      ]
+    },
+    "raw": "{\"branch\":\"backend-asset-sync-storage\",\"scope\":\"new2fly Creative Asset Sync 后端合同；静态审计 /mnt/f/code/project/new-api，并抽样核对 /mnt/f/code/project/opentu 上传适配器。未使用旧报告作为证据。\",\"conclusion\":\"new-api 已实现 /creative/api/assets 的 POST/GET/content/DELETE、CreativeAsset/CreativeDocumentAssetRef 模型、S3/DB 存储适配、MIME/SVG/大小校验、owner-scope 查询和引用删除 409 的主体路径。但仍有关键合同缺口：配额检查非原子、全局缓存中间件会让部分错误响应缓存、删除不可重试且与引用刷新存在竞态、生产 S3 健康 fail-closed 不完整，以及公开响应字段与 sizeBytes 合同漂移。\",\"findings\":[{\"title\":\"资产配额检查与写入不是原子操作，可并发绕过用户字节/数量上限\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"service/creative_asset.go:281-288\",\"service/creative_asset.go:317-324\",\"service/creative_asset.go:402-424\",\"model/creative_asset.go:113-123\"],\"impact\":\"用户可通过并发上传多个不同内容，在每个请求都通过旧的 Count/Sum 检查后同时写入，导致 S3/DB 存储量超过 UserMaxBytes/UserMaxAssets；这破坏合同要求的 content hash dedupe/quota accounting。\",\"scenario\":\"攻击者并发发起 N 个接近上限的 POST /creative/api/assets。每个请求在插入前都看到相同的历史 total/count，全部通过 checkQuotaAndStorageHealth，随后各自 Store 并 DB.Create，最终总量超过配额。\",\"evidence\":\"CreateOrGet 先按 contentHash 查重，再调用 checkQuotaAndStorageHealth，随后才 Store 和 DB.Create；checkQuotaAndStorageHealth 使用 CountCreativeAssets 与 SumCreativeAssetBytes 的普通查询，没有事务、锁、配额 reservation 或 CAS。唯一索引只保护同 hash 去重，不能保护不同 hash 的配额总量。\",\"recommendation\":\"把配额检查、配额预留和资产元数据写入放入同一事务；对用户资产配额行或用户行加 SELECT ... FOR UPDATE，或引入 CreativeAssetQuotaUsage 表做原子增量/CAS；S3 对象写入失败时回滚 reservation，DB 创建失败时清理对象。补并发测试：小 UserMaxBytes/UserMaxAssets 下并发上传不同文件只能有一个成功。\",\"validation\":\"未运行 go test；尝试 GOCACHE=/tmp/codex-go-cache go test ./controller ./service ./model -run 'TestCreativeAsset|TestCreativeDocumentAssetRefs' -count=1 失败，原因是当前沙箱只读，无法 mkdir /tmp/codex-go-cache。\"},{\"title\":\"全局 Cache 中间件使部分 Creative API 错误响应以 max-age=604800 返回，违反 private/no-store/nosniff 合同\",\"severity\":\"Medium\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"router/web-router.go:43-59\",\"middleware/cache.go:7-14\",\"middleware/creative.go:95-128\",\"controller/creative_asset.go:80-100\",\"controller/creative_asset.go:271-281\"],\"impact\":\"缺失会让 /creative/api/assets 相关的 401/403/404/503/nonce 错误或内容错误在浏览器/代理层被错误缓存，造成 owner-scoped content URL 的拒绝服务、状态混淆，且错误 JSON 缺少 nosniff。\",\"scenario\":\"GET /creative/api/assets/:id/content 在无会话、跨用户 404、存储故障等路径上会先经过 middleware.Cache 设置 Cache-Control: max-age=604800；部分路径在进入 controller 设置 private headers 前就中止，或 content 错误路径直接 creativeAssetError，未覆盖该缓存头。\",\"evidence\":\"SetWebRouter 在注册 creativeAPIRouter 前全局 Use(middleware.Cache())；Cache 对非 / 请求设置 max-age=604800。CreativeRequireNonce 的错误响应直接 c.JSON 并 Abort，没有 no-store/nosniff。CreativeGetAssetContent 只有 416 和成功路径调用 creativeSetPrivateContentHeaders；其他 creativeAssetError 路径未设置 private headers。\",\"recommendation\":\"在 /creative/api 与 /creative/relay 分组前添加专用中间件，先设置 Cache-Control: private, no-store、Pragma: no-cache、X-Content-Type-Options: nosniff，并确保所有 Abort/error 路径继承；或让全局 Cache 跳过 /creative/api 和 /creative/relay。补集成测试覆盖 SetWebRouter 下的 missing session、missing nonce、cross-user 404、storage disabled/content error headers。\",\"validation\":\"静态确认；未能在只读沙箱运行 Go 测试。\"},{\"title\":\"DELETE 先删除 DB 元数据再删除对象，失败后无法按 assetId 重试并可能遗留私有对象\",\"severity\":\"Medium\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"service/creative_asset.go:368-385\",\"model/creative_asset.go:141-143\",\"service/creative_asset.go:610-614\",\"service/creative_asset.go:728-744\"],\"impact\":\"不满足合同中的 delete object best-effort/retryable。S3 DeleteObject 失败时，DB 行已删除，用户再次 DELETE 只能得到 404，后台也失去 ObjectKey/Version 元数据，导致对象孤儿和存储成本/数据保留风险。\",\"scenario\":\"DELETE /creative/api/assets/:assetId 对未引用 S3 资产执行：DeleteCreativeAssetMetadata 成功删除 DB 行；随后 storage.Delete 因 S3 临时错误返回失败。API 返回错误，但资产元数据已经丢失，后续无法通过 assetId 找到 ObjectKey 重试删除。\",\"evidence\":\"DeleteIfUnreferenced 在 CountCreativeAssetRefs 后立即 model.DeleteCreativeAssetMetadata，然后才 runtime.storage.Delete。S3 Delete 只是直接调用 DeleteObject，无 retry queue、tombstone、pending_delete 状态或事务性 outbox。\",\"recommendation\":\"改为事务内标记 pending_delete/deleting 并保留 ObjectKey；对象删除成功后再 finalize metadata 删除。失败时保留可重试状态并由后台任务重试。至少应先尝试对象删除，成功后再删 DB；同时记录幂等删除状态。补测试：FakeS3 DeleteObject 第一次失败时，DB 元数据仍可用于第二次重试。\",\"validation\":\"静态确认；未能运行测试。\"},{\"title\":\"文档引用刷新与资产删除之间没有事务/锁，referenced delete 409 可被竞态绕过\",\"severity\":\"Medium\",\"confidence\":\"Medium\",\"status\":\"likely\",\"repo\":\"new-api\",\"files\":[\"service/creative_asset.go:368-380\",\"model/creative_asset.go:151-191\",\"model/creative_asset.go:205-237\",\"controller/creative.go:349-367\",\"controller/creative.go:440-459\"],\"impact\":\"同一用户并发保存文档和删除资产时，DELETE 可能在引用写入前看到 ref count 为 0 并删除资产，随后文档保存插入 CreativeDocumentAssetRef 或持久化包含已删除资产的 snapshot，破坏 referenced delete 409 与 document snapshot sanitization 的一致性。\",\"scenario\":\"请求 A 更新文档：ValidateCreativeDocumentAssetRefs 先确认 asset 存在；请求 B 同时 DELETE 该 asset，CountCreativeAssetRefs 为 0 后删除；请求 A 继续 RefreshCreativeDocumentAssetRefs，把已删除 assetId 写入 refs，之后文档内容 URL 返回 404。\",\"evidence\":\"ValidateCreativeDocumentAssetRefs、Create/UpdateCreativeDocumentSnapshot、RefreshCreativeDocumentAssetRefs 是分离步骤；DeleteIfUnreferenced 的 CountCreativeAssetRefs 与 DeleteCreativeAssetMetadata 也不是同一把锁保护的事务。模型层没有外键或锁来保证 asset 与 ref 的生命周期一致。\",\"recommendation\":\"将文档 mutation 的 asset 验证、文档写入、ref refresh 放入同一事务，并对涉及的 CreativeAsset 行加锁；DELETE 也应在同一事务中锁定 asset 与 refs 后判断并标记删除。补并发测试模拟 update/delete 交错，确保要么 DELETE 409，要么文档 mutation 失败且不落 stale refs。\",\"validation\":\"需要运行并发集成测试验证具体 DB 隔离行为；当前仅静态确认缺少事务/锁。\"},{\"title\":\"公开 asset JSON 字段与后端合同不一致：返回 size 和 timestamps，而非只返回 sizeBytes 合同形态\",\"severity\":\"Low\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api + opentu\",\"files\":[\"service/creative_asset.go:102-110\",\"service/creative_asset.go:475-488\",\"controller/creative_asset.go:56-60\",\"packages/drawnix/src/services/creative-document-assets.ts:760-764\"],\"impact\":\"后端合同示例要求返回 { id, url, contentHash, mimeType, mediaType, sizeBytes } 且只暴露公开字段；当前返回 size、createdTime、updatedTime。虽然未泄漏 ObjectKey/S3 字段，但会造成严格客户端或验收测试与合同漂移。\",\"scenario\":\"集成方按 new2fly 后端合同读取 asset.sizeBytes 做展示/配额确认时得到 undefined；同时响应包含合同未列出的 createdTime/updatedTime。opentu 当前只解包 url，因此不会立即暴露，但跨项目合同不一致。\",\"evidence\":\"CreativeAssetPublic 的 JSON tag 是 size 而不是 sizeBytes，并额外定义 CreatedTime/UpdatedTime。CreativeAssetPublicResponse 填充 Size/CreatedTime/UpdatedTime。opentu unwrapAssetContentUrl 只接受 url/contentUrl，未校验 sizeBytes。\",\"recommendation\":\"将公开 DTO 改为 sizeBytes，并移除或明确纳入合同的 timestamps；增加 controller JSON shape 测试，断言不含 ObjectKey/StorageBackend/bucket/sourceUrl 且字段名与合同完全一致。\",\"validation\":\"静态确认；未能运行测试。\"},{\"title\":\"生产 S3 unhealthy fail-closed 只检查配置字段完整性，bootstrap 可能报告 enabled 直到首次上传才失败\",\"severity\":\"Medium\",\"confidence\":\"Medium\",\"status\":\"needs-runtime-verification\",\"repo\":\"new-api\",\"files\":[\"service/creative_asset.go:198-233\",\"service/creative_asset.go:236-246\",\"service/creative_asset.go:548-572\",\"controller/creative.go:176-195\"],\"impact\":\"合同要求缺失/不健康的生产 S3 配置 fail closed。当前 NewCreativeAssetRuntime 只检查 endpoint/region/bucket/access key/secret 非空，Status 因 storage 非 nil 就返回 enabled；bucket 权限错误、endpoint 不可达、签名不兼容等不健康状态要到上传 Store/HeadObject 才暴露，前端 bootstrap 仍会启用资产同步。\",\"scenario\":\"生产配置字段齐全但 bucket 权限错误。CreativeBootstrap 返回 assetSync.enabled=true；opentu 开始上传，所有资产同步在首次 PutObject/HeadObject 才失败，用户文档保存被阻塞或进入降级错误。\",\"evidence\":\"NewCreativeAssetRuntime 对 s3-compatible 仅调用 creativeS3ConfigComplete；Status 只检查 disabled/storage nil。真正的 PutObject 后 HeadObject 验证只在 Store 中执行，不在初始化或状态探针中执行。\",\"recommendation\":\"增加启动/定期 health probe：对 bucket/prefix 做最小权限 HeadBucket/Put+Head+Delete 测试或可配置 health object；健康失败时 Status 返回 disabled 且前端 bootstrap 不启用。补 fake S3 unhealthy client 测试，断言 production runtime Status fail-closed 且不落 DB。\",\"validation\":\"需要可写测试环境中添加/运行 fake unhealthy S3 runtime 测试；当前未调用任何真实或生产端点。\"}],\"reviewed\":[\"new2fly/.trellis/spec/backend/creative-asset-sync.md: API、DB、storage、validation/error/test 合同。\",\"new-api/router/web-router.go: Creative API/relay route wiring and middleware order。\",\"new-api/controller/creative_asset.go: POST/GET/content/DELETE handlers, multipart validation, headers, error mapping。\",\"new-api/service/creative_asset.go: runtime config, DB/S3 storage adapters, MIME/SVG/range/hash/quota/delete behavior。\",\"new-api/model/creative_asset.go: CreativeAsset、CreativeDocumentAssetRef、owner-scoped queries、asset ref parsing/validation。\",\"new-api/model/main.go: AutoMigrate 注册 CreativeAsset 和 CreativeDocumentAssetRef。\",\"new-api/controller/creative.go: document create/update/delete asset ref refresh and forbidden field scanning。\",\"new-api/middleware/creative.go 与 middleware/auth.go: session bridge、nonce/same-origin、UserAuth access-token handling。\",\"new-api/controller/creative_asset_test.go、service/creative_asset_test.go、model/creative_asset_test.go: 现有测试覆盖范围。\",\"opentu/packages/drawnix/src/services/creative-document-assets.ts: upload/download adapter 对 /creative/api/assets 的基本响应消费。\"],\"gaps\":[\"未读取或使用旧审计报告、归档任务、workspace journals、.codebuddy 报告作为证据。\",\"验证命令受只读文件系统限制失败：GOCACHE=/tmp/codex-go-cache go test ./controller ./service ./model -run 'TestCreativeAsset|TestCreativeDocumentAssetRefs' -count=1 无法创建 /tmp/codex-go-cache。\",\"未做 MySQL/PostgreSQL 实库迁移验证；当前证据仅来自 GORM 模型/AutoMigrate 注册和 SQLite-oriented tests。\",\"未调用任何真实 S3/生产端点；S3 unhealthy fail-closed finding 需要 fake unhealthy client 或本地兼容服务复验。\"]}",
+    "usage": {
+      "input_tokens": 2461094,
+      "cached_input_tokens": 2269312,
+      "output_tokens": 14972,
+      "reasoning_output_tokens": 8560
+    }
+  },
+  {
+    "node": "frontend-asset-sync-sw",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "frontend-asset-sync-sw",
+      "scope": "Opentu Creative Asset Sync 前端与 Service Worker 合同；仅做只读静态审计，并用 new-api 路由作路径对齐检查。",
+      "conclusion": "当前实现已覆盖深拷贝出站重写、同源 session 上传、云引用 hydrate 到 unified cache、以及 SW 对 /creative/api/assets/* 的前置放行。但仍有 2 个 High 级合同缺口：URL 发现白名单漏掉若干必需字段/生成媒体前缀；无云引用远端文档冷启动导入会绕过 signed/bucket URL 校验。另有必需测试矩阵覆盖不足。",
+      "findings": [
+        {
+          "title": "资产 URL 发现白名单漏掉 __aitu_generated__/image|video 与 posters/covers/clips 字符串数组",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "opentu",
+          "files": [
+            "packages/drawnix/src/services/creative-document-assets.ts:80-94",
+            "packages/drawnix/src/services/creative-document-assets.ts:378-435",
+            "packages/drawnix/src/services/creative-document-assets.ts:585-664",
+            "packages/drawnix/src/utils/virtual-media-url.ts:25-38",
+            "packages/drawnix/src/services/creative-document-assets.test.ts:39-107"
+          ],
+          "impact": "必需本地媒体可能不上传、不报错，直接以本地虚拟 URL 写入云文档，导致其他浏览器/会话无法 hydrate，违反 new2fly Creative asset-sync fail-closed 与“只保存 /creative/api/assets/:id/content”合同。",
+          "scenario": "快照包含 imageUrl: '/__aitu_generated__/image/a.png'、videoUrl: '/__aitu_generated__/video/v.mp4'、posters: ['/__aitu_cache__/image/p.png']、covers: ['/asset-library/c.png'] 或 clips: ['/__aitu_cache__/video/c.mp4'] 时，当前重写器不会把这些字符串识别为上传候选；断言也不会拦截这些键，随后 document adapter 可保存破损云文档。",
+          "evidence": "REQUIRED_URL_FIELDS 只含 url/imageUrl/videoUrl/audioUrl/poster/src/thumbnail/thumbnailUrl/previewImageUrl/coverUrl/imageLargeUrl；REQUIRED_URL_ARRAY_FIELDS 只含 urls/thumbnailUrls。rewriteRequiredUrlFields 只有在 keyHint 命中这些字段时才重写字符串。isAIGeneratedVirtualUrl 只接受 /__aitu_generated__/audio/。现有测试只覆盖 data、/__aitu_cache__/、/asset-library/、/__aitu_generated__/audio/ 和 clips 内对象字段，未覆盖 generated image/video、posters/covers/string clips。",
+          "recommendation": "扩展虚拟媒体识别到 /__aitu_generated__/{image,video,audio}/；扩展字段表或改为基于值特征+安全路径的递归发现，至少覆盖 posterUrl、posters、cover、covers、clips 字符串数组及缩略图数组别名；对未知本地虚拟媒体字段 fail-closed。",
+          "validation": "静态确认。建议新增参数化 Vitest：上述字段在 assetSyncEnabled=true 时全部上传重写；assetSyncEnabled=false 时全部阻塞且错误不含原始 URL。"
+        },
+        {
+          "title": "冷启动 hydrate 在“无云资产引用”分支绕过 signed/bucket URL 校验",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "opentu",
+          "files": [
+            "packages/drawnix/src/services/creative-document-assets.ts:245-264",
+            "packages/drawnix/src/services/creative-document-assets.ts:667-740",
+            "packages/drawnix/src/services/creative-document-sync.ts:1213-1228"
+          ],
+          "impact": "若后端历史数据、迁移数据或异常响应包含签名 URL/对象存储 URL，前端会在无 /creative/api/assets/* 引用时直接导入并本地保存，违反 credential-stripping 与 signed/bucket/sourceUrl 不持久化合同。",
+          "scenario": "远端文档 snapshot.elements[0].imageUrl 为 https://bucket.s3.amazonaws.com/x.png?X-Amz-Signature=...，且没有任何 /creative/api/assets/:id/content。syncRemoteDocumentsForColdStart 走 no-cloud-ref 快路径，documentToBoard 后 upsertBoardFromCloud，未调用 hydrateCreativeDocumentAssets 的 unsafe URL 检查。",
+          "evidence": "getUnsafeRemoteUrlKind 能识别 signed-query/object-storage-url，但 hydrateCreativeDocumentAssets 在 hasCreativeAssetContentRefs(copy) 为 false 时直接 return copy。syncRemoteDocumentsForColdStart 也在 !hasCreativeAssetContentRefs(remote) 时直接 documentToBoard + upsertBoardFromCloud。",
+          "recommendation": "无论是否存在 cloud asset refs，远端导入前都应运行 unsafe URL/value 校验或统一 sanitizer；发现 signed/bucket/provider URL 时拒绝导入、记录 sanitized status，并保持本地 pending/冲突状态不被破坏。",
+          "validation": "静态确认。建议新增冷启动测试：远端无 cloud refs 但含 signed imageUrl/bucket URL/sourceUrl/ObjectKey 时不得 upsert，status.lastAssetSyncError 为 sanitized code。"
+        },
+        {
+          "title": "必需测试矩阵覆盖不足，SW 仅做源码顺序断言",
+          "severity": "Medium",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "opentu",
+          "files": [
+            "packages/drawnix/src/services/creative-document-assets.test.ts:39-265",
+            "packages/drawnix/src/services/creative-document-sync.test.ts:865-1028",
+            "apps/web/src/sw/creative-asset-pass-through.spec.ts:18-34"
+          ],
+          "impact": "合同要求的 blob、generated image/video、poster/cover/clip 数组、sourceUrl/ObjectKey 清洗、hydrate 401/404/MIME/size/quota 安全失败、以及 SW image/audio/video/fetch destination 无私有缓存写入，都可能回归而测试不报错。",
+          "scenario": "即使开发者后续移动 SW 分支或新增 cache.put('/creative/api/assets/...')，当前测试主要通过字符串顺序检查，不模拟 FetchEvent destination，也不验证 caches.open/put 未发生；URL 发现缺口同样不会被现有 prepare 测试发现。",
+          "evidence": "asset prepare 测试覆盖一个综合 happy path、disabled、signed prepare、hydrate success、adapter upload；未见 blob、/__aitu_generated__/image|video、posters/covers/string clips、hydrate failure、sourceUrl/ObjectKey 持久化测试。SW spec 读取 index.ts 并比较字符串位置，没有执行 fetch handler 或断言 cache writes。",
+          "recommendation": "补齐合同矩阵：prepare/hydrate 参数化字段测试、sanitizer 持久化测试、409 后 pending 不变测试扩展、hydrate 401/404/network/MIME/size/quota fail-safe 测试；为 SW 建立最小 FetchEvent/caches mock，覆盖 image/audio/video/fetch destinations 并断言不 respondWith 缓存私有资产。",
+          "validation": "静态确认测试缺口；未运行 Vitest/Nx。"
+        }
+      ],
+      "reviewed": [
+        "new2fly/.trellis/spec/frontend/creative-asset-sync.md 与 backend/creative-asset-sync.md 当前合同。",
+        "opentu/packages/drawnix/src/services/creative-document-assets.ts：确认 prepare 使用 cloneJsonLike 深拷贝，upload 使用 credentials:'same-origin'，不发送 Authorization/X-API-Key，download/hydrate 写入 cacheLocalMediaByContent。",
+        "opentu/packages/drawnix/src/services/creative-mode.ts 与 creative-session-broker.ts：确认 bootstrap 要求 session-broker csrfToken/nonce，assetSyncEnabled 默认 false，禁用原因做基础脱敏。",
+        "opentu/packages/drawnix/src/services/creative-document-sync.ts：确认 flush 前 prepare outbound copy；409 冲突后 pending snapshot 保留；cloud refs 成功 hydrate 后 suppressOutboundSync 本地导入。",
+        "opentu/apps/web/src/sw/index.ts 与 creative-asset-pass-through.ts：确认同源 /creative/api/assets/* 分支在虚拟媒体、静态、XHR/API 缓存处理之前 return。",
+        "new-api/router/web-router.go:56-73：确认后端存在 /creative/api/assets 路径并在 POST/DELETE 上挂 CreativeRequireNonce。"
+      ],
+      "gaps": [
+        "未运行 Vitest/Nx/浏览器 SW runtime 验证；本子代理处于只读审计约束，避免生成缓存或修改目标仓库。",
+        "需要运行时验证：真实 Service Worker FetchEvent 中 /creative/api/assets/* 对 image/audio/video/fetch destination 均不 respondWith、不 cache.put。",
+        "需要补充后端/前端联调验证：含非法 signed/bucket URL 的远端文档响应是否会被前端阻断且不会写入 workspaceStorageService。"
+      ]
+    },
+    "raw": "{\"branch\":\"frontend-asset-sync-sw\",\"scope\":\"Opentu Creative Asset Sync 前端与 Service Worker 合同；仅做只读静态审计，并用 new-api 路由作路径对齐检查。\",\"conclusion\":\"当前实现已覆盖深拷贝出站重写、同源 session 上传、云引用 hydrate 到 unified cache、以及 SW 对 /creative/api/assets/* 的前置放行。但仍有 2 个 High 级合同缺口：URL 发现白名单漏掉若干必需字段/生成媒体前缀；无云引用远端文档冷启动导入会绕过 signed/bucket URL 校验。另有必需测试矩阵覆盖不足。\",\"findings\":[{\"title\":\"资产 URL 发现白名单漏掉 __aitu_generated__/image|video 与 posters/covers/clips 字符串数组\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"opentu\",\"files\":[\"packages/drawnix/src/services/creative-document-assets.ts:80-94\",\"packages/drawnix/src/services/creative-document-assets.ts:378-435\",\"packages/drawnix/src/services/creative-document-assets.ts:585-664\",\"packages/drawnix/src/utils/virtual-media-url.ts:25-38\",\"packages/drawnix/src/services/creative-document-assets.test.ts:39-107\"],\"impact\":\"必需本地媒体可能不上传、不报错，直接以本地虚拟 URL 写入云文档，导致其他浏览器/会话无法 hydrate，违反 new2fly Creative asset-sync fail-closed 与“只保存 /creative/api/assets/:id/content”合同。\",\"scenario\":\"快照包含 imageUrl: '/__aitu_generated__/image/a.png'、videoUrl: '/__aitu_generated__/video/v.mp4'、posters: ['/__aitu_cache__/image/p.png']、covers: ['/asset-library/c.png'] 或 clips: ['/__aitu_cache__/video/c.mp4'] 时，当前重写器不会把这些字符串识别为上传候选；断言也不会拦截这些键，随后 document adapter 可保存破损云文档。\",\"evidence\":\"REQUIRED_URL_FIELDS 只含 url/imageUrl/videoUrl/audioUrl/poster/src/thumbnail/thumbnailUrl/previewImageUrl/coverUrl/imageLargeUrl；REQUIRED_URL_ARRAY_FIELDS 只含 urls/thumbnailUrls。rewriteRequiredUrlFields 只有在 keyHint 命中这些字段时才重写字符串。isAIGeneratedVirtualUrl 只接受 /__aitu_generated__/audio/。现有测试只覆盖 data、/__aitu_cache__/、/asset-library/、/__aitu_generated__/audio/ 和 clips 内对象字段，未覆盖 generated image/video、posters/covers/string clips。\",\"recommendation\":\"扩展虚拟媒体识别到 /__aitu_generated__/{image,video,audio}/；扩展字段表或改为基于值特征+安全路径的递归发现，至少覆盖 posterUrl、posters、cover、covers、clips 字符串数组及缩略图数组别名；对未知本地虚拟媒体字段 fail-closed。\",\"validation\":\"静态确认。建议新增参数化 Vitest：上述字段在 assetSyncEnabled=true 时全部上传重写；assetSyncEnabled=false 时全部阻塞且错误不含原始 URL。\"},{\"title\":\"冷启动 hydrate 在“无云资产引用”分支绕过 signed/bucket URL 校验\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"opentu\",\"files\":[\"packages/drawnix/src/services/creative-document-assets.ts:245-264\",\"packages/drawnix/src/services/creative-document-assets.ts:667-740\",\"packages/drawnix/src/services/creative-document-sync.ts:1213-1228\"],\"impact\":\"若后端历史数据、迁移数据或异常响应包含签名 URL/对象存储 URL，前端会在无 /creative/api/assets/* 引用时直接导入并本地保存，违反 credential-stripping 与 signed/bucket/sourceUrl 不持久化合同。\",\"scenario\":\"远端文档 snapshot.elements[0].imageUrl 为 https://bucket.s3.amazonaws.com/x.png?X-Amz-Signature=...，且没有任何 /creative/api/assets/:id/content。syncRemoteDocumentsForColdStart 走 no-cloud-ref 快路径，documentToBoard 后 upsertBoardFromCloud，未调用 hydrateCreativeDocumentAssets 的 unsafe URL 检查。\",\"evidence\":\"getUnsafeRemoteUrlKind 能识别 signed-query/object-storage-url，但 hydrateCreativeDocumentAssets 在 hasCreativeAssetContentRefs(copy) 为 false 时直接 return copy。syncRemoteDocumentsForColdStart 也在 !hasCreativeAssetContentRefs(remote) 时直接 documentToBoard + upsertBoardFromCloud。\",\"recommendation\":\"无论是否存在 cloud asset refs，远端导入前都应运行 unsafe URL/value 校验或统一 sanitizer；发现 signed/bucket/provider URL 时拒绝导入、记录 sanitized status，并保持本地 pending/冲突状态不被破坏。\",\"validation\":\"静态确认。建议新增冷启动测试：远端无 cloud refs 但含 signed imageUrl/bucket URL/sourceUrl/ObjectKey 时不得 upsert，status.lastAssetSyncError 为 sanitized code。\"},{\"title\":\"必需测试矩阵覆盖不足，SW 仅做源码顺序断言\",\"severity\":\"Medium\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"opentu\",\"files\":[\"packages/drawnix/src/services/creative-document-assets.test.ts:39-265\",\"packages/drawnix/src/services/creative-document-sync.test.ts:865-1028\",\"apps/web/src/sw/creative-asset-pass-through.spec.ts:18-34\"],\"impact\":\"合同要求的 blob、generated image/video、poster/cover/clip 数组、sourceUrl/ObjectKey 清洗、hydrate 401/404/MIME/size/quota 安全失败、以及 SW image/audio/video/fetch destination 无私有缓存写入，都可能回归而测试不报错。\",\"scenario\":\"即使开发者后续移动 SW 分支或新增 cache.put('/creative/api/assets/...')，当前测试主要通过字符串顺序检查，不模拟 FetchEvent destination，也不验证 caches.open/put 未发生；URL 发现缺口同样不会被现有 prepare 测试发现。\",\"evidence\":\"asset prepare 测试覆盖一个综合 happy path、disabled、signed prepare、hydrate success、adapter upload；未见 blob、/__aitu_generated__/image|video、posters/covers/string clips、hydrate failure、sourceUrl/ObjectKey 持久化测试。SW spec 读取 index.ts 并比较字符串位置，没有执行 fetch handler 或断言 cache writes。\",\"recommendation\":\"补齐合同矩阵：prepare/hydrate 参数化字段测试、sanitizer 持久化测试、409 后 pending 不变测试扩展、hydrate 401/404/network/MIME/size/quota fail-safe 测试；为 SW 建立最小 FetchEvent/caches mock，覆盖 image/audio/video/fetch destinations 并断言不 respondWith 缓存私有资产。\",\"validation\":\"静态确认测试缺口；未运行 Vitest/Nx。\"}],\"reviewed\":[\"new2fly/.trellis/spec/frontend/creative-asset-sync.md 与 backend/creative-asset-sync.md 当前合同。\",\"opentu/packages/drawnix/src/services/creative-document-assets.ts：确认 prepare 使用 cloneJsonLike 深拷贝，upload 使用 credentials:'same-origin'，不发送 Authorization/X-API-Key，download/hydrate 写入 cacheLocalMediaByContent。\",\"opentu/packages/drawnix/src/services/creative-mode.ts 与 creative-session-broker.ts：确认 bootstrap 要求 session-broker csrfToken/nonce，assetSyncEnabled 默认 false，禁用原因做基础脱敏。\",\"opentu/packages/drawnix/src/services/creative-document-sync.ts：确认 flush 前 prepare outbound copy；409 冲突后 pending snapshot 保留；cloud refs 成功 hydrate 后 suppressOutboundSync 本地导入。\",\"opentu/apps/web/src/sw/index.ts 与 creative-asset-pass-through.ts：确认同源 /creative/api/assets/* 分支在虚拟媒体、静态、XHR/API 缓存处理之前 return。\",\"new-api/router/web-router.go:56-73：确认后端存在 /creative/api/assets 路径并在 POST/DELETE 上挂 CreativeRequireNonce。\"],\"gaps\":[\"未运行 Vitest/Nx/浏览器 SW runtime 验证；本子代理处于只读审计约束，避免生成缓存或修改目标仓库。\",\"需要运行时验证：真实 Service Worker FetchEvent 中 /creative/api/assets/* 对 image/audio/video/fetch destination 均不 respondWith、不 cache.put。\",\"需要补充后端/前端联调验证：含非法 signed/bucket URL 的远端文档响应是否会被前端阻断且不会写入 workspaceStorageService。\"]}",
+    "usage": {
+      "input_tokens": 3240988,
+      "cached_input_tokens": 3039872,
+      "output_tokens": 13803,
+      "reasoning_output_tokens": 7738
+    }
+  },
+  {
+    "node": "backend-route-middleware-surface",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "backend-route-middleware-surface",
+      "scope": "Fresh static audit of new2fly Creative route/middleware contracts against current /mnt/f/code/project/new-api route wiring, middleware, controller guards, and related tests. Target repos were not modified.",
+      "conclusion": "核心 /creative、/creative/api、/creative/relay/v1/videos|suno|mj 路由在 SetWebRouter 路径下已按 canonical prefix 注册，relay 也有 session bridge、UserAuth、same-origin、unsafe nonce、forbidden-field-before-distribution 与 MJ unsupported fail-closed wiring。但发现两个路由/边界层风险：FRONTEND_BASE_URL 部署分支会跳过全部 Creative 路由注册；relay same-origin 校验信任客户端可控的 X-Forwarded-*。测试层还缺少部分生产路由组合覆盖。",
+      "findings": [
+        {
+          "title": "FRONTEND_BASE_URL mode skips Creative route registration and redirects Creative API/relay paths",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "router/main.go:20-33",
+            "router/web-router.go:56-119",
+            "router/web-router.go:126-130"
+          ],
+          "impact": "在非 master 且 FRONTEND_BASE_URL 非空的部署形态下，必需的 /creative、/creative/api/assets、/creative/relay/v1/videos、/creative/relay/v1/suno、/creative/relay/v1/mj 路由不会注册；未匹配请求进入通用 NoRoute 301 redirect，而不是 Creative session/auth/nonce/same-origin 边界或 fail-closed JSON 错误。",
+          "scenario": "嵌入式 Opentu 调用 POST /creative/relay/v1/mj/submit/imagine 或 POST /creative/api/assets 时，如果节点走 FRONTEND_BASE_URL 分支，请求不会进入 Creative middleware stack，可能被重定向到外部 frontendBaseUrl；这会导致当前 new2fly 合同要求的 embedded Creative route absent，并让 unsupported /creative/relay/* 不再以 404/405/501 fail closed。",
+          "evidence": "router/main.go:20-33 读取 FRONTEND_BASE_URL；只有 frontendBaseUrl == \"\" 时调用 SetWebRouter。否则注册一个对所有 NoRoute 执行 c.Redirect(301, frontendBaseUrl+RequestURI) 的兜底。router/web-router.go:56-119 是唯一看到的 /creative/api 与 /creative/relay/v1 videos/suno/mj 注册点。",
+          "recommendation": "将 Creative API/relay 路由从 Web static serving 中拆出并在 SetRouter 中无条件注册；FRONTEND_BASE_URL 只影响 SPA/static fallback。若某部署显式不支持 Creative，也应对 /creative/api* 与 /creative/relay* 返回受控 404/501，而不是外部 redirect。",
+          "validation": "需要新增 SetRouter 集成测试：模拟 FRONTEND_BASE_URL 非空且 common.IsMasterNode=false，断言 /creative/api/bootstrap、/creative/api/assets、/creative/relay/v1/videos、/creative/relay/v1/suno/submit/music、/creative/relay/v1/mj/submit/imagine 不会被 NoRoute redirect。当前会话未能运行 go test：read-only sandbox 阻止创建 /tmp/new-api-gocache 与 /tmp/new-api-gotmp。"
+        },
+        {
+          "title": "Relay same-origin middleware trusts client-controlled X-Forwarded-Host and X-Forwarded-Proto",
+          "severity": "High",
+          "confidence": "Medium",
+          "status": "needs-runtime-verification",
+          "repo": "new-api",
+          "files": [
+            "middleware/creative.go:232-267",
+            "middleware/creative.go:270-287",
+            "middleware/cors.go:9-15",
+            "router/relay-router.go:13-16",
+            "router/web-router.go:80-83"
+          ],
+          "impact": "same-origin relay boundary is weakened: expected origin is derived from X-Forwarded-* before Request.Host/TLS, without a trusted-proxy check. In deployments where clients can supply these headers through proxy/CORS, an attacker can make a cross-origin Origin appear same-origin to CreativeRequireSameOrigin. GET relay status/content routes do not require nonce, so this boundary matters directly there; unsafe methods still have nonce but origin defense is still not anchored.",
+          "scenario": "A request with Origin: https://evil.example plus X-Forwarded-Host: evil.example and X-Forwarded-Proto: https can satisfy creativeOriginHeaderMatches because creativeRequestOrigin builds expectedOrigin from those forwarded headers. If a browser/proxy path permits those headers with session cookies, /creative/relay/v1/videos/:task_id or /creative/relay/v1/mj/image/:task_id may pass same-origin verification incorrectly.",
+          "evidence": "middleware/creative.go:247-267 chooses X-Forwarded-Proto and X-Forwarded-Host before Request.URL/TLS/Host. middleware/creative.go:232-244 rejects missing Origin/Referer but compares against that computed expected origin. router/web-router.go:80-83 applies CreativeRequireSameOrigin to relay routes. router/relay-router.go:13-16 installs global CORS, and middleware/cors.go:11-14 enables AllowAllOrigins, AllowCredentials, and AllowHeaders [\"*\"].",
+          "recommendation": "Derive Creative expected origin from a configured public origin or Request.Host/TLS after trusted proxy normalization only. Ignore or strip X-Forwarded-* for Creative same-origin unless the request comes from a configured trusted proxy. Consider adding X-Forwarded-Host/Proto to forbidden relay headers for direct client requests. Add tests proving forged X-Forwarded-* cannot make a cross-origin Origin pass.",
+          "validation": "Add route-level tests with a valid session: GET /creative/relay/v1/videos/task_123 with Origin=https://evil.example and forged X-Forwarded-Host/Proto must remain 403. Also verify the real reverse proxy strips or overwrites X-Forwarded-* and browser CORS behavior with credentials. Not executed here due read-only filesystem preventing test cache/temp creation."
+        },
+        {
+          "title": "Route tests miss Suno/MJ double-version and FRONTEND_BASE_URL production-router cases",
+          "severity": "Low",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "router/web_router_test.go:40-113",
+            "controller/creative_test.go:2244-2282",
+            "router/main.go:20-33"
+          ],
+          "impact": "Existing tests catch many controller/middleware invariants, but production route regressions for /creative/relay/v1/v1/suno, /creative/relay/v1/v1/mj, and the SetRouter FRONTEND_BASE_URL branch could slip through.",
+          "scenario": "A future change could accidentally remount legacy Suno/MJ routes, reintroduce a double-version path, or keep Creative absent in external-frontend mode without failing current tests.",
+          "evidence": "router/web_router_test.go:100-103 only asserts /creative/relay/v1/v1/videos is 404. controller/creative_test.go:2244-2282 builds a helper router for relay middleware but does not exercise router.SetRouter with FRONTEND_BASE_URL. A repository search found no tests for FRONTEND_BASE_URL or /creative/relay/v1/v1/suno|mj.",
+          "recommendation": "Add SetWebRouter/SetRouter tests for canonical Suno/MJ paths, double-version Suno/MJ rejection, unsupported MJ fail-closed through the production route stack, and FRONTEND_BASE_URL behavior. Keep controller helper tests, but do not let them substitute for production router wiring tests.",
+          "validation": "Run targeted router/controller tests after adding coverage. Not run in this read-only session."
+        }
+      ],
+      "reviewed": [
+        "new2fly .trellis active task files: task.json, prd.md, design.md, implement.md.",
+        "new2fly Creative contracts: backend/frontend creative-asset-sync, creative-async-video-relay, creative-async-suno-relay, creative-async-mj-relay.",
+        "new-api/router/web-router.go: /creative SPA, /creative/api assets/documents/bootstrap, /creative/relay/v1 chat/images/videos/suno/mj, unsupported MJ route registration, NoRoute handling.",
+        "new-api/router/main.go: SetRouter ordering and FRONTEND_BASE_URL branch.",
+        "new-api/router/relay-router.go: legacy /v1, /suno, /mj token-auth routes are not remounted under /creative.",
+        "new-api/router/api-router.go: no competing /creative API route wiring found.",
+        "new-api/middleware/creative.go: CreativeSessionHeaderBridge, CreativeRequireSameOrigin, CreativeRequireNonce, CreativeRelaySessionBroker, relay model reader.",
+        "new-api/middleware/auth.go: UserAuth session bridge/access-token behavior and TokenAuth context setup.",
+        "new-api/controller/creative.go: relay forbidden-field middleware, video gate/idempotency, Suno/MJ submit guards, session-broker token setup, video/Suno/MJ route handlers, MJ unsupported handler.",
+        "new-api/controller/creative_asset.go: asset upload/get/content/delete browser-session and Authorization rejection checks.",
+        "new-api/router/web_router_test.go, middleware/creative_test.go, controller/creative_test.go, controller/creative_asset_test.go relevant route/middleware tests."
+      ],
+      "gaps": [
+        "无法运行 go test：read-only sandbox 连 /tmp cache/temp 目录也不可创建；尝试命令为 GOCACHE=/tmp/new-api-gocache GOTMPDIR=/tmp/new-api-gotmp go test ./router ./middleware ./controller -run 'Creative|SetWebRouter' -count=1，失败于 mkdir read-only file system。",
+        "未做运行时浏览器验证：真实 Cookie SameSite、CORS credential 行为、Service Worker/referrer policy 对 GET relay same-origin 的影响未验证。",
+        "未验证生产反向代理是否会剥离或覆盖 X-Forwarded-Host/X-Forwarded-Proto。",
+        "本分支只审计 backend route/middleware surface；未深入审计 relay adaptor、billing/CAS、polling key affinity、opentu frontend transport。"
+      ]
+    },
+    "raw": "{\"branch\":\"backend-route-middleware-surface\",\"scope\":\"Fresh static audit of new2fly Creative route/middleware contracts against current /mnt/f/code/project/new-api route wiring, middleware, controller guards, and related tests. Target repos were not modified.\",\"conclusion\":\"核心 /creative、/creative/api、/creative/relay/v1/videos|suno|mj 路由在 SetWebRouter 路径下已按 canonical prefix 注册，relay 也有 session bridge、UserAuth、same-origin、unsafe nonce、forbidden-field-before-distribution 与 MJ unsupported fail-closed wiring。但发现两个路由/边界层风险：FRONTEND_BASE_URL 部署分支会跳过全部 Creative 路由注册；relay same-origin 校验信任客户端可控的 X-Forwarded-*。测试层还缺少部分生产路由组合覆盖。\",\"findings\":[{\"title\":\"FRONTEND_BASE_URL mode skips Creative route registration and redirects Creative API/relay paths\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"router/main.go:20-33\",\"router/web-router.go:56-119\",\"router/web-router.go:126-130\"],\"impact\":\"在非 master 且 FRONTEND_BASE_URL 非空的部署形态下，必需的 /creative、/creative/api/assets、/creative/relay/v1/videos、/creative/relay/v1/suno、/creative/relay/v1/mj 路由不会注册；未匹配请求进入通用 NoRoute 301 redirect，而不是 Creative session/auth/nonce/same-origin 边界或 fail-closed JSON 错误。\",\"scenario\":\"嵌入式 Opentu 调用 POST /creative/relay/v1/mj/submit/imagine 或 POST /creative/api/assets 时，如果节点走 FRONTEND_BASE_URL 分支，请求不会进入 Creative middleware stack，可能被重定向到外部 frontendBaseUrl；这会导致当前 new2fly 合同要求的 embedded Creative route absent，并让 unsupported /creative/relay/* 不再以 404/405/501 fail closed。\",\"evidence\":\"router/main.go:20-33 读取 FRONTEND_BASE_URL；只有 frontendBaseUrl == \\\"\\\" 时调用 SetWebRouter。否则注册一个对所有 NoRoute 执行 c.Redirect(301, frontendBaseUrl+RequestURI) 的兜底。router/web-router.go:56-119 是唯一看到的 /creative/api 与 /creative/relay/v1 videos/suno/mj 注册点。\",\"recommendation\":\"将 Creative API/relay 路由从 Web static serving 中拆出并在 SetRouter 中无条件注册；FRONTEND_BASE_URL 只影响 SPA/static fallback。若某部署显式不支持 Creative，也应对 /creative/api* 与 /creative/relay* 返回受控 404/501，而不是外部 redirect。\",\"validation\":\"需要新增 SetRouter 集成测试：模拟 FRONTEND_BASE_URL 非空且 common.IsMasterNode=false，断言 /creative/api/bootstrap、/creative/api/assets、/creative/relay/v1/videos、/creative/relay/v1/suno/submit/music、/creative/relay/v1/mj/submit/imagine 不会被 NoRoute redirect。当前会话未能运行 go test：read-only sandbox 阻止创建 /tmp/new-api-gocache 与 /tmp/new-api-gotmp。\"},{\"title\":\"Relay same-origin middleware trusts client-controlled X-Forwarded-Host and X-Forwarded-Proto\",\"severity\":\"High\",\"confidence\":\"Medium\",\"status\":\"needs-runtime-verification\",\"repo\":\"new-api\",\"files\":[\"middleware/creative.go:232-267\",\"middleware/creative.go:270-287\",\"middleware/cors.go:9-15\",\"router/relay-router.go:13-16\",\"router/web-router.go:80-83\"],\"impact\":\"same-origin relay boundary is weakened: expected origin is derived from X-Forwarded-* before Request.Host/TLS, without a trusted-proxy check. In deployments where clients can supply these headers through proxy/CORS, an attacker can make a cross-origin Origin appear same-origin to CreativeRequireSameOrigin. GET relay status/content routes do not require nonce, so this boundary matters directly there; unsafe methods still have nonce but origin defense is still not anchored.\",\"scenario\":\"A request with Origin: https://evil.example plus X-Forwarded-Host: evil.example and X-Forwarded-Proto: https can satisfy creativeOriginHeaderMatches because creativeRequestOrigin builds expectedOrigin from those forwarded headers. If a browser/proxy path permits those headers with session cookies, /creative/relay/v1/videos/:task_id or /creative/relay/v1/mj/image/:task_id may pass same-origin verification incorrectly.\",\"evidence\":\"middleware/creative.go:247-267 chooses X-Forwarded-Proto and X-Forwarded-Host before Request.URL/TLS/Host. middleware/creative.go:232-244 rejects missing Origin/Referer but compares against that computed expected origin. router/web-router.go:80-83 applies CreativeRequireSameOrigin to relay routes. router/relay-router.go:13-16 installs global CORS, and middleware/cors.go:11-14 enables AllowAllOrigins, AllowCredentials, and AllowHeaders [\\\"*\\\"].\",\"recommendation\":\"Derive Creative expected origin from a configured public origin or Request.Host/TLS after trusted proxy normalization only. Ignore or strip X-Forwarded-* for Creative same-origin unless the request comes from a configured trusted proxy. Consider adding X-Forwarded-Host/Proto to forbidden relay headers for direct client requests. Add tests proving forged X-Forwarded-* cannot make a cross-origin Origin pass.\",\"validation\":\"Add route-level tests with a valid session: GET /creative/relay/v1/videos/task_123 with Origin=https://evil.example and forged X-Forwarded-Host/Proto must remain 403. Also verify the real reverse proxy strips or overwrites X-Forwarded-* and browser CORS behavior with credentials. Not executed here due read-only filesystem preventing test cache/temp creation.\"},{\"title\":\"Route tests miss Suno/MJ double-version and FRONTEND_BASE_URL production-router cases\",\"severity\":\"Low\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"router/web_router_test.go:40-113\",\"controller/creative_test.go:2244-2282\",\"router/main.go:20-33\"],\"impact\":\"Existing tests catch many controller/middleware invariants, but production route regressions for /creative/relay/v1/v1/suno, /creative/relay/v1/v1/mj, and the SetRouter FRONTEND_BASE_URL branch could slip through.\",\"scenario\":\"A future change could accidentally remount legacy Suno/MJ routes, reintroduce a double-version path, or keep Creative absent in external-frontend mode without failing current tests.\",\"evidence\":\"router/web_router_test.go:100-103 only asserts /creative/relay/v1/v1/videos is 404. controller/creative_test.go:2244-2282 builds a helper router for relay middleware but does not exercise router.SetRouter with FRONTEND_BASE_URL. A repository search found no tests for FRONTEND_BASE_URL or /creative/relay/v1/v1/suno|mj.\",\"recommendation\":\"Add SetWebRouter/SetRouter tests for canonical Suno/MJ paths, double-version Suno/MJ rejection, unsupported MJ fail-closed through the production route stack, and FRONTEND_BASE_URL behavior. Keep controller helper tests, but do not let them substitute for production router wiring tests.\",\"validation\":\"Run targeted router/controller tests after adding coverage. Not run in this read-only session.\"}],\"reviewed\":[\"new2fly .trellis active task files: task.json, prd.md, design.md, implement.md.\",\"new2fly Creative contracts: backend/frontend creative-asset-sync, creative-async-video-relay, creative-async-suno-relay, creative-async-mj-relay.\",\"new-api/router/web-router.go: /creative SPA, /creative/api assets/documents/bootstrap, /creative/relay/v1 chat/images/videos/suno/mj, unsupported MJ route registration, NoRoute handling.\",\"new-api/router/main.go: SetRouter ordering and FRONTEND_BASE_URL branch.\",\"new-api/router/relay-router.go: legacy /v1, /suno, /mj token-auth routes are not remounted under /creative.\",\"new-api/router/api-router.go: no competing /creative API route wiring found.\",\"new-api/middleware/creative.go: CreativeSessionHeaderBridge, CreativeRequireSameOrigin, CreativeRequireNonce, CreativeRelaySessionBroker, relay model reader.\",\"new-api/middleware/auth.go: UserAuth session bridge/access-token behavior and TokenAuth context setup.\",\"new-api/controller/creative.go: relay forbidden-field middleware, video gate/idempotency, Suno/MJ submit guards, session-broker token setup, video/Suno/MJ route handlers, MJ unsupported handler.\",\"new-api/controller/creative_asset.go: asset upload/get/content/delete browser-session and Authorization rejection checks.\",\"new-api/router/web_router_test.go, middleware/creative_test.go, controller/creative_test.go, controller/creative_asset_test.go relevant route/middleware tests.\"],\"gaps\":[\"无法运行 go test：read-only sandbox 连 /tmp cache/temp 目录也不可创建；尝试命令为 GOCACHE=/tmp/new-api-gocache GOTMPDIR=/tmp/new-api-gotmp go test ./router ./middleware ./controller -run 'Creative|SetWebRouter' -count=1，失败于 mkdir read-only file system。\",\"未做运行时浏览器验证：真实 Cookie SameSite、CORS credential 行为、Service Worker/referrer policy 对 GET relay same-origin 的影响未验证。\",\"未验证生产反向代理是否会剥离或覆盖 X-Forwarded-Host/X-Forwarded-Proto。\",\"本分支只审计 backend route/middleware surface；未深入审计 relay adaptor、billing/CAS、polling key affinity、opentu frontend transport。\"]}",
+    "usage": {
+      "input_tokens": 3097355,
+      "cached_input_tokens": 2932608,
+      "output_tokens": 18122,
+      "reasoning_output_tokens": 12319
+    }
+  },
+  {
+    "node": "backend-persistence-billing-concurrency",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "backend-persistence-billing-concurrency",
+      "scope": "new2fly Creative contracts vs /mnt/f/code/project/new-api backend persistence、计费、幂等、并发与缓存路径；本分支未审计 opentu 前端实现。",
+      "conclusion": "发现多处会影响 Creative video/Suno/MJ/asset 合同的后端横切风险：提交成功路径缺少原子化，终态 CAS 与计费变更之间没有可恢复事务边界，通道缺失分支会把任务置失败但不退款，资产删除与配额检查存在并发/重试问题。证据仅来自当前 specs 与当前 new-api 源码/测试，未使用旧报告。",
+      "findings": [
+        {
+          "title": "Creative 异步任务提交成功路径未原子化提交 task/idempotency/billing",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "controller/relay.go:594-623",
+            "controller/relay.go:634-640",
+            "model/task.go:235-248",
+            "service/billing.go:34-58"
+          ],
+          "impact": "违反 video/Suno/MJ 合同中“上游成功必须等本地 task、idempotency、settlement/log bookkeeping 安全后才返回”的要求；可能留下已接收但无幂等记录或未正确结算的任务。",
+          "scenario": "上游 submit 成功且 task.Insert 成功后，如果 CompleteCreativeVideoIdempotencyScoped 或 SettleBilling 失败：前者会进入错误分支删除幂等记录并退款，但已插入 task 不回滚；同一 Idempotency-Key 可再次提交，原任务仍可能后续完成且不收费。后者只 SysError 记录，仍 flush 成功响应。",
+          "evidence": "RelayTask 在成功后先 task.Insert，再单独 CompleteCreativeVideoIdempotencyScoped；失败时只删除 idempotency 并 respondTaskError，没有删除/回滚已插入 task。SettleBilling 返回错误只记录日志，不设置 taskErr，随后刷新 buffered response。",
+          "recommendation": "把 task insert + idempotency complete 放进同一 DB 事务；任何 post-insert 失败必须回滚/删除 task 或持久化为可恢复 terminal failure。SettleBilling 失败不得静默放行成功，应阻止 flush 或写入可重试结算状态。",
+          "validation": "需要注入 CompleteCreativeVideoIdempotencyScoped/SettleBilling 失败的集成测试，断言不会遗留可完成 task、不会删除幂等后允许重复上游提交，且客户端不会收到成功。"
+        },
+        {
+          "title": "终态 CAS 与 refund/settle 分离，CAS winner 崩溃或计费失败会永久 0 次结算/退款",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "service/task_polling.go:325-345",
+            "service/task_polling.go:588-614",
+            "service/task_billing.go:150-181",
+            "service/task_billing.go:187-245"
+          ],
+          "impact": "正常轮询路径虽然避免了双重退款/结算，但没有保证 exactly-once 的 at-least-once 部分；终态状态已写入后，进程崩溃或账务更新失败会让任务不再被轮询，钱包/订阅预扣无法恢复。",
+          "scenario": "poller 将任务从 IN_PROGRESS CAS 更新为 FAILURE，随后 RefundTaskQuota 调整钱包/订阅失败或进程退出；任务已是 FAILURE，被 GetAllUnFinishSyncTasks 排除，后续不会重试退款。SUCCESS 后差额结算也同理。",
+          "evidence": "updateVideoSingleTask 和 updateSunoTaskFromResponse 先 UpdateWithStatus，再调用 settleTaskBillingOnComplete/RefundTaskQuota。RefundTaskQuota/RecalculateTaskQuota 遇到账务错误只记录并返回，没有持久化 retry marker。",
+          "recommendation": "引入 durable billing transition/outbox：终态 CAS 与“待退款/待结算”状态同事务写入，由可重试 worker 幂等完成资金/Token/日志变更；或在同一事务内记录 billing mutation 状态，失败时不让任务退出可恢复集合。",
+          "validation": "增加故障注入测试：CAS 成功后模拟 PostConsumeUserSubscriptionDelta/IncreaseUserQuota/DecreaseUserQuota 失败与进程重启，验证任务会重试且只结算/退款一次。"
+        },
+        {
+          "title": "通道缺失轮询分支批量置 FAILURE 但绕过 CAS 和退款",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "service/task_polling.go:117-125",
+            "service/task_polling.go:412-425",
+            "model/task.go:537-541",
+            "service/task_billing.go:150-181"
+          ],
+          "impact": "如果已接收的 Creative video/MJ 任务所属 channel 被删除或缓存读取失败，预扣的钱包/订阅额度会被永久保留，且批量更新无 CAS 保护。",
+          "scenario": "任务提交后 channel 被禁用/删除；TaskPollingLoop 调用 updateVideoTasks，CacheGetChannel 失败后 TaskBulkUpdateByID 将任务置为 FAILURE，但没有调用 RefundTaskQuota，也没有单任务 UpdateWithStatus。",
+          "evidence": "service/task_polling.go 的 CacheGetChannel 错误分支收集 failedIDs 后直接 TaskBulkUpdateByID；model/task.go 明确注释该函数无 CAS 且不应用于涉及 billing 的状态迁移。",
+          "recommendation": "改为逐 task 读取 snapshot，UpdateWithStatus 成功者调用 RefundTaskQuota/写入可重试 refund outbox；失败者跳过。null task id 分支也应使用同一终态退款流程。",
+          "validation": "新增测试：创建有 quota/BillingSource 的未完成 video/MJ task，删除 channel 后运行 DispatchPlatformUpdate，断言只有 CAS winner 标记失败并退款一次。"
+        },
+        {
+          "title": "Creative S3 资产删除先删 DB 元数据再删对象，失败后不可重试",
+          "severity": "Medium",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "service/creative_asset.go:368-386"
+          ],
+          "impact": "违反 asset contract 中 delete object 应 best-effort/retryable 的要求；S3 删除瞬时失败会造成私有对象孤儿，用户重试时已无 DB 元数据可定位对象。",
+          "scenario": "DELETE /creative/api/assets/:id 检查无引用后，DeleteCreativeAssetMetadata 成功；随后 storage.Delete/S3 DeleteObject 返回错误。客户端收到错误，但再次 DELETE 会因 metadata 不存在而 404，对象留在 bucket。",
+          "evidence": "DeleteIfUnreferenced 在 CountCreativeAssetRefs 后先 model.DeleteCreativeAssetMetadata，再 runtime.storage.Delete；无 tombstone、retry queue 或补偿记录。",
+          "recommendation": "改为先删除对象再删除元数据，或把 asset 标记为 deleting 并持久化可重试删除任务；如果选择 best-effort 成功响应，也必须有后台 GC/retry。",
+          "validation": "用 fake S3 注入 DeleteObject 失败，断言 DB 记录仍可用于重试，或存在 durable retry/tombstone。"
+        },
+        {
+          "title": "Creative asset 用户配额检查与插入不在事务内，并发上传可越过上限",
+          "severity": "Medium",
+          "confidence": "Medium",
+          "status": "likely",
+          "repo": "new-api",
+          "files": [
+            "service/creative_asset.go:281-324",
+            "service/creative_asset.go:402-454",
+            "model/creative_asset.go:113-132"
+          ],
+          "impact": "并发上传不同内容时可能超过 UserMaxBytes/UserMaxAssets/DB canary caps，削弱 asset sync 的资源边界。",
+          "scenario": "两个请求同时上传不同 blob，二者都在插入前读取相同 Count/Sum，均通过 checkQuotaAndStorageHealth，然后分别 Store 并 Create；唯一索引只约束同一 content_hash，不能防止总量超额。",
+          "evidence": "CreateOrGet 在无事务/锁的情况下先 GetCreativeAssetByContentHash、checkQuotaAndStorageHealth，再 storage.Store，最后 DB.Create。配额统计是独立 SELECT COALESCE(SUM(...))。",
+          "recommendation": "引入 per-user quota counter/row lock，或在事务中 reserve quota/count 后再写对象；S3 写失败时释放 reserve。为不同 hash 并发上传增加低配额压力测试。",
+          "validation": "需要运行并发测试：设置 UserMaxBytes 仅允许一个对象，同时发起两个不同对象上传，断言只有一个成功且总量不超限。"
+        },
+        {
+          "title": "钱包/Token Redis 配额缓存先于 DB 更新异步变更，失败时会漂移",
+          "severity": "Medium",
+          "confidence": "Medium",
+          "status": "likely",
+          "repo": "new-api",
+          "files": [
+            "model/user.go:883-897",
+            "model/user.go:908-922",
+            "model/token.go:375-391",
+            "model/token.go:405-421",
+            "service/task_billing.go:87-117"
+          ],
+          "impact": "Creative billing/refund 依赖这些 quota 函数；DB 更新失败、事务回滚或 batch update 延迟时，Redis 中用户/Token 剩余额度可能与真实账本不一致，导致后续请求错误放行或错误拒绝。",
+          "scenario": "RedisEnabled=true 时 IncreaseUserQuota/DecreaseUserQuota/IncreaseTokenQuota/DecreaseTokenQuota 先 gopool 异步 HINCRBY，然后才执行 DB 更新或写 batch 队列；若 DB 返回错误或进程在 batch flush 前退出，缓存已经变化。",
+          "evidence": "相关函数在 DB 操作前启动 cacheIncr/cacheDecr goroutine；没有在 DB error 时回滚/删除缓存，也没有事务后提交 hook。",
+          "recommendation": "DB commit 成功后再更新缓存；失败时显式 invalidate 相关 user/token cache。对 batch mode 增加 durable queue 或启动恢复校准。",
+          "validation": "需要 Redis-enabled 故障注入测试：强制 DB 更新失败，验证缓存未变化或被删除并回源 DB。"
+        }
+      ],
+      "reviewed": [
+        "new2fly backend Creative contracts: creative-asset-sync、creative-async-video-relay、creative-async-suno-relay、creative-async-mj-relay。",
+        "new-api route wiring: router/web-router.go 中 /creative/api/assets 与 /creative/relay/v1/{videos,suno,mj} 路由。",
+        "new-api idempotency/task state: controller/creative.go、controller/relay.go、model/task.go。",
+        "new-api polling/billing: service/task_polling.go、service/task_billing.go、service/billing.go、service/billing_session.go、service/funding_source.go。",
+        "new-api asset persistence/storage: model/creative_asset.go、service/creative_asset.go。",
+        "new-api selected-key affinity: relay/common/relay_info.go、model/task.go、service/task_polling.go；正常轮询使用 Task.PrivateData.Key 的路径已存在。",
+        "new-api MJ/Suno adaptors: relay/channel/task/mj/adaptor.go、relay/channel/task/suno/adaptor.go；MJ submit/fetch 使用 mj-api-secret 且删除 Authorization。",
+        "现有测试覆盖了部分 replay/conflict、stored key affinity、CAS loser 不重复退款/结算；但未覆盖本报告中的故障注入和通道缺失补偿路径。"
+      ],
+      "gaps": [
+        "未运行 go test：当前子代理为只读审计环境，避免在 sibling repo 产生测试缓存/临时写入；结论基于静态源码和测试文件检查。",
+        "未连接 MySQL/PostgreSQL/SQLite 矩阵验证；订阅/支付代码中多处 tx.Set(\"gorm:query_option\", \"FOR UPDATE\") 的真实锁语义仍需在支持的 DB 上实测。",
+        "未调用生产端点、外部 provider、S3、Redis 或支付服务；所有 runtime 场景需用本地 fake/故障注入测试验证。"
+      ]
+    },
+    "raw": "{\"branch\":\"backend-persistence-billing-concurrency\",\"scope\":\"new2fly Creative contracts vs /mnt/f/code/project/new-api backend persistence、计费、幂等、并发与缓存路径；本分支未审计 opentu 前端实现。\",\"conclusion\":\"发现多处会影响 Creative video/Suno/MJ/asset 合同的后端横切风险：提交成功路径缺少原子化，终态 CAS 与计费变更之间没有可恢复事务边界，通道缺失分支会把任务置失败但不退款，资产删除与配额检查存在并发/重试问题。证据仅来自当前 specs 与当前 new-api 源码/测试，未使用旧报告。\",\"findings\":[{\"title\":\"Creative 异步任务提交成功路径未原子化提交 task/idempotency/billing\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"controller/relay.go:594-623\",\"controller/relay.go:634-640\",\"model/task.go:235-248\",\"service/billing.go:34-58\"],\"impact\":\"违反 video/Suno/MJ 合同中“上游成功必须等本地 task、idempotency、settlement/log bookkeeping 安全后才返回”的要求；可能留下已接收但无幂等记录或未正确结算的任务。\",\"scenario\":\"上游 submit 成功且 task.Insert 成功后，如果 CompleteCreativeVideoIdempotencyScoped 或 SettleBilling 失败：前者会进入错误分支删除幂等记录并退款，但已插入 task 不回滚；同一 Idempotency-Key 可再次提交，原任务仍可能后续完成且不收费。后者只 SysError 记录，仍 flush 成功响应。\",\"evidence\":\"RelayTask 在成功后先 task.Insert，再单独 CompleteCreativeVideoIdempotencyScoped；失败时只删除 idempotency 并 respondTaskError，没有删除/回滚已插入 task。SettleBilling 返回错误只记录日志，不设置 taskErr，随后刷新 buffered response。\",\"recommendation\":\"把 task insert + idempotency complete 放进同一 DB 事务；任何 post-insert 失败必须回滚/删除 task 或持久化为可恢复 terminal failure。SettleBilling 失败不得静默放行成功，应阻止 flush 或写入可重试结算状态。\",\"validation\":\"需要注入 CompleteCreativeVideoIdempotencyScoped/SettleBilling 失败的集成测试，断言不会遗留可完成 task、不会删除幂等后允许重复上游提交，且客户端不会收到成功。\"},{\"title\":\"终态 CAS 与 refund/settle 分离，CAS winner 崩溃或计费失败会永久 0 次结算/退款\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"service/task_polling.go:325-345\",\"service/task_polling.go:588-614\",\"service/task_billing.go:150-181\",\"service/task_billing.go:187-245\"],\"impact\":\"正常轮询路径虽然避免了双重退款/结算，但没有保证 exactly-once 的 at-least-once 部分；终态状态已写入后，进程崩溃或账务更新失败会让任务不再被轮询，钱包/订阅预扣无法恢复。\",\"scenario\":\"poller 将任务从 IN_PROGRESS CAS 更新为 FAILURE，随后 RefundTaskQuota 调整钱包/订阅失败或进程退出；任务已是 FAILURE，被 GetAllUnFinishSyncTasks 排除，后续不会重试退款。SUCCESS 后差额结算也同理。\",\"evidence\":\"updateVideoSingleTask 和 updateSunoTaskFromResponse 先 UpdateWithStatus，再调用 settleTaskBillingOnComplete/RefundTaskQuota。RefundTaskQuota/RecalculateTaskQuota 遇到账务错误只记录并返回，没有持久化 retry marker。\",\"recommendation\":\"引入 durable billing transition/outbox：终态 CAS 与“待退款/待结算”状态同事务写入，由可重试 worker 幂等完成资金/Token/日志变更；或在同一事务内记录 billing mutation 状态，失败时不让任务退出可恢复集合。\",\"validation\":\"增加故障注入测试：CAS 成功后模拟 PostConsumeUserSubscriptionDelta/IncreaseUserQuota/DecreaseUserQuota 失败与进程重启，验证任务会重试且只结算/退款一次。\"},{\"title\":\"通道缺失轮询分支批量置 FAILURE 但绕过 CAS 和退款\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"service/task_polling.go:117-125\",\"service/task_polling.go:412-425\",\"model/task.go:537-541\",\"service/task_billing.go:150-181\"],\"impact\":\"如果已接收的 Creative video/MJ 任务所属 channel 被删除或缓存读取失败，预扣的钱包/订阅额度会被永久保留，且批量更新无 CAS 保护。\",\"scenario\":\"任务提交后 channel 被禁用/删除；TaskPollingLoop 调用 updateVideoTasks，CacheGetChannel 失败后 TaskBulkUpdateByID 将任务置为 FAILURE，但没有调用 RefundTaskQuota，也没有单任务 UpdateWithStatus。\",\"evidence\":\"service/task_polling.go 的 CacheGetChannel 错误分支收集 failedIDs 后直接 TaskBulkUpdateByID；model/task.go 明确注释该函数无 CAS 且不应用于涉及 billing 的状态迁移。\",\"recommendation\":\"改为逐 task 读取 snapshot，UpdateWithStatus 成功者调用 RefundTaskQuota/写入可重试 refund outbox；失败者跳过。null task id 分支也应使用同一终态退款流程。\",\"validation\":\"新增测试：创建有 quota/BillingSource 的未完成 video/MJ task，删除 channel 后运行 DispatchPlatformUpdate，断言只有 CAS winner 标记失败并退款一次。\"},{\"title\":\"Creative S3 资产删除先删 DB 元数据再删对象，失败后不可重试\",\"severity\":\"Medium\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"service/creative_asset.go:368-386\"],\"impact\":\"违反 asset contract 中 delete object 应 best-effort/retryable 的要求；S3 删除瞬时失败会造成私有对象孤儿，用户重试时已无 DB 元数据可定位对象。\",\"scenario\":\"DELETE /creative/api/assets/:id 检查无引用后，DeleteCreativeAssetMetadata 成功；随后 storage.Delete/S3 DeleteObject 返回错误。客户端收到错误，但再次 DELETE 会因 metadata 不存在而 404，对象留在 bucket。\",\"evidence\":\"DeleteIfUnreferenced 在 CountCreativeAssetRefs 后先 model.DeleteCreativeAssetMetadata，再 runtime.storage.Delete；无 tombstone、retry queue 或补偿记录。\",\"recommendation\":\"改为先删除对象再删除元数据，或把 asset 标记为 deleting 并持久化可重试删除任务；如果选择 best-effort 成功响应，也必须有后台 GC/retry。\",\"validation\":\"用 fake S3 注入 DeleteObject 失败，断言 DB 记录仍可用于重试，或存在 durable retry/tombstone。\"},{\"title\":\"Creative asset 用户配额检查与插入不在事务内，并发上传可越过上限\",\"severity\":\"Medium\",\"confidence\":\"Medium\",\"status\":\"likely\",\"repo\":\"new-api\",\"files\":[\"service/creative_asset.go:281-324\",\"service/creative_asset.go:402-454\",\"model/creative_asset.go:113-132\"],\"impact\":\"并发上传不同内容时可能超过 UserMaxBytes/UserMaxAssets/DB canary caps，削弱 asset sync 的资源边界。\",\"scenario\":\"两个请求同时上传不同 blob，二者都在插入前读取相同 Count/Sum，均通过 checkQuotaAndStorageHealth，然后分别 Store 并 Create；唯一索引只约束同一 content_hash，不能防止总量超额。\",\"evidence\":\"CreateOrGet 在无事务/锁的情况下先 GetCreativeAssetByContentHash、checkQuotaAndStorageHealth，再 storage.Store，最后 DB.Create。配额统计是独立 SELECT COALESCE(SUM(...))。\",\"recommendation\":\"引入 per-user quota counter/row lock，或在事务中 reserve quota/count 后再写对象；S3 写失败时释放 reserve。为不同 hash 并发上传增加低配额压力测试。\",\"validation\":\"需要运行并发测试：设置 UserMaxBytes 仅允许一个对象，同时发起两个不同对象上传，断言只有一个成功且总量不超限。\"},{\"title\":\"钱包/Token Redis 配额缓存先于 DB 更新异步变更，失败时会漂移\",\"severity\":\"Medium\",\"confidence\":\"Medium\",\"status\":\"likely\",\"repo\":\"new-api\",\"files\":[\"model/user.go:883-897\",\"model/user.go:908-922\",\"model/token.go:375-391\",\"model/token.go:405-421\",\"service/task_billing.go:87-117\"],\"impact\":\"Creative billing/refund 依赖这些 quota 函数；DB 更新失败、事务回滚或 batch update 延迟时，Redis 中用户/Token 剩余额度可能与真实账本不一致，导致后续请求错误放行或错误拒绝。\",\"scenario\":\"RedisEnabled=true 时 IncreaseUserQuota/DecreaseUserQuota/IncreaseTokenQuota/DecreaseTokenQuota 先 gopool 异步 HINCRBY，然后才执行 DB 更新或写 batch 队列；若 DB 返回错误或进程在 batch flush 前退出，缓存已经变化。\",\"evidence\":\"相关函数在 DB 操作前启动 cacheIncr/cacheDecr goroutine；没有在 DB error 时回滚/删除缓存，也没有事务后提交 hook。\",\"recommendation\":\"DB commit 成功后再更新缓存；失败时显式 invalidate 相关 user/token cache。对 batch mode 增加 durable queue 或启动恢复校准。\",\"validation\":\"需要 Redis-enabled 故障注入测试：强制 DB 更新失败，验证缓存未变化或被删除并回源 DB。\"}],\"reviewed\":[\"new2fly backend Creative contracts: creative-asset-sync、creative-async-video-relay、creative-async-suno-relay、creative-async-mj-relay。\",\"new-api route wiring: router/web-router.go 中 /creative/api/assets 与 /creative/relay/v1/{videos,suno,mj} 路由。\",\"new-api idempotency/task state: controller/creative.go、controller/relay.go、model/task.go。\",\"new-api polling/billing: service/task_polling.go、service/task_billing.go、service/billing.go、service/billing_session.go、service/funding_source.go。\",\"new-api asset persistence/storage: model/creative_asset.go、service/creative_asset.go。\",\"new-api selected-key affinity: relay/common/relay_info.go、model/task.go、service/task_polling.go；正常轮询使用 Task.PrivateData.Key 的路径已存在。\",\"new-api MJ/Suno adaptors: relay/channel/task/mj/adaptor.go、relay/channel/task/suno/adaptor.go；MJ submit/fetch 使用 mj-api-secret 且删除 Authorization。\",\"现有测试覆盖了部分 replay/conflict、stored key affinity、CAS loser 不重复退款/结算；但未覆盖本报告中的故障注入和通道缺失补偿路径。\"],\"gaps\":[\"未运行 go test：当前子代理为只读审计环境，避免在 sibling repo 产生测试缓存/临时写入；结论基于静态源码和测试文件检查。\",\"未连接 MySQL/PostgreSQL/SQLite 矩阵验证；订阅/支付代码中多处 tx.Set(\\\"gorm:query_option\\\", \\\"FOR UPDATE\\\") 的真实锁语义仍需在支持的 DB 上实测。\",\"未调用生产端点、外部 provider、S3、Redis 或支付服务；所有 runtime 场景需用本地 fake/故障注入测试验证。\"]}",
+    "usage": {
+      "input_tokens": 5234587,
+      "cached_input_tokens": 4944768,
+      "output_tokens": 15046,
+      "reasoning_output_tokens": 8227
+    }
+  },
+  {
+    "node": "backend-suno-mj-relays",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "backend-suno-mj-relays",
+      "scope": "Fresh static audit of new-api backend Suno/MJ creative relay paths against new2fly Creative contracts; no source modifications or production calls.",
+      "conclusion": "Core submit/fetch/image routes exist and MJ submit uses public task IDs plus mj-api-secret, but there are material conformance gaps: Suno fetch can expose same-user MJ/private task data, and MJ channel-missing terminal handling bypasses CAS/refund.",
+      "findings": [
+        {
+          "title": "Suno fetch endpoints can return non-Suno tasks and leak MJ upstream result data",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "router/web-router.go:98-101",
+            "controller/creative.go:549-553",
+            "relay/relay_task.go:310-359",
+            "relay/relay_task.go:553-575",
+            "dto/task.go:32-53",
+            "model/task.go:133-140",
+            "service/task_polling.go:502,557-560"
+          ],
+          "impact": "A browser that owns an MJ task can bypass the sanitized MJ fetch/image contract by calling `/creative/relay/v1/suno/fetch/:id` or batch `/creative/relay/v1/suno/fetch`. The response is generic TaskDto and can include `result_url` from `Task.PrivateData.ResultURL` plus raw `data` containing upstream MJ `id`/`imageUrl`, contrary to the MJ contract that upstream IDs/URLs stay private and browser sees only `/creative/relay/v1/mj/image/:task_id`.",
+          "scenario": "After MJ polling stores `PrivateData.ResultURL=https://cdn.example/mj.png` and raw upstream response in `Task.Data`, same user calls `GET /creative/relay/v1/suno/fetch/task_public_mj` or `POST /creative/relay/v1/suno/fetch` with that ID. `model.GetByTaskId/GetByTaskIds` filters only by user_id + task_id; no `Platform == suno` check is applied; `TaskModel2Dto` serializes `ResultURL` and `Data`.",
+          "evidence": "`sunoFetchByIDRespBodyBuilder` and `sunoFetchRespBodyBuilder` load tasks by owner only and call `TaskModel2Dto`; `TaskModel2Dto` includes `ResultURL: task.GetResultURL()` and `Data: task.Data`; `GetResultURL()` returns `PrivateData.ResultURL`.",
+          "recommendation": "Restrict Suno fetch builders to `Platform == constant.TaskPlatformSuno` before serializing. Return a Suno-specific sanitized DTO instead of generic TaskDto, or at minimum omit `result_url`, raw `data`, channel/quota/user fields, and non-Suno tasks.",
+          "validation": "Add tests where an MJ task with PrivateData.ResultURL/raw Data exists for the same user; Suno fetch by ID and batch must return not-found/empty and must not contain upstream id, upstream URL, or result_url."
+        },
+        {
+          "title": "MJ channel lookup failure marks terminal failure without CAS or refund",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "service/task_polling.go:139-143",
+            "service/task_polling.go:407-429",
+            "model/task.go:537-541",
+            "service/task_polling.go:248-273"
+          ],
+          "impact": "If an accepted MJ task’s channel is deleted/unavailable when polled, `UpdateVideoTasks` bulk-updates it to FAILURE without `UpdateWithStatus` and without `RefundTaskQuota`. This violates the MJ billing/CAS invariant: terminal failure should be single-winner CAS and refund exactly once.",
+          "scenario": "A user is precharged for an MJ imagine task. Before polling, `model.CacheGetChannel(channelId)` fails. The MJ dispatch path calls `TaskBulkUpdateByID(... status=FAILURE ...)`; quota/token/subscription are not refunded, and concurrent terminal updates can be overwritten.",
+          "evidence": "`DispatchPlatformUpdate` routes Midjourney to `UpdateVideoTasks`; on `CacheGetChannel` error, `updateVideoTasks` calls `TaskBulkUpdateByID` with failure status/progress. `TaskBulkUpdateByID` is explicitly documented as no-CAS and not for billing lifecycle flows. Suno’s analogous path uses `markSunoTasksFailed`, `UpdateWithStatus`, and `RefundTaskQuota`, showing the intended safe pattern.",
+          "recommendation": "Replace the MJ/video channel-missing bulk terminal update with per-task CAS handling equivalent to `markSunoTasksFailed`: load task, set failure fields, `UpdateWithStatus(previousStatus)`, and only the CAS winner refunds wallet/subscription/token quota.",
+          "validation": "Add a Midjourney polling test with a missing channel and precharged task; assert status becomes FAILURE via CAS, wallet/token/subscription refund happens once, and concurrent calls do not double-refund or overwrite."
+        },
+        {
+          "title": "Creative forbidden-field filter misses owner and API-secret aliases",
+          "severity": "Medium",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "controller/creative.go:1368-1397",
+            "controller/creative.go:1541-1624",
+            "controller/creative.go:1038-1045",
+            "controller/creative.go:1230-1288"
+          ],
+          "impact": "The contract says browser requests must not provide owner override or API-key material. Global header/query/body filtering rejects many fields but does not reject aliases such as `ownerId`, `userId`, `user`, `owner`, `mj-api-secret`, or `apiSecret` in several positions. Most are ignored by current handlers, but the request is not failed before relay as required.",
+          "scenario": "A session browser can send `/creative/relay/v1/suno/submit/music?ownerId=2` or an MJ request header `mj-api-secret: attacker-value`. These values are not used as upstream credentials in current MJ/Suno adaptors, but they are accepted at the route boundary instead of returning 400.",
+          "evidence": "`creativeForbiddenRelayBodyNormalizedKey` includes provider/channel/model/baseurl/token-style keys but lacks owner/user aliases and `mjapisecret`/`apisecret`; `creativeForbiddenRelayHeaderKey` only checks apikey/authorization/baseurl/token substrings plus that list. MJ submit body has extra owner checks, but query/header do not; Suno submit’s specific guard only rejects `model`.",
+          "recommendation": "Expand the normalized forbidden set for all creative relay header/query/body/form/file keys to include `user`, `userid`, `user_id`, `owner`, `ownerid`, `owner_id`, `mjapisecret`, `apisecret`, `apisecrets`, `xapisecret`, and similar selected-key aliases. Add route tests for Suno and MJ across query, headers, JSON, form, multipart field names, and file part names.",
+          "validation": "Targeted route tests should prove every alias returns 400 before `CreativeRelaySessionBroker`/`Distribute`/upstream relay is reached."
+        },
+        {
+          "title": "Insert succeeds but idempotency completion failure can leave a refunded task for later billing mutation",
+          "severity": "Medium",
+          "confidence": "Medium",
+          "status": "likely",
+          "repo": "new-api",
+          "files": [
+            "controller/relay.go:520-523",
+            "controller/relay.go:594-640",
+            "service/task_polling.go:588-614",
+            "service/task_polling.go:325-345"
+          ],
+          "impact": "If task insertion succeeds but `CompleteCreativeVideoIdempotencyScoped` fails, the request error path refunds/deletes idempotency while the task row remains with nonzero quota. Later polling can settle success or refund failure again, creating undercharge or double-refund risk.",
+          "scenario": "Upstream accepts MJ/Suno submit, `task.Insert()` succeeds, then idempotency completion returns an error. `RelayTask` sets `taskErr`, deferred billing refund runs, but the inserted task is not deleted/zeroed/marked orphaned. Poller later reaches a terminal status and mutates billing based on the task quota.",
+          "evidence": "After `task.Insert()`, line 615 sets `taskErr` on idempotency completion failure. The deferred refund at lines 520-523 triggers for any `taskErr`, while error cleanup only deletes the idempotency record. Polling terminal paths later call `RefundTaskQuota` or settlement after CAS based on the persisted task.",
+          "recommendation": "Make task insert + idempotency completion + billing-safe state transactional, or if post-insert completion fails, mark the task as orphaned/non-billable with zero quota and no terminal billing mutation before refunding. Consider deleting the task row if safe.",
+          "validation": "Inject/fake an idempotency completion DB error after successful insert; assert the client gets an error, precharge is refunded exactly once, no live billable task remains, and later polling cannot settle/refund again."
+        }
+      ],
+      "reviewed": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/new-api/controller/creative.go",
+        "/mnt/f/code/project/new-api/controller/relay.go",
+        "/mnt/f/code/project/new-api/relay/relay_task.go",
+        "/mnt/f/code/project/new-api/relay/channel/task/suno/adaptor.go",
+        "/mnt/f/code/project/new-api/relay/channel/task/mj/adaptor.go",
+        "/mnt/f/code/project/new-api/service/task_polling.go",
+        "/mnt/f/code/project/new-api/model/task.go",
+        "/mnt/f/code/project/new-api/dto/task.go"
+      ],
+      "gaps": [
+        "Static audit only; did not run Go/Vitest tests in this read-only sub-agent pass.",
+        "MCP semantic/codegraph searches were unavailable/cancelled, so evidence is from direct source inspection with rg/nl.",
+        "Opentu frontend was only lightly spot-searched because this branch scope was backend Suno/MJ relays."
+      ]
+    },
+    "raw": "{\"branch\":\"backend-suno-mj-relays\",\"scope\":\"Fresh static audit of new-api backend Suno/MJ creative relay paths against new2fly Creative contracts; no source modifications or production calls.\",\"conclusion\":\"Core submit/fetch/image routes exist and MJ submit uses public task IDs plus mj-api-secret, but there are material conformance gaps: Suno fetch can expose same-user MJ/private task data, and MJ channel-missing terminal handling bypasses CAS/refund.\",\"findings\":[{\"title\":\"Suno fetch endpoints can return non-Suno tasks and leak MJ upstream result data\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"router/web-router.go:98-101\",\"controller/creative.go:549-553\",\"relay/relay_task.go:310-359\",\"relay/relay_task.go:553-575\",\"dto/task.go:32-53\",\"model/task.go:133-140\",\"service/task_polling.go:502,557-560\"],\"impact\":\"A browser that owns an MJ task can bypass the sanitized MJ fetch/image contract by calling `/creative/relay/v1/suno/fetch/:id` or batch `/creative/relay/v1/suno/fetch`. The response is generic TaskDto and can include `result_url` from `Task.PrivateData.ResultURL` plus raw `data` containing upstream MJ `id`/`imageUrl`, contrary to the MJ contract that upstream IDs/URLs stay private and browser sees only `/creative/relay/v1/mj/image/:task_id`.\",\"scenario\":\"After MJ polling stores `PrivateData.ResultURL=https://cdn.example/mj.png` and raw upstream response in `Task.Data`, same user calls `GET /creative/relay/v1/suno/fetch/task_public_mj` or `POST /creative/relay/v1/suno/fetch` with that ID. `model.GetByTaskId/GetByTaskIds` filters only by user_id + task_id; no `Platform == suno` check is applied; `TaskModel2Dto` serializes `ResultURL` and `Data`.\",\"evidence\":\"`sunoFetchByIDRespBodyBuilder` and `sunoFetchRespBodyBuilder` load tasks by owner only and call `TaskModel2Dto`; `TaskModel2Dto` includes `ResultURL: task.GetResultURL()` and `Data: task.Data`; `GetResultURL()` returns `PrivateData.ResultURL`.\",\"recommendation\":\"Restrict Suno fetch builders to `Platform == constant.TaskPlatformSuno` before serializing. Return a Suno-specific sanitized DTO instead of generic TaskDto, or at minimum omit `result_url`, raw `data`, channel/quota/user fields, and non-Suno tasks.\",\"validation\":\"Add tests where an MJ task with PrivateData.ResultURL/raw Data exists for the same user; Suno fetch by ID and batch must return not-found/empty and must not contain upstream id, upstream URL, or result_url.\"},{\"title\":\"MJ channel lookup failure marks terminal failure without CAS or refund\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"service/task_polling.go:139-143\",\"service/task_polling.go:407-429\",\"model/task.go:537-541\",\"service/task_polling.go:248-273\"],\"impact\":\"If an accepted MJ task’s channel is deleted/unavailable when polled, `UpdateVideoTasks` bulk-updates it to FAILURE without `UpdateWithStatus` and without `RefundTaskQuota`. This violates the MJ billing/CAS invariant: terminal failure should be single-winner CAS and refund exactly once.\",\"scenario\":\"A user is precharged for an MJ imagine task. Before polling, `model.CacheGetChannel(channelId)` fails. The MJ dispatch path calls `TaskBulkUpdateByID(... status=FAILURE ...)`; quota/token/subscription are not refunded, and concurrent terminal updates can be overwritten.\",\"evidence\":\"`DispatchPlatformUpdate` routes Midjourney to `UpdateVideoTasks`; on `CacheGetChannel` error, `updateVideoTasks` calls `TaskBulkUpdateByID` with failure status/progress. `TaskBulkUpdateByID` is explicitly documented as no-CAS and not for billing lifecycle flows. Suno’s analogous path uses `markSunoTasksFailed`, `UpdateWithStatus`, and `RefundTaskQuota`, showing the intended safe pattern.\",\"recommendation\":\"Replace the MJ/video channel-missing bulk terminal update with per-task CAS handling equivalent to `markSunoTasksFailed`: load task, set failure fields, `UpdateWithStatus(previousStatus)`, and only the CAS winner refunds wallet/subscription/token quota.\",\"validation\":\"Add a Midjourney polling test with a missing channel and precharged task; assert status becomes FAILURE via CAS, wallet/token/subscription refund happens once, and concurrent calls do not double-refund or overwrite.\"},{\"title\":\"Creative forbidden-field filter misses owner and API-secret aliases\",\"severity\":\"Medium\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"controller/creative.go:1368-1397\",\"controller/creative.go:1541-1624\",\"controller/creative.go:1038-1045\",\"controller/creative.go:1230-1288\"],\"impact\":\"The contract says browser requests must not provide owner override or API-key material. Global header/query/body filtering rejects many fields but does not reject aliases such as `ownerId`, `userId`, `user`, `owner`, `mj-api-secret`, or `apiSecret` in several positions. Most are ignored by current handlers, but the request is not failed before relay as required.\",\"scenario\":\"A session browser can send `/creative/relay/v1/suno/submit/music?ownerId=2` or an MJ request header `mj-api-secret: attacker-value`. These values are not used as upstream credentials in current MJ/Suno adaptors, but they are accepted at the route boundary instead of returning 400.\",\"evidence\":\"`creativeForbiddenRelayBodyNormalizedKey` includes provider/channel/model/baseurl/token-style keys but lacks owner/user aliases and `mjapisecret`/`apisecret`; `creativeForbiddenRelayHeaderKey` only checks apikey/authorization/baseurl/token substrings plus that list. MJ submit body has extra owner checks, but query/header do not; Suno submit’s specific guard only rejects `model`.\",\"recommendation\":\"Expand the normalized forbidden set for all creative relay header/query/body/form/file keys to include `user`, `userid`, `user_id`, `owner`, `ownerid`, `owner_id`, `mjapisecret`, `apisecret`, `apisecrets`, `xapisecret`, and similar selected-key aliases. Add route tests for Suno and MJ across query, headers, JSON, form, multipart field names, and file part names.\",\"validation\":\"Targeted route tests should prove every alias returns 400 before `CreativeRelaySessionBroker`/`Distribute`/upstream relay is reached.\"},{\"title\":\"Insert succeeds but idempotency completion failure can leave a refunded task for later billing mutation\",\"severity\":\"Medium\",\"confidence\":\"Medium\",\"status\":\"likely\",\"repo\":\"new-api\",\"files\":[\"controller/relay.go:520-523\",\"controller/relay.go:594-640\",\"service/task_polling.go:588-614\",\"service/task_polling.go:325-345\"],\"impact\":\"If task insertion succeeds but `CompleteCreativeVideoIdempotencyScoped` fails, the request error path refunds/deletes idempotency while the task row remains with nonzero quota. Later polling can settle success or refund failure again, creating undercharge or double-refund risk.\",\"scenario\":\"Upstream accepts MJ/Suno submit, `task.Insert()` succeeds, then idempotency completion returns an error. `RelayTask` sets `taskErr`, deferred billing refund runs, but the inserted task is not deleted/zeroed/marked orphaned. Poller later reaches a terminal status and mutates billing based on the task quota.\",\"evidence\":\"After `task.Insert()`, line 615 sets `taskErr` on idempotency completion failure. The deferred refund at lines 520-523 triggers for any `taskErr`, while error cleanup only deletes the idempotency record. Polling terminal paths later call `RefundTaskQuota` or settlement after CAS based on the persisted task.\",\"recommendation\":\"Make task insert + idempotency completion + billing-safe state transactional, or if post-insert completion fails, mark the task as orphaned/non-billable with zero quota and no terminal billing mutation before refunding. Consider deleting the task row if safe.\",\"validation\":\"Inject/fake an idempotency completion DB error after successful insert; assert the client gets an error, precharge is refunded exactly once, no live billable task remains, and later polling cannot settle/refund again.\"}],\"reviewed\":[\"/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md\",\"/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md\",\"/mnt/f/code/project/new-api/router/web-router.go\",\"/mnt/f/code/project/new-api/controller/creative.go\",\"/mnt/f/code/project/new-api/controller/relay.go\",\"/mnt/f/code/project/new-api/relay/relay_task.go\",\"/mnt/f/code/project/new-api/relay/channel/task/suno/adaptor.go\",\"/mnt/f/code/project/new-api/relay/channel/task/mj/adaptor.go\",\"/mnt/f/code/project/new-api/service/task_polling.go\",\"/mnt/f/code/project/new-api/model/task.go\",\"/mnt/f/code/project/new-api/dto/task.go\"],\"gaps\":[\"Static audit only; did not run Go/Vitest tests in this read-only sub-agent pass.\",\"MCP semantic/codegraph searches were unavailable/cancelled, so evidence is from direct source inspection with rg/nl.\",\"Opentu frontend was only lightly spot-searched because this branch scope was backend Suno/MJ relays.\"]}",
+    "usage": {
+      "input_tokens": 6892592,
+      "cached_input_tokens": 6659584,
+      "output_tokens": 20764,
+      "reasoning_output_tokens": 13293
+    }
+  },
+  {
+    "node": "frontend-session-broker-transport",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "frontend-session-broker-transport",
+      "scope": "静态审计 /mnt/f/code/project/opentu 的 packages/drawnix Creative embedded session-broker bootstrap、provider transport、视频/Suno/MJ 前端适配、URL 配置清理与 service worker 相关路径；按需交叉核对 /mnt/f/code/project/new-api 的 Creative relay guard，判断其是否满足 new2fly 当前 Creative 集成契约。",
+      "conclusion": "发现 5 个与前端 session-broker/transport 契约相关的问题：1 个 High、2 个 Medium、2 个 Low。最重要的是 Suno lyrics 的 session-broker 提交仍可能携带 browser-supplied notify_hook，且后端 Suno guard 当前不拒绝该字段；其次是视频提交阶段对 404/405/501 未走 sanitized unsupported-backend 路径。",
+      "findings": [
+        {
+          "title": "Suno lyrics session-broker 提交可转发浏览器传入的 notifyHook/notify_hook",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "opentu,new-api",
+          "files": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:26-39",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md:28-46",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts:40,829-848,850-880,964-1002",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/generation-api-service.ts:727-768",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:649-700",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/default-adapters.ts:290-328",
+            "/mnt/f/code/project/new-api/controller/creative.go:1230-1287,1556-1625"
+          ],
+          "impact": "违反 new2fly Suno relay 契约中“浏览器不得提供上游 routing/credential/notifyHook 等材料，前端/后端必须剥离或拒绝”的边界。攻击者或异常调用方可通过 embedded Creative 的浏览器会话让上游收到自定义回调地址，导致任务/结果元数据泄露、供应商侧回调到非预期地址，或产生 provider-mediated SSRF 类风险。",
+          "scenario": "在 embedded Creative 中创建 lyrics 任务时，调用参数包含 notifyHook 或 params.notify_hook。Opentu 的 audio-api-service 会把它写入 JSON body 的 notify_hook 字段并 POST 到 /creative/relay/v1/suno/submit/lyrics；new-api 的 Suno guard 目前只专门拒绝 model，通用 forbidden body key 列表也未覆盖 notifyhook/callback，因此该字段可能继续进入上游请求。",
+          "evidence": "frontend 契约要求 /suno stripping upstream credential/routing/model override material and no direct fallback；backend 契约要求 browser 请求不得提供 model/credential/routing material，服务端派生模型。audio-api-service 的 lyrics body 构造在 829-848 行读取 params.notifyHook、params.params.notifyHook、params.params.notify_hook 并写入 body.notify_hook。generation-api-service、task-queue-service、default-adapters 会把 task params 的 notifyHook 继续传入 audioAPIService。new-api 的 creativeSunoForbiddenSubmitField 在 1230-1287 行仅检查 model，通用 creativeForbiddenRelayBodyNormalizedKey 在 1567-1625 行未列出 notifyhook/callback。现有 audio-api-service session-broker 测试覆盖 lyrics canonical path/idempotency，但未断言 notifyHook 被剥离。",
+          "recommendation": "在 session-broker 上下文中，AudioGenerationParams 与 nested params 中的 notifyHook/notify_hook/callback/webhook/notifyUrl 等字段应在构造 submit body 前 fail-closed 或直接丢弃；最好让 buildSubmitBody 接收 providerContext/authType 并对 session-broker 做白名单 body 构造。同时在 new-api Suno guard 中拒绝 notifyHook/callback 类字段作为后端兜底。补充前端测试：top-level 与 nested notifyHook 在 music/lyrics session-broker 提交中均不出现在 body；补充后端测试：Suno submit body/form/multipart 中 notifyHook/notify_hook/callback 返回 400。",
+          "validation": "静态确认；未运行测试。建议用 Vitest 构造 session-broker lyrics submit，断言 fetch body 不含 notify_hook，并用 new-api handler test 断言 notify_hook 被拒绝。"
+        },
+        {
+          "title": "视频 session-broker submit 对 404/405/501 未使用 sanitized unsupported-backend 错误，可能暴露后端响应体",
+          "severity": "Medium",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "opentu,new-api",
+          "files": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:26-39,46-51",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:31-42",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts:214-225,443-468,509-539",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/video-api-service.session-broker.test.ts:352-422",
+            "/mnt/f/code/project/new-api/controller/creative.go:60-68"
+          ],
+          "impact": "当 Creative video relay 未启用或后端不支持时，前端提交阶段不会返回契约要求的 sanitized unsupported-backend 错误，而是把后端 body 拼进 Error message、console.error 和 failLLMApiLog。当前默认 disabled body 只是普通信息，但未来若 body 包含内部错误或配置细节，会破坏 credential/error stripping 与安全错误边界。",
+          "scenario": "CREATIVE_VIDEO_RELAY_ENABLED=false 或部署后端缺失 POST /creative/relay/v1/videos 时，用户首次提交视频任务。new-api gate 返回 404；Opentu submit 分支读取 errorText，生成 `视频生成提交失败: <status> - <errorText>`，而不是像 query/content 分支那样抛出 createCreativeVideoUnsupportedError。",
+          "evidence": "video-api-service 定义了 isCreativeVideoUnsupportedStatus/createCreativeVideoUnsupportedError，但仅在 status/content 获取路径使用。submit 的非 2xx 分支在 454-468 行读取完整 errorText、打印并附加到 Error/apiErrorBody，没有对 session-broker 的 404/405/501 做特殊处理。测试文件只覆盖 status/content 的 unsupported sanitized，不覆盖 submit unsupported。new-api CreativeVideoRelayGate 在 disabled 时返回 404。",
+          "recommendation": "在 video submit 非 2xx 处理前先判断 providerContext.authType === session-broker 且 status 为 404/405/501，直接抛出 sanitized unsupported error，不读取或不传播响应体；日志只保留状态码和通用 code。补充 Vitest：POST /videos 返回 404/405/501 且 body 含模拟 secret 时，Error message、apiErrorBody、日志均不包含 body，并确认无 direct fallback。",
+          "validation": "静态确认；未运行测试。"
+        },
+        {
+          "title": "session-broker 传输层在缺失 bootstrap CSRF/nonce 时不本地 fail-fast，可能发出无 nonce 的 unsafe 请求",
+          "severity": "Medium",
+          "confidence": "Medium",
+          "status": "needs-runtime-verification",
+          "repo": "opentu,new-api",
+          "files": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:26-39",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:26-39",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md:29-45",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-mode.ts:34-63",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:183-191,394-438",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:1788-1834,1973-1981",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:354-410",
+            "/mnt/f/code/project/new-api/middleware/creative.go:95-130"
+          ],
+          "impact": "后端 nonce middleware 会拒绝 unsafe 请求，因此不是直接上游泄露；但前端契约要求 session-broker 使用 same-origin credentials + CSRF/nonce，bootstrap 失败应 fail-closed。当前如果本地存在旧的 managed session-broker profile，且 auth material 尚未建立或已被清空，provider transport 仍可能发起 POST，只是不带 X-Creative-CSRF/X-Creative-Nonce，最终得到后端 403 或原始错误路径，造成竞态、错误体验和契约漂移。",
+          "scenario": "浏览器保留了 new-api-creative session-broker profile/baseUrl，用户打开 /creative 后 bootstrap 尚未完成或失败并清空 auth material；生成动作通过 settings-manager 解析到 session-broker route。provider-transport 合并 getCreativeSessionAuthHeaders() 的结果；该函数在无 material 时返回空对象，随后仍以 same-origin credentials 发起 POST。",
+          "evidence": "creative-mode 的 getCreativeSessionAuthHeaders 在无 csrf/nonce 时返回 `{}`。provider-transport 的 session-broker 分支只剥离敏感头并合并这些 auth headers，没有断言 unsafe method 必须有 auth material。settings-manager 可基于持久化 profile/baseUrl 认为 session-broker route 有 credentials。creative-session-broker bootstrap 失败时清理 auth material 和 asset sync，但未从 settings 删除持久化 managed profile。new-api 的 CreativeRequireNonce 会在 unsafe method 缺失或无效 nonce 时返回 403。",
+          "recommendation": "对 session-broker 的 unsafe method 在 provider-transport 层要求存在 csrf+nonce，否则在 fetch 前抛出 sanitized `creative bootstrap required`/`session broker not ready` 错误；或在 bootstrap 失败时禁用/移除 managed route 并让生成 UI 等待 broker ready。补充竞态测试：持久化 creative profile 但 auth material 为空时，video/suno/mj submit 不应调用 fetch。",
+          "validation": "需要运行时/单测验证：模拟 embedded mode、有持久化 new-api-creative profile、未调用或失败 bootstrap，然后立即触发 submit；观察是否真的发出缺少 X-Creative-* 的 POST，以及错误是否为 sanitized 本地错误。"
+        },
+        {
+          "title": "embedded Creative URL 参数清理 denylist 不完整，部分 routing/model/notifyHook 参数会残留在 URL 中",
+          "severity": "Low",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "opentu",
+          "files": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:34-39",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:34-39",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md:39-45",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:191-224,1333-1349,1420-1430",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/auth.ts:9-42,286-307,312-346",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/__tests__/auth.creative-embedded.test.ts:46-79,103-204"
+          ],
+          "impact": "已确认 transport 层会拦截绝对 URL/baseUrl 并对请求 header/query 做较强剥离，因此未确认这些残留参数会进入 provider 请求；但它们仍可能保留在地址栏、history、referrer、调试日志或后续解析入口中，违反 embedded Creative 对 API config/routing 材料清理的防御纵深预期。",
+          "scenario": "用户访问 `/creative?channel=x&group=y&model=z&selectedKey=k&notifyHook=https://attacker.example/hook`。embedded URL 初始化只删除当前 denylist 中的 apiKey/settings/baseUrl/auth/providerOverride 等字段，未覆盖 channel/group/model/selectedKey/notifyHook 等，导致这些字段继续留在 URL。",
+          "evidence": "settings-manager 与 gemini-api/auth 各自维护 CREATIVE_EMBEDDED_URL_AUTH_PARAM_NAMES，但列表不含 channel、group、model、modelId、selectedKey、notifyHook、notify_hook、callback/webhook、base-url 等变体。embedded 分支只调用该列表删除 URL 参数。现有 auth.creative-embedded 测试覆盖 apiKey/settings/baseUrl/providerOverride/authType/providerAuth/Authorization 清理，但未覆盖上述遗漏项。",
+          "recommendation": "将 embedded URL 清理从窄 denylist 改为与 provider-transport normalized forbidden key 共享的统一 denylist，覆盖 camelCase/snake_case/kebab-case 与 callback/webhook/notifyUrl/url/proxy/model/routing/selectedKey 等字段；补充测试断言这些参数在 embedded mode 下被删除且不会写入 settings。",
+          "validation": "静态确认；可用单测构造 URLSearchParams 覆盖遗漏参数并断言初始化后 URL 已清理。"
+        },
+        {
+          "title": "service worker debug-mode 可能记录 Creative relay 的 nonce/CSRF/idempotency header 与请求体",
+          "severity": "Low",
+          "confidence": "Medium",
+          "status": "confirmed",
+          "repo": "opentu",
+          "files": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-asset-sync.md:21-23",
+            "/mnt/f/code/project/opentu/apps/web/src/sw/creative-asset-pass-through.ts:1-7",
+            "/mnt/f/code/project/opentu/apps/web/src/sw/index.ts:4231-4251,4657-4729",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:183-191,427-438"
+          ],
+          "impact": "这不是常规生产路径的数据外发，且 debug log 主要是本地/广播给 debug 客户端；但在 debugMode 开启时，Creative relay 的 X-Creative-CSRF、X-Creative-Nonce、Idempotency-Key 以及 prompt/form/json body 可能被记录或展示，和“不要打印/泄露 session-broker auth material”的安全边界不一致。",
+          "scenario": "用户或测试环境开启 service worker debugMode 后提交 /creative/relay/v1/videos、/suno 或 /mj 请求。asset pass-through 只覆盖 /creative/api/assets/*；relay 请求进入 generic XHR/API debug 分支，代码复制 request.headers 和 body preview 并写入 debug log。",
+          "evidence": "service worker 在 fetch handler 早期对 /creative/api/assets/* 做 pass-through，但 /creative/relay/v1/* 不在该白名单。后续 debugMode 分支会记录所有 request headers，并解析/截断 JSON、form、urlencoded body。provider-transport 对 session-broker 会加 X-Creative-CSRF/X-Creative-Nonce，并由各提交路径加入 Idempotency-Key。",
+          "recommendation": "service worker 对 same-origin `/creative/relay/v1/*` 跳过 debug body/header 采集，或至少统一 redaction：X-Creative-*、Idempotency-Key、Authorization、Cookie、prompt/body 中可能敏感字段均不记录。补充 SW 单测或集成测试验证 debug log 不含 nonce/csrf/idempotency/body。",
+          "validation": "静态确认 debug 采集路径存在；未验证 debug 客户端持久化/暴露范围。"
+        }
+      ],
+      "reviewed": [
+        "opentu creative-session-broker bootstrap：确认 embedded mode 下创建 canonical `/creative/relay/v1`、empty apiKey、authType `session-broker` 的 managed profile，并要求 bootstrap auth mode/csrf/nonce。",
+        "provider-transport：确认 session-broker absolute path/baseUrl 拒绝、baseUrl canonical 校验、same-origin credentials、header/query 级 credential/routing/model/notifyHook stripping 对 /videos、/suno、/mj 基本实现。",
+        "video status/content：确认使用 `/videos/:taskId` 与 `/videos/:taskId/content`，status/content 对 404/405/501 有 sanitized unsupported 错误且无 direct fallback。",
+        "Suno music 与 fetch：确认 session-broker canonical `/suno/submit/music`、`/suno/fetch/{taskId}`、empty key 仅 session-broker 允许、idempotency key 基本稳定，unsupported submit/fetch 有 sanitized 路径。",
+        "MJ adapter：确认 session-broker 下保留 `/creative/relay/v1` baseUrl、不 trim `/v1`，使用 `/mj/submit/imagine` 与 `/mj/task/{taskId}/fetch`，body 白名单基本不包含 model/notifyHook/provider material，并调用 onSubmitted。",
+        "asset sync service worker：确认 `/creative/api/assets/*` 在 service worker 中位于缓存/app-shell 逻辑前 pass-through。",
+        "new-api 相关 guard：交叉核对 nonce middleware、video gate、Suno/MJ submit guard 和 forbidden key 列表，以判断前端缺陷是否有后端兜底。"
+      ],
+      "gaps": [
+        "未运行 pnpm/vitest 或 Go 测试；本轮为 read-only 静态审计。",
+        "未调用真实 new-api/opentu 服务，也未访问生产端点。",
+        "未读取旧报告、归档任务、workspace journals、.codebuddy 或 prior assistant conclusions；证据仅来自当前 task/spec 与当前源码/tests/config。",
+        "FST-003 的实际竞态可达性需要用浏览器状态或单测模拟持久化 managed profile + 空 auth material 验证。",
+        "FST-005 的实际暴露范围取决于 debugMode 启用条件和 debug 客户端消费方式，本轮仅确认采集代码路径。"
+      ]
+    },
+    "raw": "{\"branch\":\"frontend-session-broker-transport\",\"scope\":\"静态审计 /mnt/f/code/project/opentu 的 packages/drawnix Creative embedded session-broker bootstrap、provider transport、视频/Suno/MJ 前端适配、URL 配置清理与 service worker 相关路径；按需交叉核对 /mnt/f/code/project/new-api 的 Creative relay guard，判断其是否满足 new2fly 当前 Creative 集成契约。\",\"conclusion\":\"发现 5 个与前端 session-broker/transport 契约相关的问题：1 个 High、2 个 Medium、2 个 Low。最重要的是 Suno lyrics 的 session-broker 提交仍可能携带 browser-supplied notify_hook，且后端 Suno guard 当前不拒绝该字段；其次是视频提交阶段对 404/405/501 未走 sanitized unsupported-backend 路径。\",\"findings\":[{\"title\":\"Suno lyrics session-broker 提交可转发浏览器传入的 notifyHook/notify_hook\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"opentu,new-api\",\"files\":[\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:26-39\",\"/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md:28-46\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts:40,829-848,850-880,964-1002\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/generation-api-service.ts:727-768\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:649-700\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/default-adapters.ts:290-328\",\"/mnt/f/code/project/new-api/controller/creative.go:1230-1287,1556-1625\"],\"impact\":\"违反 new2fly Suno relay 契约中“浏览器不得提供上游 routing/credential/notifyHook 等材料，前端/后端必须剥离或拒绝”的边界。攻击者或异常调用方可通过 embedded Creative 的浏览器会话让上游收到自定义回调地址，导致任务/结果元数据泄露、供应商侧回调到非预期地址，或产生 provider-mediated SSRF 类风险。\",\"scenario\":\"在 embedded Creative 中创建 lyrics 任务时，调用参数包含 notifyHook 或 params.notify_hook。Opentu 的 audio-api-service 会把它写入 JSON body 的 notify_hook 字段并 POST 到 /creative/relay/v1/suno/submit/lyrics；new-api 的 Suno guard 目前只专门拒绝 model，通用 forbidden body key 列表也未覆盖 notifyhook/callback，因此该字段可能继续进入上游请求。\",\"evidence\":\"frontend 契约要求 /suno stripping upstream credential/routing/model override material and no direct fallback；backend 契约要求 browser 请求不得提供 model/credential/routing material，服务端派生模型。audio-api-service 的 lyrics body 构造在 829-848 行读取 params.notifyHook、params.params.notifyHook、params.params.notify_hook 并写入 body.notify_hook。generation-api-service、task-queue-service、default-adapters 会把 task params 的 notifyHook 继续传入 audioAPIService。new-api 的 creativeSunoForbiddenSubmitField 在 1230-1287 行仅检查 model，通用 creativeForbiddenRelayBodyNormalizedKey 在 1567-1625 行未列出 notifyhook/callback。现有 audio-api-service session-broker 测试覆盖 lyrics canonical path/idempotency，但未断言 notifyHook 被剥离。\",\"recommendation\":\"在 session-broker 上下文中，AudioGenerationParams 与 nested params 中的 notifyHook/notify_hook/callback/webhook/notifyUrl 等字段应在构造 submit body 前 fail-closed 或直接丢弃；最好让 buildSubmitBody 接收 providerContext/authType 并对 session-broker 做白名单 body 构造。同时在 new-api Suno guard 中拒绝 notifyHook/callback 类字段作为后端兜底。补充前端测试：top-level 与 nested notifyHook 在 music/lyrics session-broker 提交中均不出现在 body；补充后端测试：Suno submit body/form/multipart 中 notifyHook/notify_hook/callback 返回 400。\",\"validation\":\"静态确认；未运行测试。建议用 Vitest 构造 session-broker lyrics submit，断言 fetch body 不含 notify_hook，并用 new-api handler test 断言 notify_hook 被拒绝。\"},{\"title\":\"视频 session-broker submit 对 404/405/501 未使用 sanitized unsupported-backend 错误，可能暴露后端响应体\",\"severity\":\"Medium\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"opentu,new-api\",\"files\":[\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:26-39,46-51\",\"/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:31-42\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts:214-225,443-468,509-539\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/video-api-service.session-broker.test.ts:352-422\",\"/mnt/f/code/project/new-api/controller/creative.go:60-68\"],\"impact\":\"当 Creative video relay 未启用或后端不支持时，前端提交阶段不会返回契约要求的 sanitized unsupported-backend 错误，而是把后端 body 拼进 Error message、console.error 和 failLLMApiLog。当前默认 disabled body 只是普通信息，但未来若 body 包含内部错误或配置细节，会破坏 credential/error stripping 与安全错误边界。\",\"scenario\":\"CREATIVE_VIDEO_RELAY_ENABLED=false 或部署后端缺失 POST /creative/relay/v1/videos 时，用户首次提交视频任务。new-api gate 返回 404；Opentu submit 分支读取 errorText，生成 `视频生成提交失败: <status> - <errorText>`，而不是像 query/content 分支那样抛出 createCreativeVideoUnsupportedError。\",\"evidence\":\"video-api-service 定义了 isCreativeVideoUnsupportedStatus/createCreativeVideoUnsupportedError，但仅在 status/content 获取路径使用。submit 的非 2xx 分支在 454-468 行读取完整 errorText、打印并附加到 Error/apiErrorBody，没有对 session-broker 的 404/405/501 做特殊处理。测试文件只覆盖 status/content 的 unsupported sanitized，不覆盖 submit unsupported。new-api CreativeVideoRelayGate 在 disabled 时返回 404。\",\"recommendation\":\"在 video submit 非 2xx 处理前先判断 providerContext.authType === session-broker 且 status 为 404/405/501，直接抛出 sanitized unsupported error，不读取或不传播响应体；日志只保留状态码和通用 code。补充 Vitest：POST /videos 返回 404/405/501 且 body 含模拟 secret 时，Error message、apiErrorBody、日志均不包含 body，并确认无 direct fallback。\",\"validation\":\"静态确认；未运行测试。\"},{\"title\":\"session-broker 传输层在缺失 bootstrap CSRF/nonce 时不本地 fail-fast，可能发出无 nonce 的 unsafe 请求\",\"severity\":\"Medium\",\"confidence\":\"Medium\",\"status\":\"needs-runtime-verification\",\"repo\":\"opentu,new-api\",\"files\":[\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:26-39\",\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:26-39\",\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md:29-45\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-mode.ts:34-63\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:183-191,394-438\",\"/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:1788-1834,1973-1981\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:354-410\",\"/mnt/f/code/project/new-api/middleware/creative.go:95-130\"],\"impact\":\"后端 nonce middleware 会拒绝 unsafe 请求，因此不是直接上游泄露；但前端契约要求 session-broker 使用 same-origin credentials + CSRF/nonce，bootstrap 失败应 fail-closed。当前如果本地存在旧的 managed session-broker profile，且 auth material 尚未建立或已被清空，provider transport 仍可能发起 POST，只是不带 X-Creative-CSRF/X-Creative-Nonce，最终得到后端 403 或原始错误路径，造成竞态、错误体验和契约漂移。\",\"scenario\":\"浏览器保留了 new-api-creative session-broker profile/baseUrl，用户打开 /creative 后 bootstrap 尚未完成或失败并清空 auth material；生成动作通过 settings-manager 解析到 session-broker route。provider-transport 合并 getCreativeSessionAuthHeaders() 的结果；该函数在无 material 时返回空对象，随后仍以 same-origin credentials 发起 POST。\",\"evidence\":\"creative-mode 的 getCreativeSessionAuthHeaders 在无 csrf/nonce 时返回 `{}`。provider-transport 的 session-broker 分支只剥离敏感头并合并这些 auth headers，没有断言 unsafe method 必须有 auth material。settings-manager 可基于持久化 profile/baseUrl 认为 session-broker route 有 credentials。creative-session-broker bootstrap 失败时清理 auth material 和 asset sync，但未从 settings 删除持久化 managed profile。new-api 的 CreativeRequireNonce 会在 unsafe method 缺失或无效 nonce 时返回 403。\",\"recommendation\":\"对 session-broker 的 unsafe method 在 provider-transport 层要求存在 csrf+nonce，否则在 fetch 前抛出 sanitized `creative bootstrap required`/`session broker not ready` 错误；或在 bootstrap 失败时禁用/移除 managed route 并让生成 UI 等待 broker ready。补充竞态测试：持久化 creative profile 但 auth material 为空时，video/suno/mj submit 不应调用 fetch。\",\"validation\":\"需要运行时/单测验证：模拟 embedded mode、有持久化 new-api-creative profile、未调用或失败 bootstrap，然后立即触发 submit；观察是否真的发出缺少 X-Creative-* 的 POST，以及错误是否为 sanitized 本地错误。\"},{\"title\":\"embedded Creative URL 参数清理 denylist 不完整，部分 routing/model/notifyHook 参数会残留在 URL 中\",\"severity\":\"Low\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"opentu\",\"files\":[\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:34-39\",\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:34-39\",\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md:39-45\",\"/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:191-224,1333-1349,1420-1430\",\"/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/auth.ts:9-42,286-307,312-346\",\"/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/__tests__/auth.creative-embedded.test.ts:46-79,103-204\"],\"impact\":\"已确认 transport 层会拦截绝对 URL/baseUrl 并对请求 header/query 做较强剥离，因此未确认这些残留参数会进入 provider 请求；但它们仍可能保留在地址栏、history、referrer、调试日志或后续解析入口中，违反 embedded Creative 对 API config/routing 材料清理的防御纵深预期。\",\"scenario\":\"用户访问 `/creative?channel=x&group=y&model=z&selectedKey=k&notifyHook=https://attacker.example/hook`。embedded URL 初始化只删除当前 denylist 中的 apiKey/settings/baseUrl/auth/providerOverride 等字段，未覆盖 channel/group/model/selectedKey/notifyHook 等，导致这些字段继续留在 URL。\",\"evidence\":\"settings-manager 与 gemini-api/auth 各自维护 CREATIVE_EMBEDDED_URL_AUTH_PARAM_NAMES，但列表不含 channel、group、model、modelId、selectedKey、notifyHook、notify_hook、callback/webhook、base-url 等变体。embedded 分支只调用该列表删除 URL 参数。现有 auth.creative-embedded 测试覆盖 apiKey/settings/baseUrl/providerOverride/authType/providerAuth/Authorization 清理，但未覆盖上述遗漏项。\",\"recommendation\":\"将 embedded URL 清理从窄 denylist 改为与 provider-transport normalized forbidden key 共享的统一 denylist，覆盖 camelCase/snake_case/kebab-case 与 callback/webhook/notifyUrl/url/proxy/model/routing/selectedKey 等字段；补充测试断言这些参数在 embedded mode 下被删除且不会写入 settings。\",\"validation\":\"静态确认；可用单测构造 URLSearchParams 覆盖遗漏参数并断言初始化后 URL 已清理。\"},{\"title\":\"service worker debug-mode 可能记录 Creative relay 的 nonce/CSRF/idempotency header 与请求体\",\"severity\":\"Low\",\"confidence\":\"Medium\",\"status\":\"confirmed\",\"repo\":\"opentu\",\"files\":[\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-asset-sync.md:21-23\",\"/mnt/f/code/project/opentu/apps/web/src/sw/creative-asset-pass-through.ts:1-7\",\"/mnt/f/code/project/opentu/apps/web/src/sw/index.ts:4231-4251,4657-4729\",\"/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:183-191,427-438\"],\"impact\":\"这不是常规生产路径的数据外发，且 debug log 主要是本地/广播给 debug 客户端；但在 debugMode 开启时，Creative relay 的 X-Creative-CSRF、X-Creative-Nonce、Idempotency-Key 以及 prompt/form/json body 可能被记录或展示，和“不要打印/泄露 session-broker auth material”的安全边界不一致。\",\"scenario\":\"用户或测试环境开启 service worker debugMode 后提交 /creative/relay/v1/videos、/suno 或 /mj 请求。asset pass-through 只覆盖 /creative/api/assets/*；relay 请求进入 generic XHR/API debug 分支，代码复制 request.headers 和 body preview 并写入 debug log。\",\"evidence\":\"service worker 在 fetch handler 早期对 /creative/api/assets/* 做 pass-through，但 /creative/relay/v1/* 不在该白名单。后续 debugMode 分支会记录所有 request headers，并解析/截断 JSON、form、urlencoded body。provider-transport 对 session-broker 会加 X-Creative-CSRF/X-Creative-Nonce，并由各提交路径加入 Idempotency-Key。\",\"recommendation\":\"service worker 对 same-origin `/creative/relay/v1/*` 跳过 debug body/header 采集，或至少统一 redaction：X-Creative-*、Idempotency-Key、Authorization、Cookie、prompt/body 中可能敏感字段均不记录。补充 SW 单测或集成测试验证 debug log 不含 nonce/csrf/idempotency/body。\",\"validation\":\"静态确认 debug 采集路径存在；未验证 debug 客户端持久化/暴露范围。\"}],\"reviewed\":[\"opentu creative-session-broker bootstrap：确认 embedded mode 下创建 canonical `/creative/relay/v1`、empty apiKey、authType `session-broker` 的 managed profile，并要求 bootstrap auth mode/csrf/nonce。\",\"provider-transport：确认 session-broker absolute path/baseUrl 拒绝、baseUrl canonical 校验、same-origin credentials、header/query 级 credential/routing/model/notifyHook stripping 对 /videos、/suno、/mj 基本实现。\",\"video status/content：确认使用 `/videos/:taskId` 与 `/videos/:taskId/content`，status/content 对 404/405/501 有 sanitized unsupported 错误且无 direct fallback。\",\"Suno music 与 fetch：确认 session-broker canonical `/suno/submit/music`、`/suno/fetch/{taskId}`、empty key 仅 session-broker 允许、idempotency key 基本稳定，unsupported submit/fetch 有 sanitized 路径。\",\"MJ adapter：确认 session-broker 下保留 `/creative/relay/v1` baseUrl、不 trim `/v1`，使用 `/mj/submit/imagine` 与 `/mj/task/{taskId}/fetch`，body 白名单基本不包含 model/notifyHook/provider material，并调用 onSubmitted。\",\"asset sync service worker：确认 `/creative/api/assets/*` 在 service worker 中位于缓存/app-shell 逻辑前 pass-through。\",\"new-api 相关 guard：交叉核对 nonce middleware、video gate、Suno/MJ submit guard 和 forbidden key 列表，以判断前端缺陷是否有后端兜底。\"],\"gaps\":[\"未运行 pnpm/vitest 或 Go 测试；本轮为 read-only 静态审计。\",\"未调用真实 new-api/opentu 服务，也未访问生产端点。\",\"未读取旧报告、归档任务、workspace journals、.codebuddy 或 prior assistant conclusions；证据仅来自当前 task/spec 与当前源码/tests/config。\",\"FST-003 的实际竞态可达性需要用浏览器状态或单测模拟持久化 managed profile + 空 auth material 验证。\",\"FST-005 的实际暴露范围取决于 debugMode 启用条件和 debug 客户端消费方式，本轮仅确认采集代码路径。\"]}",
+    "usage": {
+      "input_tokens": 9264380,
+      "cached_input_tokens": 9015424,
+      "output_tokens": 17115,
+      "reasoning_output_tokens": 6090
+    }
+  },
+  {
+    "node": "backend-video-relay",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "backend-video-relay",
+      "scope": "审计 new2fly Creative async video relay 后端合同在 /mnt/f/code/project/new-api 中的当前实现，重点覆盖路由/中间件、任务私有数据、幂等、relay 提交、状态/内容拉取、计费退款/CAS、通道/密钥亲和与测试覆盖。",
+      "conclusion": "当前实现已具备规范路由、默认关闭 env gate、session/same-origin/nonce/forbidden-field 边界、提交幂等基本语义、owner-scoped status/content，以及正常路径的 stored-key 使用。但仍发现 3 个已确认的合同偏差和 1 个需运行时确认的泄漏风险，核心风险集中在提交成功前的结算/日志安全门、轮询异常分支绕过 CAS/退款、以及 stored-key 缺失时回退当前 channel key。",
+      "findings": [
+        {
+          "title": "提交成功路径在结算/日志未安全完成时仍可 flush 上游成功响应",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api against new2fly",
+          "files": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:25-30",
+            "/mnt/f/code/project/new-api/controller/relay.go:520-524",
+            "/mnt/f/code/project/new-api/controller/relay.go:594-630",
+            "/mnt/f/code/project/new-api/controller/relay.go:634-640",
+            "/mnt/f/code/project/new-api/service/billing.go:34-78",
+            "/mnt/f/code/project/new-api/service/funding_source.go:50-58",
+            "/mnt/f/code/project/new-api/service/funding_source.go:107-112",
+            "/mnt/f/code/project/new-api/model/log.go:222-267"
+          ],
+          "impact": "违反合同要求的“buffer upstream success until task insert, idempotency completion, and settlement/log bookkeeping have succeeded”。当结算失败或消费日志无法持久化时，客户端仍可能收到成功任务，后续幂等 replay 也会返回该任务，造成欠费/多扣调整失败/审计账务缺口。",
+          "scenario": "上游视频提交成功后，controller/relay.go 插入 task 并完成 idempotency，然后调用 service.SettleBilling；如果钱包/订阅的 delta 结算失败，代码只 common.SysError 记录错误，不设置 taskErr，也不触发 defer refund，随后继续 LogTaskConsumption 并 FlushTo 客户端。消费日志写入失败同样只记录 logger error，调用方没有错误可拦截。",
+          "evidence": "controller/relay.go:619-629 中 SettleBilling 返回错误仅记录 SysError，之后仍调用 LogTaskConsumption 并 flush buffered response；controller/relay.go:520-524 的退款 defer 只在 taskErr != nil 时触发；service/billing.go:57-58 会向上传播 Billing.Settle 错误；funding_source.go:50-58、107-112 显示钱包/订阅结算确实可能失败；model/log.go:264-267 显示日志写入失败不会返回给 relay 成功门。",
+          "recommendation": "将 SettleBilling 和必要日志/账务 outbox 的失败作为提交失败安全门：在 flush 前设置 taskErr、清理 idempotency、确保预扣 refund exactly once，或把成功响应延后到一个可恢复的 durable settlement/outbox 状态之后。让关键日志/账务写入返回错误，或引入强制持久化 outbox。补充注入 SettleBilling 失败的测试，断言不 flush 成功、不保留完成幂等且退款只发生一次。",
+          "validation": "静态代码确认。尝试运行相关 Go 测试时受当前只读 sandbox 限制，GOCACHE/GOTMPDIR 无法创建，命令未能执行：GOCACHE=/tmp/newapi-gocache GOTMPDIR=/tmp go test ./controller ./service ./model ...；需要在可写测试环境补跑。"
+        },
+        {
+          "title": "轮询 channel lookup 失败分支用无 CAS bulk update 终止任务且不退款",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api against new2fly",
+          "files": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:40-41",
+            "/mnt/f/code/project/new-api/service/task_polling.go:397-430",
+            "/mnt/f/code/project/new-api/model/task.go:511-545"
+          ],
+          "impact": "违反终态轮询/update 必须“exactly one CAS winner settles or refunds”的合同。已预扣费的视频任务在 channel 被删除、禁用、缓存/数据库短暂异常时会被直接标记 FAILURE，但没有 RefundTaskQuota，也没有 CAS 防重入，可能导致用户被扣费却任务失败，并可能覆盖并发成功/失败结算。",
+          "scenario": "UpdateVideoTasks 对每个 channel 调用 updateVideoTasks。若 model.CacheGetChannel(channelId) 返回错误，代码收集任务 DB primary IDs，调用 TaskBulkUpdateByID 把 status 设置为 FAILURE、progress 100%。该分支没有 snapshot/fromStatus CAS，也没有 RefundTaskQuota/settlement 日志。",
+          "evidence": "service/task_polling.go:412-425 在 CacheGetChannel 失败时直接 TaskBulkUpdateByID(... status FAILURE ... progress 100%)；model/task.go:537-541 明确注释 TaskBulkUpdateByID 无 CAS，且不得用于 billing/quota lifecycle flows；该错误分支未调用 RefundTaskQuota 或 RecalculateTaskQuota。",
+          "recommendation": "不要因 channel lookup miss 直接终态失败；优先保持 pending 并重试。若业务必须失败，应逐任务读取 snapshot，使用 Task.UpdateWithStatus(fromStatus) 作为 CAS guard，只有 CAS winner 才设置终态、finish_time/fail_reason 并执行 RefundTaskQuota/账务日志。增加 channel missing/cache error 的轮询测试，覆盖退款一次、并发 loser 不重复退款/覆盖状态。",
+          "validation": "静态代码确认。需在可写环境增加/运行 service 级轮询测试，模拟 CacheGetChannel 失败和并发终态转换。"
+        },
+        {
+          "title": "stored key 缺失时 status/content 路径会回退当前 channel key",
+          "severity": "Medium",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api against new2fly",
+          "files": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:28-30",
+            "/mnt/f/code/project/new-api/model/task.go:277-315",
+            "/mnt/f/code/project/new-api/service/task_polling.go:451-472",
+            "/mnt/f/code/project/new-api/relay/relay_task.go:422-450",
+            "/mnt/f/code/project/new-api/controller/video_proxy_gemini.go:208-225"
+          ],
+          "impact": "正常 task 初始化会保存 selected key，但若历史数据、迁移、部分写入或 provider 分支导致 Task.PrivateData.Key 为空，后续 status/content 会静默使用 channel 当前 key/第一个 key，而不是 non-leaky 失败。这违背“已接受任务必须使用 stored channel/key affinity，不得重新随机/当前选择 key”的严格不变量，可能用错误租户/密钥查询或下载内容。",
+          "scenario": "轮询 updateVideoSingleTask 先设置 key := ch.Key，只有 privateData.Key 非空才覆盖；实时 status tryRealtimeFetch 同样从 channelModel.Key 起步；Vertex 内容代理 getVertexTaskKey 在 task.PrivateData.Key 为空时返回 channel.GetKeys() 的第一个非空 key 或 channel.Key。",
+          "evidence": "model/task.go:280-283 正常路径会从 relayInfo.ChannelMeta.ApiKey 写入 PrivateData.Key；但 service/task_polling.go:463-468、relay_task.go:441-444、video_proxy_gemini.go:208-225 都实现了 stored key 空值时的当前 channel key fallback。",
+          "recommendation": "对 /creative/relay/v1/videos 接受的任务，把缺失 PrivateData.Key 视为任务完整性错误：返回 non-leaky 500/告警或进入可恢复修复队列，不要 fallback 当前 channel key。若必须兼容 legacy task，应显式区分 legacy 非 Creative 路径并迁移数据。补充 missing-key 的 polling、realtime status、Vertex content 测试，断言不会调用当前 channel key。",
+          "validation": "静态代码确认；已有 stored-key happy-path 测试不足以覆盖缺失 key fallback。需增加缺失 PrivateData.Key 的负向测试。"
+        },
+        {
+          "title": "Sora status 转换可能保留上游 task_id 字段",
+          "severity": "Medium",
+          "confidence": "Medium",
+          "status": "needs-runtime-verification",
+          "repo": "new-api against new2fly",
+          "files": [
+            "/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go:227-256",
+            "/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go:324-330",
+            "/mnt/f/code/project/new-api/service/task_polling.go:496-502",
+            "/mnt/f/code/project/new-api/service/task_polling.go:619-643"
+          ],
+          "impact": "如果上游 Sora status 响应包含 task_id/operation id，owner-scoped status 响应可能泄漏 stored upstream routing identifier，违反禁止向嵌入前端暴露 credential/routing material 的目标。该风险取决于实际 provider status 响应 shape。",
+          "scenario": "提交 DoResponse 会在返回客户端前把 id 和 task_id 改成 public task id，但后续轮询把上游 status response 经 redactVideoResponseBody 存入 task.Data；redaction 只处理大媒体字段。ConvertToOpenAIVideo 只重写 JSON id，不重写/删除 task_id。",
+          "evidence": "sora/adaptor.go:252-255 提交响应会重写 dResp.ID 和 dResp.TaskID；service/task_polling.go:502 存储 redacted upstream response；redactVideoResponseBody 仅删除/截断视频大字段；sora/adaptor.go:324-330 只 sjson.SetBytes(data, \"id\", task.TaskID)，未处理 task_id。",
+          "recommendation": "无论当前上游是否返回 task_id，都应在 Sora ConvertToOpenAIVideo 中重写或移除 task_id、operation、job_id 等上游 routing identifiers，并加入 fixture 测试：task.Data 同时含 id/task_id 时，Creative status 只返回 public task id。",
+          "validation": "需要运行时或 provider fixture 确认真实 Sora status body 是否包含 task_id；静态代码确认当前转换未 scrub task_id。"
+        }
+      ],
+      "reviewed": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/new-api/router/video-router.go",
+        "/mnt/f/code/project/new-api/middleware/creative.go",
+        "/mnt/f/code/project/new-api/middleware/auth.go",
+        "/mnt/f/code/project/new-api/controller/creative.go",
+        "/mnt/f/code/project/new-api/controller/relay.go",
+        "/mnt/f/code/project/new-api/controller/video_proxy.go",
+        "/mnt/f/code/project/new-api/controller/video_proxy_gemini.go",
+        "/mnt/f/code/project/new-api/model/task.go",
+        "/mnt/f/code/project/new-api/model/log.go",
+        "/mnt/f/code/project/new-api/relay/relay_task.go",
+        "/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go",
+        "/mnt/f/code/project/new-api/service/billing.go",
+        "/mnt/f/code/project/new-api/service/billing_session.go",
+        "/mnt/f/code/project/new-api/service/funding_source.go",
+        "/mnt/f/code/project/new-api/service/task_billing.go",
+        "/mnt/f/code/project/new-api/service/task_polling.go",
+        "/mnt/f/code/project/new-api/controller/creative_test.go相关 Creative video relay 测试段落（静态查看） 加载测试和opentu前端用路径核对：/mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts、/mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/video-api.ts"
+      ],
+      "gaps": [
+        "当前环境为 read-only sandbox，Go 测试无法创建 build cache/tmp 目录，未能实际执行测试；需要在可写环境补跑 controller/service/model 相关测试并新增上述失败场景。",
+        "未调用生产或外部 provider endpoint；Sora task_id 泄漏项需要用本地 fixture 或受控 mock provider runtime 验证真实 status body。",
+        "未修改 /mnt/f/code/project/new-api 或 /mnt/f/code/project/opentu，未读取或输出真实 secrets。"
+      ]
+    },
+    "raw": "{\"branch\":\"backend-video-relay\",\"scope\":\"审计 new2fly Creative async video relay 后端合同在 /mnt/f/code/project/new-api 中的当前实现，重点覆盖路由/中间件、任务私有数据、幂等、relay 提交、状态/内容拉取、计费退款/CAS、通道/密钥亲和与测试覆盖。\",\"conclusion\":\"当前实现已具备规范路由、默认关闭 env gate、session/same-origin/nonce/forbidden-field 边界、提交幂等基本语义、owner-scoped status/content，以及正常路径的 stored-key 使用。但仍发现 3 个已确认的合同偏差和 1 个需运行时确认的泄漏风险，核心风险集中在提交成功前的结算/日志安全门、轮询异常分支绕过 CAS/退款、以及 stored-key 缺失时回退当前 channel key。\",\"findings\":[{\"title\":\"提交成功路径在结算/日志未安全完成时仍可 flush 上游成功响应\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api against new2fly\",\"files\":[\"/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:25-30\",\"/mnt/f/code/project/new-api/controller/relay.go:520-524\",\"/mnt/f/code/project/new-api/controller/relay.go:594-630\",\"/mnt/f/code/project/new-api/controller/relay.go:634-640\",\"/mnt/f/code/project/new-api/service/billing.go:34-78\",\"/mnt/f/code/project/new-api/service/funding_source.go:50-58\",\"/mnt/f/code/project/new-api/service/funding_source.go:107-112\",\"/mnt/f/code/project/new-api/model/log.go:222-267\"],\"impact\":\"违反合同要求的“buffer upstream success until task insert, idempotency completion, and settlement/log bookkeeping have succeeded”。当结算失败或消费日志无法持久化时，客户端仍可能收到成功任务，后续幂等 replay 也会返回该任务，造成欠费/多扣调整失败/审计账务缺口。\",\"scenario\":\"上游视频提交成功后，controller/relay.go 插入 task 并完成 idempotency，然后调用 service.SettleBilling；如果钱包/订阅的 delta 结算失败，代码只 common.SysError 记录错误，不设置 taskErr，也不触发 defer refund，随后继续 LogTaskConsumption 并 FlushTo 客户端。消费日志写入失败同样只记录 logger error，调用方没有错误可拦截。\",\"evidence\":\"controller/relay.go:619-629 中 SettleBilling 返回错误仅记录 SysError，之后仍调用 LogTaskConsumption 并 flush buffered response；controller/relay.go:520-524 的退款 defer 只在 taskErr != nil 时触发；service/billing.go:57-58 会向上传播 Billing.Settle 错误；funding_source.go:50-58、107-112 显示钱包/订阅结算确实可能失败；model/log.go:264-267 显示日志写入失败不会返回给 relay 成功门。\",\"recommendation\":\"将 SettleBilling 和必要日志/账务 outbox 的失败作为提交失败安全门：在 flush 前设置 taskErr、清理 idempotency、确保预扣 refund exactly once，或把成功响应延后到一个可恢复的 durable settlement/outbox 状态之后。让关键日志/账务写入返回错误，或引入强制持久化 outbox。补充注入 SettleBilling 失败的测试，断言不 flush 成功、不保留完成幂等且退款只发生一次。\",\"validation\":\"静态代码确认。尝试运行相关 Go 测试时受当前只读 sandbox 限制，GOCACHE/GOTMPDIR 无法创建，命令未能执行：GOCACHE=/tmp/newapi-gocache GOTMPDIR=/tmp go test ./controller ./service ./model ...；需要在可写测试环境补跑。\"},{\"title\":\"轮询 channel lookup 失败分支用无 CAS bulk update 终止任务且不退款\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api against new2fly\",\"files\":[\"/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:40-41\",\"/mnt/f/code/project/new-api/service/task_polling.go:397-430\",\"/mnt/f/code/project/new-api/model/task.go:511-545\"],\"impact\":\"违反终态轮询/update 必须“exactly one CAS winner settles or refunds”的合同。已预扣费的视频任务在 channel 被删除、禁用、缓存/数据库短暂异常时会被直接标记 FAILURE，但没有 RefundTaskQuota，也没有 CAS 防重入，可能导致用户被扣费却任务失败，并可能覆盖并发成功/失败结算。\",\"scenario\":\"UpdateVideoTasks 对每个 channel 调用 updateVideoTasks。若 model.CacheGetChannel(channelId) 返回错误，代码收集任务 DB primary IDs，调用 TaskBulkUpdateByID 把 status 设置为 FAILURE、progress 100%。该分支没有 snapshot/fromStatus CAS，也没有 RefundTaskQuota/settlement 日志。\",\"evidence\":\"service/task_polling.go:412-425 在 CacheGetChannel 失败时直接 TaskBulkUpdateByID(... status FAILURE ... progress 100%)；model/task.go:537-541 明确注释 TaskBulkUpdateByID 无 CAS，且不得用于 billing/quota lifecycle flows；该错误分支未调用 RefundTaskQuota 或 RecalculateTaskQuota。\",\"recommendation\":\"不要因 channel lookup miss 直接终态失败；优先保持 pending 并重试。若业务必须失败，应逐任务读取 snapshot，使用 Task.UpdateWithStatus(fromStatus) 作为 CAS guard，只有 CAS winner 才设置终态、finish_time/fail_reason 并执行 RefundTaskQuota/账务日志。增加 channel missing/cache error 的轮询测试，覆盖退款一次、并发 loser 不重复退款/覆盖状态。\",\"validation\":\"静态代码确认。需在可写环境增加/运行 service 级轮询测试，模拟 CacheGetChannel 失败和并发终态转换。\"},{\"title\":\"stored key 缺失时 status/content 路径会回退当前 channel key\",\"severity\":\"Medium\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api against new2fly\",\"files\":[\"/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:28-30\",\"/mnt/f/code/project/new-api/model/task.go:277-315\",\"/mnt/f/code/project/new-api/service/task_polling.go:451-472\",\"/mnt/f/code/project/new-api/relay/relay_task.go:422-450\",\"/mnt/f/code/project/new-api/controller/video_proxy_gemini.go:208-225\"],\"impact\":\"正常 task 初始化会保存 selected key，但若历史数据、迁移、部分写入或 provider 分支导致 Task.PrivateData.Key 为空，后续 status/content 会静默使用 channel 当前 key/第一个 key，而不是 non-leaky 失败。这违背“已接受任务必须使用 stored channel/key affinity，不得重新随机/当前选择 key”的严格不变量，可能用错误租户/密钥查询或下载内容。\",\"scenario\":\"轮询 updateVideoSingleTask 先设置 key := ch.Key，只有 privateData.Key 非空才覆盖；实时 status tryRealtimeFetch 同样从 channelModel.Key 起步；Vertex 内容代理 getVertexTaskKey 在 task.PrivateData.Key 为空时返回 channel.GetKeys() 的第一个非空 key 或 channel.Key。\",\"evidence\":\"model/task.go:280-283 正常路径会从 relayInfo.ChannelMeta.ApiKey 写入 PrivateData.Key；但 service/task_polling.go:463-468、relay_task.go:441-444、video_proxy_gemini.go:208-225 都实现了 stored key 空值时的当前 channel key fallback。\",\"recommendation\":\"对 /creative/relay/v1/videos 接受的任务，把缺失 PrivateData.Key 视为任务完整性错误：返回 non-leaky 500/告警或进入可恢复修复队列，不要 fallback 当前 channel key。若必须兼容 legacy task，应显式区分 legacy 非 Creative 路径并迁移数据。补充 missing-key 的 polling、realtime status、Vertex content 测试，断言不会调用当前 channel key。\",\"validation\":\"静态代码确认；已有 stored-key happy-path 测试不足以覆盖缺失 key fallback。需增加缺失 PrivateData.Key 的负向测试。\"},{\"title\":\"Sora status 转换可能保留上游 task_id 字段\",\"severity\":\"Medium\",\"confidence\":\"Medium\",\"status\":\"needs-runtime-verification\",\"repo\":\"new-api against new2fly\",\"files\":[\"/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go:227-256\",\"/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go:324-330\",\"/mnt/f/code/project/new-api/service/task_polling.go:496-502\",\"/mnt/f/code/project/new-api/service/task_polling.go:619-643\"],\"impact\":\"如果上游 Sora status 响应包含 task_id/operation id，owner-scoped status 响应可能泄漏 stored upstream routing identifier，违反禁止向嵌入前端暴露 credential/routing material 的目标。该风险取决于实际 provider status 响应 shape。\",\"scenario\":\"提交 DoResponse 会在返回客户端前把 id 和 task_id 改成 public task id，但后续轮询把上游 status response 经 redactVideoResponseBody 存入 task.Data；redaction 只处理大媒体字段。ConvertToOpenAIVideo 只重写 JSON id，不重写/删除 task_id。\",\"evidence\":\"sora/adaptor.go:252-255 提交响应会重写 dResp.ID 和 dResp.TaskID；service/task_polling.go:502 存储 redacted upstream response；redactVideoResponseBody 仅删除/截断视频大字段；sora/adaptor.go:324-330 只 sjson.SetBytes(data, \\\"id\\\", task.TaskID)，未处理 task_id。\",\"recommendation\":\"无论当前上游是否返回 task_id，都应在 Sora ConvertToOpenAIVideo 中重写或移除 task_id、operation、job_id 等上游 routing identifiers，并加入 fixture 测试：task.Data 同时含 id/task_id 时，Creative status 只返回 public task id。\",\"validation\":\"需要运行时或 provider fixture 确认真实 Sora status body 是否包含 task_id；静态代码确认当前转换未 scrub task_id。\"}],\"reviewed\":[\"/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md\",\"/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md\",\"/mnt/f/code/project/new-api/router/web-router.go\",\"/mnt/f/code/project/new-api/router/video-router.go\",\"/mnt/f/code/project/new-api/middleware/creative.go\",\"/mnt/f/code/project/new-api/middleware/auth.go\",\"/mnt/f/code/project/new-api/controller/creative.go\",\"/mnt/f/code/project/new-api/controller/relay.go\",\"/mnt/f/code/project/new-api/controller/video_proxy.go\",\"/mnt/f/code/project/new-api/controller/video_proxy_gemini.go\",\"/mnt/f/code/project/new-api/model/task.go\",\"/mnt/f/code/project/new-api/model/log.go\",\"/mnt/f/code/project/new-api/relay/relay_task.go\",\"/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go\",\"/mnt/f/code/project/new-api/service/billing.go\",\"/mnt/f/code/project/new-api/service/billing_session.go\",\"/mnt/f/code/project/new-api/service/funding_source.go\",\"/mnt/f/code/project/new-api/service/task_billing.go\",\"/mnt/f/code/project/new-api/service/task_polling.go\",\"/mnt/f/code/project/new-api/controller/creative_test.go相关 Creative video relay 测试段落（静态查看） 加载测试和opentu前端用路径核对：/mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts、/mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/video-api.ts\"],\"gaps\":[\"当前环境为 read-only sandbox，Go 测试无法创建 build cache/tmp 目录，未能实际执行测试；需要在可写环境补跑 controller/service/model 相关测试并新增上述失败场景。\",\"未调用生产或外部 provider endpoint；Sora task_id 泄漏项需要用本地 fixture 或受控 mock provider runtime 验证真实 status body。\",\"未修改 /mnt/f/code/project/new-api 或 /mnt/f/code/project/opentu，未读取或输出真实 secrets。\"]}",
+    "usage": {
+      "input_tokens": 7644008,
+      "cached_input_tokens": 7368832,
+      "output_tokens": 22142,
+      "reasoning_output_tokens": 12167
+    }
+  },
+  {
+    "node": "goal-contract-matrix",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "goal-contract-matrix",
+      "scope": "new2fly Creative 后端/前端契约 vs 当前 /mnt/f/code/project/new-api 与 /mnt/f/code/project/opentu 源码（只读采样）",
+      "conclusion": "采样确认 asset sync、Suno、MJ、视频的大部分路由/会话/nonce/owner/key-affinity 目标有实现证据；发现 3 个真实契约缺口，集中在异步提交的结算可见性、视频/MJ 轮询异常分支的 CAS/refund、以及前端视频 unsupported/错误清洗。",
+      "findings": [
+        {
+          "title": "异步任务提交会在结算失败后仍完成幂等并向浏览器刷新成功响应",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "controller/relay.go",
+            "relay/relay_task.go"
+          ],
+          "impact": "违反 video/Suno/MJ 契约中“上游成功响应必须等本地任务插入、幂等完成、settlement/log bookkeeping 成功后再可见”的 billing/idempotency invariant。若 SettleBilling 失败，用户仍得到成功任务 id，幂等记录也已完成，后续 replay 会返回同一成功任务，但账户/日志状态可能未正确结算。",
+          "scenario": "上游提交已 accepted，controller 插入 task 并 CompleteCreativeVideoIdempotencyScoped 成功；随后 DB/订阅/额度更新导致 service.SettleBilling 返回错误。当前代码只 SysError 记录错误，然后继续 LogTaskConsumption 并 FlushTo，把成功响应发给浏览器。",
+          "evidence": "relay/relay_task.go:205-210 在提交前预扣费；controller/relay.go:594-618 在 task insert 后立即完成 scoped idempotency；controller/relay.go:619-630 对 SettleBilling 错误仅 common.SysError，不设置 taskErr、不删除幂等、不阻止 buffered success FlushTo。new2fly 契约要求见 .trellis/spec/backend/creative-async-video-relay.md:27、creative-async-suno-relay.md:31、creative-async-mj-relay.md:40。",
+          "recommendation": "将 submit 成功路径改为原子可见顺序：task insert 后先执行结算/日志可失败检查，再完成 idempotency，最后 FlushTo；任何 settlement/logbook 失败都走 taskErr 分支，删除 scoped idempotency 并触发已有 defer refund。补充测试模拟 SettleBilling 返回错误，断言不刷新成功响应、不完成幂等、只退款一次。",
+          "validation": "静态确认；需要新增 Go 单测通过 monkey patch/可注入 billing settle 函数模拟失败，并验证响应、幂等表与用户额度。"
+        },
+        {
+          "title": "video/MJ 轮询在 channel cache lookup 失败时用无 CAS 批量失败更新且不退款",
+          "severity": "High",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "new-api",
+          "files": [
+            "service/task_polling.go",
+            "model/task.go"
+          ],
+          "impact": "违反 async video/MJ terminal polling 的“只有一个 CAS winner settle/refund”与失败退款不变量。若任务已预扣费后 channel 被删除、禁用或缓存读取失败，任务会被标记 FAILURE，但用户不会获得 RefundTaskQuota，且批量更新可覆盖并发终态。",
+          "scenario": "TaskPollingLoop/DispatchPlatformUpdate 处理 Midjourney 或其他视频平台任务；updateVideoTasks 无法 model.CacheGetChannel(channelId)，于是收集 DB primary IDs 并 TaskBulkUpdateByID status=FAILURE/progress=100%，直接返回错误。该分支没有调用 UpdateWithStatus，也没有 RefundTaskQuota。",
+          "evidence": "service/task_polling.go:138-148 显示 Midjourney 与其他视频平台都会进入 UpdateVideoTasks；service/task_polling.go:407-429 在 CacheGetChannel 失败时调用 model.TaskBulkUpdateByID 将任务置 FAILURE；model/task.go:537-541 明确警告 TaskBulkUpdateByID 无 CAS，禁止用于 billing/quota 生命周期。new2fly 契约要求见 .trellis/spec/backend/creative-async-video-relay.md:41、creative-async-mj-relay.md:45/61。",
+          "recommendation": "将 CacheGetChannel 失败分支改成逐 task CAS 终态迁移：task.UpdateWithStatus(previousStatus, FAILURE, ...)，仅 CAS 成功者调用 service.RefundTaskQuota 并写消费日志；不要在计费生命周期使用 TaskBulkUpdateByID。补充测试覆盖 channel missing/cache error 后 wallet/subscription 都只退款一次，CAS loser 不重复退款。",
+          "validation": "静态确认；现有 task_polling_affinity_test.go 覆盖正常 MJ CAS refund/settle，但未覆盖 CacheGetChannel 失败分支。"
+        },
+        {
+          "title": "前端视频 session-broker 对 submit/status 错误未完整清洗，unsupported submit 也未转成 sanitized unsupported-backend",
+          "severity": "Medium",
+          "confidence": "High",
+          "status": "confirmed",
+          "repo": "opentu",
+          "files": [
+            "packages/drawnix/src/services/video-api-service.ts",
+            "packages/drawnix/src/services/media-api/video-api.ts"
+          ],
+          "impact": "违反前端视频契约的 sanitized unsupported/no credential leakage 目标。后端默认 CREATIVE_VIDEO_RELAY_ENABLED=false 时 submit 会返回 404；当前前端 submit 会读取并拼接原始响应体，status 查询也会先 console.error 原始 body 再抛 sanitized error。若后端/upstream 错误体包含 provider、Authorization、apiKey 等敏感材料，可能进入 UI error/apiErrorBody 或控制台日志。",
+          "scenario": "嵌入式 Creative 视频提交到 /creative/relay/v1/videos，后端因 disabled/unsupported 返回 404/405/501 或错误体；videoAPIService.submitVideoGeneration 不走 createCreativeVideoUnsupportedError，直接抛“视频生成提交失败: status - errorText”。queryVideoStatus 虽最终将 404/405/501 转 unsupported，但已经读取并 console.error 了原始 errorText。共享 media-api/video-api submit 同样直接拼接原始 body。",
+          "evidence": "new-api controller/creative.go:50-64 显示 CREATIVE_VIDEO_RELAY_ENABLED 默认 false 且 gate 返回 404。opentu packages/drawnix/src/services/video-api-service.ts:454-468 submit 非 ok 直接 response.text、console.error、apiErrorBody；同文件 524-532 query 在 unsupported 判断前已读取/打印 errorText；packages/drawnix/src/services/media-api/video-api.ts:251-255 共享 submit 也直接拼接 errorText。前端契约要求见 .trellis/spec/frontend/creative-async-video-relay.md:29、38、49。",
+          "recommendation": "对 session-broker submit/status 统一先判断 404/405/501，再抛不含 body 的 unsupported-backend error；非 unsupported 错误也不要把原始 response body 写入 console 或 apiErrorBody，可只保留 status、稳定 code、截断且脱敏后的摘要。补充 Vitest：submit 501 body 含 Authorization/apiKey 时，throw/message/log/apiErrorBody 均不含敏感串且没有 direct fallback。",
+          "validation": "静态确认；现有 video-api-service.session-broker.test.ts 覆盖 status/content unsupported，但没有覆盖 submit unsupported，也未断言 console 不泄漏原始 body。"
+        }
+      ],
+      "reviewed": [
+        ".trellis/spec/backend/creative-asset-sync.md",
+        ".trellis/spec/frontend/creative-asset-sync.md",
+        ".trellis/spec/backend/creative-async-video-relay.md",
+        ".trellis/spec/frontend/creative-async-video-relay.md",
+        ".trellis/spec/backend/creative-async-suno-relay.md",
+        ".trellis/spec/frontend/creative-async-suno-relay.md",
+        ".trellis/spec/backend/creative-async-mj-relay.md",
+        ".trellis/spec/frontend/creative-async-mj-relay.md",
+        "new-api/router/web-router.go",
+        "new-api/middleware/creative.go",
+        "new-api/controller/creative.go",
+        "new-api/controller/creative_asset.go",
+        "new-api/service/creative_asset.go",
+        "new-api/model/creative_asset.go",
+        "new-api/controller/relay.go",
+        "new-api/relay/relay_task.go",
+        "new-api/service/task_polling.go",
+        "new-api/model/task.go",
+        "new-api/relay/channel/task/suno/adaptor.go",
+        "new-api/relay/channel/task/mj/adaptor.go/opentu/packages/drawnix/src/services/creative-document-assets.ts/opentu/packages/drawnix/src/services/creative-document-sync.ts/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts/opentu/packages/drawnix/src/services/video-api-service.ts/opentu/packages/drawnix/src/services/audio-api-service.ts/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts/opentu/apps/web/src/sw/index.ts"
+      ],
+      "gaps": [
+        "未运行测试、未调用任何生产端点、未读取/打印真实密钥；结论基于当前源码静态采样。",
+        "asset sync、Suno、MJ 的正向 conformance 只采样关键路径；未做全量逐测试用例证明。",
+        "没有做运行时故障注入；SettleBilling 失败与 CacheGetChannel 失败路径需通过新增单测或本地测试 DB 注入验证修复。"
+      ]
+    },
+    "raw": "{\"branch\":\"goal-contract-matrix\",\"scope\":\"new2fly Creative 后端/前端契约 vs 当前 /mnt/f/code/project/new-api 与 /mnt/f/code/project/opentu 源码（只读采样）\",\"conclusion\":\"采样确认 asset sync、Suno、MJ、视频的大部分路由/会话/nonce/owner/key-affinity 目标有实现证据；发现 3 个真实契约缺口，集中在异步提交的结算可见性、视频/MJ 轮询异常分支的 CAS/refund、以及前端视频 unsupported/错误清洗。\",\"findings\":[{\"title\":\"异步任务提交会在结算失败后仍完成幂等并向浏览器刷新成功响应\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"controller/relay.go\",\"relay/relay_task.go\"],\"impact\":\"违反 video/Suno/MJ 契约中“上游成功响应必须等本地任务插入、幂等完成、settlement/log bookkeeping 成功后再可见”的 billing/idempotency invariant。若 SettleBilling 失败，用户仍得到成功任务 id，幂等记录也已完成，后续 replay 会返回同一成功任务，但账户/日志状态可能未正确结算。\",\"scenario\":\"上游提交已 accepted，controller 插入 task 并 CompleteCreativeVideoIdempotencyScoped 成功；随后 DB/订阅/额度更新导致 service.SettleBilling 返回错误。当前代码只 SysError 记录错误，然后继续 LogTaskConsumption 并 FlushTo，把成功响应发给浏览器。\",\"evidence\":\"relay/relay_task.go:205-210 在提交前预扣费；controller/relay.go:594-618 在 task insert 后立即完成 scoped idempotency；controller/relay.go:619-630 对 SettleBilling 错误仅 common.SysError，不设置 taskErr、不删除幂等、不阻止 buffered success FlushTo。new2fly 契约要求见 .trellis/spec/backend/creative-async-video-relay.md:27、creative-async-suno-relay.md:31、creative-async-mj-relay.md:40。\",\"recommendation\":\"将 submit 成功路径改为原子可见顺序：task insert 后先执行结算/日志可失败检查，再完成 idempotency，最后 FlushTo；任何 settlement/logbook 失败都走 taskErr 分支，删除 scoped idempotency 并触发已有 defer refund。补充测试模拟 SettleBilling 返回错误，断言不刷新成功响应、不完成幂等、只退款一次。\",\"validation\":\"静态确认；需要新增 Go 单测通过 monkey patch/可注入 billing settle 函数模拟失败，并验证响应、幂等表与用户额度。\"},{\"title\":\"video/MJ 轮询在 channel cache lookup 失败时用无 CAS 批量失败更新且不退款\",\"severity\":\"High\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"new-api\",\"files\":[\"service/task_polling.go\",\"model/task.go\"],\"impact\":\"违反 async video/MJ terminal polling 的“只有一个 CAS winner settle/refund”与失败退款不变量。若任务已预扣费后 channel 被删除、禁用或缓存读取失败，任务会被标记 FAILURE，但用户不会获得 RefundTaskQuota，且批量更新可覆盖并发终态。\",\"scenario\":\"TaskPollingLoop/DispatchPlatformUpdate 处理 Midjourney 或其他视频平台任务；updateVideoTasks 无法 model.CacheGetChannel(channelId)，于是收集 DB primary IDs 并 TaskBulkUpdateByID status=FAILURE/progress=100%，直接返回错误。该分支没有调用 UpdateWithStatus，也没有 RefundTaskQuota。\",\"evidence\":\"service/task_polling.go:138-148 显示 Midjourney 与其他视频平台都会进入 UpdateVideoTasks；service/task_polling.go:407-429 在 CacheGetChannel 失败时调用 model.TaskBulkUpdateByID 将任务置 FAILURE；model/task.go:537-541 明确警告 TaskBulkUpdateByID 无 CAS，禁止用于 billing/quota 生命周期。new2fly 契约要求见 .trellis/spec/backend/creative-async-video-relay.md:41、creative-async-mj-relay.md:45/61。\",\"recommendation\":\"将 CacheGetChannel 失败分支改成逐 task CAS 终态迁移：task.UpdateWithStatus(previousStatus, FAILURE, ...)，仅 CAS 成功者调用 service.RefundTaskQuota 并写消费日志；不要在计费生命周期使用 TaskBulkUpdateByID。补充测试覆盖 channel missing/cache error 后 wallet/subscription 都只退款一次，CAS loser 不重复退款。\",\"validation\":\"静态确认；现有 task_polling_affinity_test.go 覆盖正常 MJ CAS refund/settle，但未覆盖 CacheGetChannel 失败分支。\"},{\"title\":\"前端视频 session-broker 对 submit/status 错误未完整清洗，unsupported submit 也未转成 sanitized unsupported-backend\",\"severity\":\"Medium\",\"confidence\":\"High\",\"status\":\"confirmed\",\"repo\":\"opentu\",\"files\":[\"packages/drawnix/src/services/video-api-service.ts\",\"packages/drawnix/src/services/media-api/video-api.ts\"],\"impact\":\"违反前端视频契约的 sanitized unsupported/no credential leakage 目标。后端默认 CREATIVE_VIDEO_RELAY_ENABLED=false 时 submit 会返回 404；当前前端 submit 会读取并拼接原始响应体，status 查询也会先 console.error 原始 body 再抛 sanitized error。若后端/upstream 错误体包含 provider、Authorization、apiKey 等敏感材料，可能进入 UI error/apiErrorBody 或控制台日志。\",\"scenario\":\"嵌入式 Creative 视频提交到 /creative/relay/v1/videos，后端因 disabled/unsupported 返回 404/405/501 或错误体；videoAPIService.submitVideoGeneration 不走 createCreativeVideoUnsupportedError，直接抛“视频生成提交失败: status - errorText”。queryVideoStatus 虽最终将 404/405/501 转 unsupported，但已经读取并 console.error 了原始 errorText。共享 media-api/video-api submit 同样直接拼接原始 body。\",\"evidence\":\"new-api controller/creative.go:50-64 显示 CREATIVE_VIDEO_RELAY_ENABLED 默认 false 且 gate 返回 404。opentu packages/drawnix/src/services/video-api-service.ts:454-468 submit 非 ok 直接 response.text、console.error、apiErrorBody；同文件 524-532 query 在 unsupported 判断前已读取/打印 errorText；packages/drawnix/src/services/media-api/video-api.ts:251-255 共享 submit 也直接拼接 errorText。前端契约要求见 .trellis/spec/frontend/creative-async-video-relay.md:29、38、49。\",\"recommendation\":\"对 session-broker submit/status 统一先判断 404/405/501，再抛不含 body 的 unsupported-backend error；非 unsupported 错误也不要把原始 response body 写入 console 或 apiErrorBody，可只保留 status、稳定 code、截断且脱敏后的摘要。补充 Vitest：submit 501 body 含 Authorization/apiKey 时，throw/message/log/apiErrorBody 均不含敏感串且没有 direct fallback。\",\"validation\":\"静态确认；现有 video-api-service.session-broker.test.ts 覆盖 status/content unsupported，但没有覆盖 submit unsupported，也未断言 console 不泄漏原始 body。\"}],\"reviewed\":[\".trellis/spec/backend/creative-asset-sync.md\",\".trellis/spec/frontend/creative-asset-sync.md\",\".trellis/spec/backend/creative-async-video-relay.md\",\".trellis/spec/frontend/creative-async-video-relay.md\",\".trellis/spec/backend/creative-async-suno-relay.md\",\".trellis/spec/frontend/creative-async-suno-relay.md\",\".trellis/spec/backend/creative-async-mj-relay.md\",\".trellis/spec/frontend/creative-async-mj-relay.md\",\"new-api/router/web-router.go\",\"new-api/middleware/creative.go\",\"new-api/controller/creative.go\",\"new-api/controller/creative_asset.go\",\"new-api/service/creative_asset.go\",\"new-api/model/creative_asset.go\",\"new-api/controller/relay.go\",\"new-api/relay/relay_task.go\",\"new-api/service/task_polling.go\",\"new-api/model/task.go\",\"new-api/relay/channel/task/suno/adaptor.go\",\"new-api/relay/channel/task/mj/adaptor.go/opentu/packages/drawnix/src/services/creative-document-assets.ts/opentu/packages/drawnix/src/services/creative-document-sync.ts/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts/opentu/packages/drawnix/src/services/video-api-service.ts/opentu/packages/drawnix/src/services/audio-api-service.ts/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts/opentu/apps/web/src/sw/index.ts\"],\"gaps\":[\"未运行测试、未调用任何生产端点、未读取/打印真实密钥；结论基于当前源码静态采样。\",\"asset sync、Suno、MJ 的正向 conformance 只采样关键路径；未做全量逐测试用例证明。\",\"没有做运行时故障注入；SettleBilling 失败与 CacheGetChannel 失败路径需通过新增单测或本地测试 DB 注入验证修复。\"]}",
+    "usage": {
+      "input_tokens": 9717941,
+      "cached_input_tokens": 9328640,
+      "output_tokens": 19568,
+      "reasoning_output_tokens": 7692
+    }
+  },
+  {
+    "node": "frontend-async-media-flows",
+    "status": "timeout",
+    "resultStatus": "error",
+    "result": null,
+    "raw": "agent call timed out",
+    "usage": {
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0
+    }
+  },
+  {
+    "node": "cross-repo-contracts",
+    "status": "timeout",
+    "resultStatus": "error",
+    "result": null,
+    "raw": "agent call timed out",
+    "usage": {
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0
+    }
+  },
+  {
+    "node": "adversarial-security-review",
+    "status": "timeout",
+    "resultStatus": "error",
+    "result": null,
+    "raw": "agent call timed out",
+    "usage": {
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0
+    }
+  },
+  {
+    "node": "tests-validation-coverage",
+    "status": "timeout",
+    "resultStatus": "error",
+    "result": null,
+    "raw": "agent call timed out",
+    "usage": {
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0
+    }
+  },
+  {
+    "node": "final-synthesis",
+    "status": "failed",
+    "resultStatus": "error",
+    "result": null,
+    "raw": "",
+    "usage": {
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0
+    }
+  }
+]

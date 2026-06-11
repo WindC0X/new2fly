@@ -1,0 +1,123 @@
+{
+  "branch": "frontend-session-broker-transport",
+  "scope": "静态审计 /mnt/f/code/project/opentu 的 packages/drawnix Creative embedded session-broker bootstrap、provider transport、视频/Suno/MJ 前端适配、URL 配置清理与 service worker 相关路径；按需交叉核对 /mnt/f/code/project/new-api 的 Creative relay guard，判断其是否满足 new2fly 当前 Creative 集成契约。",
+  "conclusion": "发现 5 个与前端 session-broker/transport 契约相关的问题：1 个 High、2 个 Medium、2 个 Low。最重要的是 Suno lyrics 的 session-broker 提交仍可能携带 browser-supplied notify_hook，且后端 Suno guard 当前不拒绝该字段；其次是视频提交阶段对 404/405/501 未走 sanitized unsupported-backend 路径。",
+  "findings": [
+    {
+      "title": "Suno lyrics session-broker 提交可转发浏览器传入的 notifyHook/notify_hook",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "opentu,new-api",
+      "files": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:26-39",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md:28-46",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts:40,829-848,850-880,964-1002",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/generation-api-service.ts:727-768",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:649-700",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/default-adapters.ts:290-328",
+        "/mnt/f/code/project/new-api/controller/creative.go:1230-1287,1556-1625"
+      ],
+      "impact": "违反 new2fly Suno relay 契约中“浏览器不得提供上游 routing/credential/notifyHook 等材料，前端/后端必须剥离或拒绝”的边界。攻击者或异常调用方可通过 embedded Creative 的浏览器会话让上游收到自定义回调地址，导致任务/结果元数据泄露、供应商侧回调到非预期地址，或产生 provider-mediated SSRF 类风险。",
+      "scenario": "在 embedded Creative 中创建 lyrics 任务时，调用参数包含 notifyHook 或 params.notify_hook。Opentu 的 audio-api-service 会把它写入 JSON body 的 notify_hook 字段并 POST 到 /creative/relay/v1/suno/submit/lyrics；new-api 的 Suno guard 目前只专门拒绝 model，通用 forbidden body key 列表也未覆盖 notifyhook/callback，因此该字段可能继续进入上游请求。",
+      "evidence": "frontend 契约要求 /suno stripping upstream credential/routing/model override material and no direct fallback；backend 契约要求 browser 请求不得提供 model/credential/routing material，服务端派生模型。audio-api-service 的 lyrics body 构造在 829-848 行读取 params.notifyHook、params.params.notifyHook、params.params.notify_hook 并写入 body.notify_hook。generation-api-service、task-queue-service、default-adapters 会把 task params 的 notifyHook 继续传入 audioAPIService。new-api 的 creativeSunoForbiddenSubmitField 在 1230-1287 行仅检查 model，通用 creativeForbiddenRelayBodyNormalizedKey 在 1567-1625 行未列出 notifyhook/callback。现有 audio-api-service session-broker 测试覆盖 lyrics canonical path/idempotency，但未断言 notifyHook 被剥离。",
+      "recommendation": "在 session-broker 上下文中，AudioGenerationParams 与 nested params 中的 notifyHook/notify_hook/callback/webhook/notifyUrl 等字段应在构造 submit body 前 fail-closed 或直接丢弃；最好让 buildSubmitBody 接收 providerContext/authType 并对 session-broker 做白名单 body 构造。同时在 new-api Suno guard 中拒绝 notifyHook/callback 类字段作为后端兜底。补充前端测试：top-level 与 nested notifyHook 在 music/lyrics session-broker 提交中均不出现在 body；补充后端测试：Suno submit body/form/multipart 中 notifyHook/notify_hook/callback 返回 400。",
+      "validation": "静态确认；未运行测试。建议用 Vitest 构造 session-broker lyrics submit，断言 fetch body 不含 notify_hook，并用 new-api handler test 断言 notify_hook 被拒绝。"
+    },
+    {
+      "title": "视频 session-broker submit 对 404/405/501 未使用 sanitized unsupported-backend 错误，可能暴露后端响应体",
+      "severity": "Medium",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "opentu,new-api",
+      "files": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:26-39,46-51",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:31-42",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts:214-225,443-468,509-539",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/video-api-service.session-broker.test.ts:352-422",
+        "/mnt/f/code/project/new-api/controller/creative.go:60-68"
+      ],
+      "impact": "当 Creative video relay 未启用或后端不支持时，前端提交阶段不会返回契约要求的 sanitized unsupported-backend 错误，而是把后端 body 拼进 Error message、console.error 和 failLLMApiLog。当前默认 disabled body 只是普通信息，但未来若 body 包含内部错误或配置细节，会破坏 credential/error stripping 与安全错误边界。",
+      "scenario": "CREATIVE_VIDEO_RELAY_ENABLED=false 或部署后端缺失 POST /creative/relay/v1/videos 时，用户首次提交视频任务。new-api gate 返回 404；Opentu submit 分支读取 errorText，生成 `视频生成提交失败: <status> - <errorText>`，而不是像 query/content 分支那样抛出 createCreativeVideoUnsupportedError。",
+      "evidence": "video-api-service 定义了 isCreativeVideoUnsupportedStatus/createCreativeVideoUnsupportedError，但仅在 status/content 获取路径使用。submit 的非 2xx 分支在 454-468 行读取完整 errorText、打印并附加到 Error/apiErrorBody，没有对 session-broker 的 404/405/501 做特殊处理。测试文件只覆盖 status/content 的 unsupported sanitized，不覆盖 submit unsupported。new-api CreativeVideoRelayGate 在 disabled 时返回 404。",
+      "recommendation": "在 video submit 非 2xx 处理前先判断 providerContext.authType === session-broker 且 status 为 404/405/501，直接抛出 sanitized unsupported error，不读取或不传播响应体；日志只保留状态码和通用 code。补充 Vitest：POST /videos 返回 404/405/501 且 body 含模拟 secret 时，Error message、apiErrorBody、日志均不包含 body，并确认无 direct fallback。",
+      "validation": "静态确认；未运行测试。"
+    },
+    {
+      "title": "session-broker 传输层在缺失 bootstrap CSRF/nonce 时不本地 fail-fast，可能发出无 nonce 的 unsafe 请求",
+      "severity": "Medium",
+      "confidence": "Medium",
+      "status": "needs-runtime-verification",
+      "repo": "opentu,new-api",
+      "files": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:26-39",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:26-39",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md:29-45",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-mode.ts:34-63",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:183-191,394-438",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:1788-1834,1973-1981",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:354-410",
+        "/mnt/f/code/project/new-api/middleware/creative.go:95-130"
+      ],
+      "impact": "后端 nonce middleware 会拒绝 unsafe 请求，因此不是直接上游泄露；但前端契约要求 session-broker 使用 same-origin credentials + CSRF/nonce，bootstrap 失败应 fail-closed。当前如果本地存在旧的 managed session-broker profile，且 auth material 尚未建立或已被清空，provider transport 仍可能发起 POST，只是不带 X-Creative-CSRF/X-Creative-Nonce，最终得到后端 403 或原始错误路径，造成竞态、错误体验和契约漂移。",
+      "scenario": "浏览器保留了 new-api-creative session-broker profile/baseUrl，用户打开 /creative 后 bootstrap 尚未完成或失败并清空 auth material；生成动作通过 settings-manager 解析到 session-broker route。provider-transport 合并 getCreativeSessionAuthHeaders() 的结果；该函数在无 material 时返回空对象，随后仍以 same-origin credentials 发起 POST。",
+      "evidence": "creative-mode 的 getCreativeSessionAuthHeaders 在无 csrf/nonce 时返回 `{}`。provider-transport 的 session-broker 分支只剥离敏感头并合并这些 auth headers，没有断言 unsafe method 必须有 auth material。settings-manager 可基于持久化 profile/baseUrl 认为 session-broker route 有 credentials。creative-session-broker bootstrap 失败时清理 auth material 和 asset sync，但未从 settings 删除持久化 managed profile。new-api 的 CreativeRequireNonce 会在 unsafe method 缺失或无效 nonce 时返回 403。",
+      "recommendation": "对 session-broker 的 unsafe method 在 provider-transport 层要求存在 csrf+nonce，否则在 fetch 前抛出 sanitized `creative bootstrap required`/`session broker not ready` 错误；或在 bootstrap 失败时禁用/移除 managed route 并让生成 UI 等待 broker ready。补充竞态测试：持久化 creative profile 但 auth material 为空时，video/suno/mj submit 不应调用 fetch。",
+      "validation": "需要运行时/单测验证：模拟 embedded mode、有持久化 new-api-creative profile、未调用或失败 bootstrap，然后立即触发 submit；观察是否真的发出缺少 X-Creative-* 的 POST，以及错误是否为 sanitized 本地错误。"
+    },
+    {
+      "title": "embedded Creative URL 参数清理 denylist 不完整，部分 routing/model/notifyHook 参数会残留在 URL 中",
+      "severity": "Low",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "opentu",
+      "files": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:34-39",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:34-39",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md:39-45",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:191-224,1333-1349,1420-1430",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/auth.ts:9-42,286-307,312-346",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/__tests__/auth.creative-embedded.test.ts:46-79,103-204"
+      ],
+      "impact": "已确认 transport 层会拦截绝对 URL/baseUrl 并对请求 header/query 做较强剥离，因此未确认这些残留参数会进入 provider 请求；但它们仍可能保留在地址栏、history、referrer、调试日志或后续解析入口中，违反 embedded Creative 对 API config/routing 材料清理的防御纵深预期。",
+      "scenario": "用户访问 `/creative?channel=x&group=y&model=z&selectedKey=k&notifyHook=https://attacker.example/hook`。embedded URL 初始化只删除当前 denylist 中的 apiKey/settings/baseUrl/auth/providerOverride 等字段，未覆盖 channel/group/model/selectedKey/notifyHook 等，导致这些字段继续留在 URL。",
+      "evidence": "settings-manager 与 gemini-api/auth 各自维护 CREATIVE_EMBEDDED_URL_AUTH_PARAM_NAMES，但列表不含 channel、group、model、modelId、selectedKey、notifyHook、notify_hook、callback/webhook、base-url 等变体。embedded 分支只调用该列表删除 URL 参数。现有 auth.creative-embedded 测试覆盖 apiKey/settings/baseUrl/providerOverride/authType/providerAuth/Authorization 清理，但未覆盖上述遗漏项。",
+      "recommendation": "将 embedded URL 清理从窄 denylist 改为与 provider-transport normalized forbidden key 共享的统一 denylist，覆盖 camelCase/snake_case/kebab-case 与 callback/webhook/notifyUrl/url/proxy/model/routing/selectedKey 等字段；补充测试断言这些参数在 embedded mode 下被删除且不会写入 settings。",
+      "validation": "静态确认；可用单测构造 URLSearchParams 覆盖遗漏参数并断言初始化后 URL 已清理。"
+    },
+    {
+      "title": "service worker debug-mode 可能记录 Creative relay 的 nonce/CSRF/idempotency header 与请求体",
+      "severity": "Low",
+      "confidence": "Medium",
+      "status": "confirmed",
+      "repo": "opentu",
+      "files": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-asset-sync.md:21-23",
+        "/mnt/f/code/project/opentu/apps/web/src/sw/creative-asset-pass-through.ts:1-7",
+        "/mnt/f/code/project/opentu/apps/web/src/sw/index.ts:4231-4251,4657-4729",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:183-191,427-438"
+      ],
+      "impact": "这不是常规生产路径的数据外发，且 debug log 主要是本地/广播给 debug 客户端；但在 debugMode 开启时，Creative relay 的 X-Creative-CSRF、X-Creative-Nonce、Idempotency-Key 以及 prompt/form/json body 可能被记录或展示，和“不要打印/泄露 session-broker auth material”的安全边界不一致。",
+      "scenario": "用户或测试环境开启 service worker debugMode 后提交 /creative/relay/v1/videos、/suno 或 /mj 请求。asset pass-through 只覆盖 /creative/api/assets/*；relay 请求进入 generic XHR/API debug 分支，代码复制 request.headers 和 body preview 并写入 debug log。",
+      "evidence": "service worker 在 fetch handler 早期对 /creative/api/assets/* 做 pass-through，但 /creative/relay/v1/* 不在该白名单。后续 debugMode 分支会记录所有 request headers，并解析/截断 JSON、form、urlencoded body。provider-transport 对 session-broker 会加 X-Creative-CSRF/X-Creative-Nonce，并由各提交路径加入 Idempotency-Key。",
+      "recommendation": "service worker 对 same-origin `/creative/relay/v1/*` 跳过 debug body/header 采集，或至少统一 redaction：X-Creative-*、Idempotency-Key、Authorization、Cookie、prompt/body 中可能敏感字段均不记录。补充 SW 单测或集成测试验证 debug log 不含 nonce/csrf/idempotency/body。",
+      "validation": "静态确认 debug 采集路径存在；未验证 debug 客户端持久化/暴露范围。"
+    }
+  ],
+  "reviewed": [
+    "opentu creative-session-broker bootstrap：确认 embedded mode 下创建 canonical `/creative/relay/v1`、empty apiKey、authType `session-broker` 的 managed profile，并要求 bootstrap auth mode/csrf/nonce。",
+    "provider-transport：确认 session-broker absolute path/baseUrl 拒绝、baseUrl canonical 校验、same-origin credentials、header/query 级 credential/routing/model/notifyHook stripping 对 /videos、/suno、/mj 基本实现。",
+    "video status/content：确认使用 `/videos/:taskId` 与 `/videos/:taskId/content`，status/content 对 404/405/501 有 sanitized unsupported 错误且无 direct fallback。",
+    "Suno music 与 fetch：确认 session-broker canonical `/suno/submit/music`、`/suno/fetch/{taskId}`、empty key 仅 session-broker 允许、idempotency key 基本稳定，unsupported submit/fetch 有 sanitized 路径。",
+    "MJ adapter：确认 session-broker 下保留 `/creative/relay/v1` baseUrl、不 trim `/v1`，使用 `/mj/submit/imagine` 与 `/mj/task/{taskId}/fetch`，body 白名单基本不包含 model/notifyHook/provider material，并调用 onSubmitted。",
+    "asset sync service worker：确认 `/creative/api/assets/*` 在 service worker 中位于缓存/app-shell 逻辑前 pass-through。",
+    "new-api 相关 guard：交叉核对 nonce middleware、video gate、Suno/MJ submit guard 和 forbidden key 列表，以判断前端缺陷是否有后端兜底。"
+  ],
+  "gaps": [
+    "未运行 pnpm/vitest 或 Go 测试；本轮为 read-only 静态审计。",
+    "未调用真实 new-api/opentu 服务，也未访问生产端点。",
+    "未读取旧报告、归档任务、workspace journals、.codebuddy 或 prior assistant conclusions；证据仅来自当前 task/spec 与当前源码/tests/config。",
+    "FST-003 的实际竞态可达性需要用浏览器状态或单测模拟持久化 managed profile + 空 auth material 验证。",
+    "FST-005 的实际暴露范围取决于 debugMode 启用条件和 debug 客户端消费方式，本轮仅确认采集代码路径。"
+  ]
+}

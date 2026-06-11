@@ -1,0 +1,100 @@
+{
+  "branch": "backend-suno-mj-relays",
+  "scope": "Fresh static audit of new-api backend Suno/MJ creative relay paths against new2fly Creative contracts; no source modifications or production calls.",
+  "conclusion": "Core submit/fetch/image routes exist and MJ submit uses public task IDs plus mj-api-secret, but there are material conformance gaps: Suno fetch can expose same-user MJ/private task data, and MJ channel-missing terminal handling bypasses CAS/refund.",
+  "findings": [
+    {
+      "title": "Suno fetch endpoints can return non-Suno tasks and leak MJ upstream result data",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "router/web-router.go:98-101",
+        "controller/creative.go:549-553",
+        "relay/relay_task.go:310-359",
+        "relay/relay_task.go:553-575",
+        "dto/task.go:32-53",
+        "model/task.go:133-140",
+        "service/task_polling.go:502,557-560"
+      ],
+      "impact": "A browser that owns an MJ task can bypass the sanitized MJ fetch/image contract by calling `/creative/relay/v1/suno/fetch/:id` or batch `/creative/relay/v1/suno/fetch`. The response is generic TaskDto and can include `result_url` from `Task.PrivateData.ResultURL` plus raw `data` containing upstream MJ `id`/`imageUrl`, contrary to the MJ contract that upstream IDs/URLs stay private and browser sees only `/creative/relay/v1/mj/image/:task_id`.",
+      "scenario": "After MJ polling stores `PrivateData.ResultURL=https://cdn.example/mj.png` and raw upstream response in `Task.Data`, same user calls `GET /creative/relay/v1/suno/fetch/task_public_mj` or `POST /creative/relay/v1/suno/fetch` with that ID. `model.GetByTaskId/GetByTaskIds` filters only by user_id + task_id; no `Platform == suno` check is applied; `TaskModel2Dto` serializes `ResultURL` and `Data`.",
+      "evidence": "`sunoFetchByIDRespBodyBuilder` and `sunoFetchRespBodyBuilder` load tasks by owner only and call `TaskModel2Dto`; `TaskModel2Dto` includes `ResultURL: task.GetResultURL()` and `Data: task.Data`; `GetResultURL()` returns `PrivateData.ResultURL`.",
+      "recommendation": "Restrict Suno fetch builders to `Platform == constant.TaskPlatformSuno` before serializing. Return a Suno-specific sanitized DTO instead of generic TaskDto, or at minimum omit `result_url`, raw `data`, channel/quota/user fields, and non-Suno tasks.",
+      "validation": "Add tests where an MJ task with PrivateData.ResultURL/raw Data exists for the same user; Suno fetch by ID and batch must return not-found/empty and must not contain upstream id, upstream URL, or result_url."
+    },
+    {
+      "title": "MJ channel lookup failure marks terminal failure without CAS or refund",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "service/task_polling.go:139-143",
+        "service/task_polling.go:407-429",
+        "model/task.go:537-541",
+        "service/task_polling.go:248-273"
+      ],
+      "impact": "If an accepted MJ task’s channel is deleted/unavailable when polled, `UpdateVideoTasks` bulk-updates it to FAILURE without `UpdateWithStatus` and without `RefundTaskQuota`. This violates the MJ billing/CAS invariant: terminal failure should be single-winner CAS and refund exactly once.",
+      "scenario": "A user is precharged for an MJ imagine task. Before polling, `model.CacheGetChannel(channelId)` fails. The MJ dispatch path calls `TaskBulkUpdateByID(... status=FAILURE ...)`; quota/token/subscription are not refunded, and concurrent terminal updates can be overwritten.",
+      "evidence": "`DispatchPlatformUpdate` routes Midjourney to `UpdateVideoTasks`; on `CacheGetChannel` error, `updateVideoTasks` calls `TaskBulkUpdateByID` with failure status/progress. `TaskBulkUpdateByID` is explicitly documented as no-CAS and not for billing lifecycle flows. Suno’s analogous path uses `markSunoTasksFailed`, `UpdateWithStatus`, and `RefundTaskQuota`, showing the intended safe pattern.",
+      "recommendation": "Replace the MJ/video channel-missing bulk terminal update with per-task CAS handling equivalent to `markSunoTasksFailed`: load task, set failure fields, `UpdateWithStatus(previousStatus)`, and only the CAS winner refunds wallet/subscription/token quota.",
+      "validation": "Add a Midjourney polling test with a missing channel and precharged task; assert status becomes FAILURE via CAS, wallet/token/subscription refund happens once, and concurrent calls do not double-refund or overwrite."
+    },
+    {
+      "title": "Creative forbidden-field filter misses owner and API-secret aliases",
+      "severity": "Medium",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "controller/creative.go:1368-1397",
+        "controller/creative.go:1541-1624",
+        "controller/creative.go:1038-1045",
+        "controller/creative.go:1230-1288"
+      ],
+      "impact": "The contract says browser requests must not provide owner override or API-key material. Global header/query/body filtering rejects many fields but does not reject aliases such as `ownerId`, `userId`, `user`, `owner`, `mj-api-secret`, or `apiSecret` in several positions. Most are ignored by current handlers, but the request is not failed before relay as required.",
+      "scenario": "A session browser can send `/creative/relay/v1/suno/submit/music?ownerId=2` or an MJ request header `mj-api-secret: attacker-value`. These values are not used as upstream credentials in current MJ/Suno adaptors, but they are accepted at the route boundary instead of returning 400.",
+      "evidence": "`creativeForbiddenRelayBodyNormalizedKey` includes provider/channel/model/baseurl/token-style keys but lacks owner/user aliases and `mjapisecret`/`apisecret`; `creativeForbiddenRelayHeaderKey` only checks apikey/authorization/baseurl/token substrings plus that list. MJ submit body has extra owner checks, but query/header do not; Suno submit’s specific guard only rejects `model`.",
+      "recommendation": "Expand the normalized forbidden set for all creative relay header/query/body/form/file keys to include `user`, `userid`, `user_id`, `owner`, `ownerid`, `owner_id`, `mjapisecret`, `apisecret`, `apisecrets`, `xapisecret`, and similar selected-key aliases. Add route tests for Suno and MJ across query, headers, JSON, form, multipart field names, and file part names.",
+      "validation": "Targeted route tests should prove every alias returns 400 before `CreativeRelaySessionBroker`/`Distribute`/upstream relay is reached."
+    },
+    {
+      "title": "Insert succeeds but idempotency completion failure can leave a refunded task for later billing mutation",
+      "severity": "Medium",
+      "confidence": "Medium",
+      "status": "likely",
+      "repo": "new-api",
+      "files": [
+        "controller/relay.go:520-523",
+        "controller/relay.go:594-640",
+        "service/task_polling.go:588-614",
+        "service/task_polling.go:325-345"
+      ],
+      "impact": "If task insertion succeeds but `CompleteCreativeVideoIdempotencyScoped` fails, the request error path refunds/deletes idempotency while the task row remains with nonzero quota. Later polling can settle success or refund failure again, creating undercharge or double-refund risk.",
+      "scenario": "Upstream accepts MJ/Suno submit, `task.Insert()` succeeds, then idempotency completion returns an error. `RelayTask` sets `taskErr`, deferred billing refund runs, but the inserted task is not deleted/zeroed/marked orphaned. Poller later reaches a terminal status and mutates billing based on the task quota.",
+      "evidence": "After `task.Insert()`, line 615 sets `taskErr` on idempotency completion failure. The deferred refund at lines 520-523 triggers for any `taskErr`, while error cleanup only deletes the idempotency record. Polling terminal paths later call `RefundTaskQuota` or settlement after CAS based on the persisted task.",
+      "recommendation": "Make task insert + idempotency completion + billing-safe state transactional, or if post-insert completion fails, mark the task as orphaned/non-billable with zero quota and no terminal billing mutation before refunding. Consider deleting the task row if safe.",
+      "validation": "Inject/fake an idempotency completion DB error after successful insert; assert the client gets an error, precharge is refunded exactly once, no live billable task remains, and later polling cannot settle/refund again."
+    }
+  ],
+  "reviewed": [
+    "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md",
+    "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md",
+    "/mnt/f/code/project/new-api/router/web-router.go",
+    "/mnt/f/code/project/new-api/controller/creative.go",
+    "/mnt/f/code/project/new-api/controller/relay.go",
+    "/mnt/f/code/project/new-api/relay/relay_task.go",
+    "/mnt/f/code/project/new-api/relay/channel/task/suno/adaptor.go",
+    "/mnt/f/code/project/new-api/relay/channel/task/mj/adaptor.go",
+    "/mnt/f/code/project/new-api/service/task_polling.go",
+    "/mnt/f/code/project/new-api/model/task.go",
+    "/mnt/f/code/project/new-api/dto/task.go"
+  ],
+  "gaps": [
+    "Static audit only; did not run Go/Vitest tests in this read-only sub-agent pass.",
+    "MCP semantic/codegraph searches were unavailable/cancelled, so evidence is from direct source inspection with rg/nl.",
+    "Opentu frontend was only lightly spot-searched because this branch scope was backend Suno/MJ relays."
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "branch": "backend-video-relay",
+  "scope": "审计 new2fly Creative async video relay 后端合同在 /mnt/f/code/project/new-api 中的当前实现，重点覆盖路由/中间件、任务私有数据、幂等、relay 提交、状态/内容拉取、计费退款/CAS、通道/密钥亲和与测试覆盖。",
+  "conclusion": "当前实现已具备规范路由、默认关闭 env gate、session/same-origin/nonce/forbidden-field 边界、提交幂等基本语义、owner-scoped status/content，以及正常路径的 stored-key 使用。但仍发现 3 个已确认的合同偏差和 1 个需运行时确认的泄漏风险，核心风险集中在提交成功前的结算/日志安全门、轮询异常分支绕过 CAS/退款、以及 stored-key 缺失时回退当前 channel key。",
+  "findings": [
+    {
+      "title": "提交成功路径在结算/日志未安全完成时仍可 flush 上游成功响应",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api against new2fly",
+      "files": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:25-30",
+        "/mnt/f/code/project/new-api/controller/relay.go:520-524",
+        "/mnt/f/code/project/new-api/controller/relay.go:594-630",
+        "/mnt/f/code/project/new-api/controller/relay.go:634-640",
+        "/mnt/f/code/project/new-api/service/billing.go:34-78",
+        "/mnt/f/code/project/new-api/service/funding_source.go:50-58",
+        "/mnt/f/code/project/new-api/service/funding_source.go:107-112",
+        "/mnt/f/code/project/new-api/model/log.go:222-267"
+      ],
+      "impact": "违反合同要求的“buffer upstream success until task insert, idempotency completion, and settlement/log bookkeeping have succeeded”。当结算失败或消费日志无法持久化时，客户端仍可能收到成功任务，后续幂等 replay 也会返回该任务，造成欠费/多扣调整失败/审计账务缺口。",
+      "scenario": "上游视频提交成功后，controller/relay.go 插入 task 并完成 idempotency，然后调用 service.SettleBilling；如果钱包/订阅的 delta 结算失败，代码只 common.SysError 记录错误，不设置 taskErr，也不触发 defer refund，随后继续 LogTaskConsumption 并 FlushTo 客户端。消费日志写入失败同样只记录 logger error，调用方没有错误可拦截。",
+      "evidence": "controller/relay.go:619-629 中 SettleBilling 返回错误仅记录 SysError，之后仍调用 LogTaskConsumption 并 flush buffered response；controller/relay.go:520-524 的退款 defer 只在 taskErr != nil 时触发；service/billing.go:57-58 会向上传播 Billing.Settle 错误；funding_source.go:50-58、107-112 显示钱包/订阅结算确实可能失败；model/log.go:264-267 显示日志写入失败不会返回给 relay 成功门。",
+      "recommendation": "将 SettleBilling 和必要日志/账务 outbox 的失败作为提交失败安全门：在 flush 前设置 taskErr、清理 idempotency、确保预扣 refund exactly once，或把成功响应延后到一个可恢复的 durable settlement/outbox 状态之后。让关键日志/账务写入返回错误，或引入强制持久化 outbox。补充注入 SettleBilling 失败的测试，断言不 flush 成功、不保留完成幂等且退款只发生一次。",
+      "validation": "静态代码确认。尝试运行相关 Go 测试时受当前只读 sandbox 限制，GOCACHE/GOTMPDIR 无法创建，命令未能执行：GOCACHE=/tmp/newapi-gocache GOTMPDIR=/tmp go test ./controller ./service ./model ...；需要在可写测试环境补跑。"
+    },
+    {
+      "title": "轮询 channel lookup 失败分支用无 CAS bulk update 终止任务且不退款",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api against new2fly",
+      "files": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:40-41",
+        "/mnt/f/code/project/new-api/service/task_polling.go:397-430",
+        "/mnt/f/code/project/new-api/model/task.go:511-545"
+      ],
+      "impact": "违反终态轮询/update 必须“exactly one CAS winner settles or refunds”的合同。已预扣费的视频任务在 channel 被删除、禁用、缓存/数据库短暂异常时会被直接标记 FAILURE，但没有 RefundTaskQuota，也没有 CAS 防重入，可能导致用户被扣费却任务失败，并可能覆盖并发成功/失败结算。",
+      "scenario": "UpdateVideoTasks 对每个 channel 调用 updateVideoTasks。若 model.CacheGetChannel(channelId) 返回错误，代码收集任务 DB primary IDs，调用 TaskBulkUpdateByID 把 status 设置为 FAILURE、progress 100%。该分支没有 snapshot/fromStatus CAS，也没有 RefundTaskQuota/settlement 日志。",
+      "evidence": "service/task_polling.go:412-425 在 CacheGetChannel 失败时直接 TaskBulkUpdateByID(... status FAILURE ... progress 100%)；model/task.go:537-541 明确注释 TaskBulkUpdateByID 无 CAS，且不得用于 billing/quota lifecycle flows；该错误分支未调用 RefundTaskQuota 或 RecalculateTaskQuota。",
+      "recommendation": "不要因 channel lookup miss 直接终态失败；优先保持 pending 并重试。若业务必须失败，应逐任务读取 snapshot，使用 Task.UpdateWithStatus(fromStatus) 作为 CAS guard，只有 CAS winner 才设置终态、finish_time/fail_reason 并执行 RefundTaskQuota/账务日志。增加 channel missing/cache error 的轮询测试，覆盖退款一次、并发 loser 不重复退款/覆盖状态。",
+      "validation": "静态代码确认。需在可写环境增加/运行 service 级轮询测试，模拟 CacheGetChannel 失败和并发终态转换。"
+    },
+    {
+      "title": "stored key 缺失时 status/content 路径会回退当前 channel key",
+      "severity": "Medium",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api against new2fly",
+      "files": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:28-30",
+        "/mnt/f/code/project/new-api/model/task.go:277-315",
+        "/mnt/f/code/project/new-api/service/task_polling.go:451-472",
+        "/mnt/f/code/project/new-api/relay/relay_task.go:422-450",
+        "/mnt/f/code/project/new-api/controller/video_proxy_gemini.go:208-225"
+      ],
+      "impact": "正常 task 初始化会保存 selected key，但若历史数据、迁移、部分写入或 provider 分支导致 Task.PrivateData.Key 为空，后续 status/content 会静默使用 channel 当前 key/第一个 key，而不是 non-leaky 失败。这违背“已接受任务必须使用 stored channel/key affinity，不得重新随机/当前选择 key”的严格不变量，可能用错误租户/密钥查询或下载内容。",
+      "scenario": "轮询 updateVideoSingleTask 先设置 key := ch.Key，只有 privateData.Key 非空才覆盖；实时 status tryRealtimeFetch 同样从 channelModel.Key 起步；Vertex 内容代理 getVertexTaskKey 在 task.PrivateData.Key 为空时返回 channel.GetKeys() 的第一个非空 key 或 channel.Key。",
+      "evidence": "model/task.go:280-283 正常路径会从 relayInfo.ChannelMeta.ApiKey 写入 PrivateData.Key；但 service/task_polling.go:463-468、relay_task.go:441-444、video_proxy_gemini.go:208-225 都实现了 stored key 空值时的当前 channel key fallback。",
+      "recommendation": "对 /creative/relay/v1/videos 接受的任务，把缺失 PrivateData.Key 视为任务完整性错误：返回 non-leaky 500/告警或进入可恢复修复队列，不要 fallback 当前 channel key。若必须兼容 legacy task，应显式区分 legacy 非 Creative 路径并迁移数据。补充 missing-key 的 polling、realtime status、Vertex content 测试，断言不会调用当前 channel key。",
+      "validation": "静态代码确认；已有 stored-key happy-path 测试不足以覆盖缺失 key fallback。需增加缺失 PrivateData.Key 的负向测试。"
+    },
+    {
+      "title": "Sora status 转换可能保留上游 task_id 字段",
+      "severity": "Medium",
+      "confidence": "Medium",
+      "status": "needs-runtime-verification",
+      "repo": "new-api against new2fly",
+      "files": [
+        "/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go:227-256",
+        "/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go:324-330",
+        "/mnt/f/code/project/new-api/service/task_polling.go:496-502",
+        "/mnt/f/code/project/new-api/service/task_polling.go:619-643"
+      ],
+      "impact": "如果上游 Sora status 响应包含 task_id/operation id，owner-scoped status 响应可能泄漏 stored upstream routing identifier，违反禁止向嵌入前端暴露 credential/routing material 的目标。该风险取决于实际 provider status 响应 shape。",
+      "scenario": "提交 DoResponse 会在返回客户端前把 id 和 task_id 改成 public task id，但后续轮询把上游 status response 经 redactVideoResponseBody 存入 task.Data；redaction 只处理大媒体字段。ConvertToOpenAIVideo 只重写 JSON id，不重写/删除 task_id。",
+      "evidence": "sora/adaptor.go:252-255 提交响应会重写 dResp.ID 和 dResp.TaskID；service/task_polling.go:502 存储 redacted upstream response；redactVideoResponseBody 仅删除/截断视频大字段；sora/adaptor.go:324-330 只 sjson.SetBytes(data, \"id\", task.TaskID)，未处理 task_id。",
+      "recommendation": "无论当前上游是否返回 task_id，都应在 Sora ConvertToOpenAIVideo 中重写或移除 task_id、operation、job_id 等上游 routing identifiers，并加入 fixture 测试：task.Data 同时含 id/task_id 时，Creative status 只返回 public task id。",
+      "validation": "需要运行时或 provider fixture 确认真实 Sora status body 是否包含 task_id；静态代码确认当前转换未 scrub task_id。"
+    }
+  ],
+  "reviewed": [
+    "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md",
+    "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md",
+    "/mnt/f/code/project/new-api/router/web-router.go",
+    "/mnt/f/code/project/new-api/router/video-router.go",
+    "/mnt/f/code/project/new-api/middleware/creative.go",
+    "/mnt/f/code/project/new-api/middleware/auth.go",
+    "/mnt/f/code/project/new-api/controller/creative.go",
+    "/mnt/f/code/project/new-api/controller/relay.go",
+    "/mnt/f/code/project/new-api/controller/video_proxy.go",
+    "/mnt/f/code/project/new-api/controller/video_proxy_gemini.go",
+    "/mnt/f/code/project/new-api/model/task.go",
+    "/mnt/f/code/project/new-api/model/log.go",
+    "/mnt/f/code/project/new-api/relay/relay_task.go",
+    "/mnt/f/code/project/new-api/relay/channel/task/sora/adaptor.go",
+    "/mnt/f/code/project/new-api/service/billing.go",
+    "/mnt/f/code/project/new-api/service/billing_session.go",
+    "/mnt/f/code/project/new-api/service/funding_source.go",
+    "/mnt/f/code/project/new-api/service/task_billing.go",
+    "/mnt/f/code/project/new-api/service/task_polling.go",
+    "/mnt/f/code/project/new-api/controller/creative_test.go相关 Creative video relay 测试段落（静态查看） 加载测试和opentu前端用路径核对：/mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts、/mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/video-api.ts"
+  ],
+  "gaps": [
+    "当前环境为 read-only sandbox，Go 测试无法创建 build cache/tmp 目录，未能实际执行测试；需要在可写环境补跑 controller/service/model 相关测试并新增上述失败场景。",
+    "未调用生产或外部 provider endpoint；Sora task_id 泄漏项需要用本地 fixture 或受控 mock provider runtime 验证真实 status body。",
+    "未修改 /mnt/f/code/project/new-api 或 /mnt/f/code/project/opentu，未读取或输出真实 secrets。"
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "branch": "backend-route-middleware-surface",
+  "scope": "Fresh static audit of new2fly Creative route/middleware contracts against current /mnt/f/code/project/new-api route wiring, middleware, controller guards, and related tests. Target repos were not modified.",
+  "conclusion": "核心 /creative、/creative/api、/creative/relay/v1/videos|suno|mj 路由在 SetWebRouter 路径下已按 canonical prefix 注册，relay 也有 session bridge、UserAuth、same-origin、unsafe nonce、forbidden-field-before-distribution 与 MJ unsupported fail-closed wiring。但发现两个路由/边界层风险：FRONTEND_BASE_URL 部署分支会跳过全部 Creative 路由注册；relay same-origin 校验信任客户端可控的 X-Forwarded-*。测试层还缺少部分生产路由组合覆盖。",
+  "findings": [
+    {
+      "title": "FRONTEND_BASE_URL mode skips Creative route registration and redirects Creative API/relay paths",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "router/main.go:20-33",
+        "router/web-router.go:56-119",
+        "router/web-router.go:126-130"
+      ],
+      "impact": "在非 master 且 FRONTEND_BASE_URL 非空的部署形态下，必需的 /creative、/creative/api/assets、/creative/relay/v1/videos、/creative/relay/v1/suno、/creative/relay/v1/mj 路由不会注册；未匹配请求进入通用 NoRoute 301 redirect，而不是 Creative session/auth/nonce/same-origin 边界或 fail-closed JSON 错误。",
+      "scenario": "嵌入式 Opentu 调用 POST /creative/relay/v1/mj/submit/imagine 或 POST /creative/api/assets 时，如果节点走 FRONTEND_BASE_URL 分支，请求不会进入 Creative middleware stack，可能被重定向到外部 frontendBaseUrl；这会导致当前 new2fly 合同要求的 embedded Creative route absent，并让 unsupported /creative/relay/* 不再以 404/405/501 fail closed。",
+      "evidence": "router/main.go:20-33 读取 FRONTEND_BASE_URL；只有 frontendBaseUrl == \"\" 时调用 SetWebRouter。否则注册一个对所有 NoRoute 执行 c.Redirect(301, frontendBaseUrl+RequestURI) 的兜底。router/web-router.go:56-119 是唯一看到的 /creative/api 与 /creative/relay/v1 videos/suno/mj 注册点。",
+      "recommendation": "将 Creative API/relay 路由从 Web static serving 中拆出并在 SetRouter 中无条件注册；FRONTEND_BASE_URL 只影响 SPA/static fallback。若某部署显式不支持 Creative，也应对 /creative/api* 与 /creative/relay* 返回受控 404/501，而不是外部 redirect。",
+      "validation": "需要新增 SetRouter 集成测试：模拟 FRONTEND_BASE_URL 非空且 common.IsMasterNode=false，断言 /creative/api/bootstrap、/creative/api/assets、/creative/relay/v1/videos、/creative/relay/v1/suno/submit/music、/creative/relay/v1/mj/submit/imagine 不会被 NoRoute redirect。当前会话未能运行 go test：read-only sandbox 阻止创建 /tmp/new-api-gocache 与 /tmp/new-api-gotmp。"
+    },
+    {
+      "title": "Relay same-origin middleware trusts client-controlled X-Forwarded-Host and X-Forwarded-Proto",
+      "severity": "High",
+      "confidence": "Medium",
+      "status": "needs-runtime-verification",
+      "repo": "new-api",
+      "files": [
+        "middleware/creative.go:232-267",
+        "middleware/creative.go:270-287",
+        "middleware/cors.go:9-15",
+        "router/relay-router.go:13-16",
+        "router/web-router.go:80-83"
+      ],
+      "impact": "same-origin relay boundary is weakened: expected origin is derived from X-Forwarded-* before Request.Host/TLS, without a trusted-proxy check. In deployments where clients can supply these headers through proxy/CORS, an attacker can make a cross-origin Origin appear same-origin to CreativeRequireSameOrigin. GET relay status/content routes do not require nonce, so this boundary matters directly there; unsafe methods still have nonce but origin defense is still not anchored.",
+      "scenario": "A request with Origin: https://evil.example plus X-Forwarded-Host: evil.example and X-Forwarded-Proto: https can satisfy creativeOriginHeaderMatches because creativeRequestOrigin builds expectedOrigin from those forwarded headers. If a browser/proxy path permits those headers with session cookies, /creative/relay/v1/videos/:task_id or /creative/relay/v1/mj/image/:task_id may pass same-origin verification incorrectly.",
+      "evidence": "middleware/creative.go:247-267 chooses X-Forwarded-Proto and X-Forwarded-Host before Request.URL/TLS/Host. middleware/creative.go:232-244 rejects missing Origin/Referer but compares against that computed expected origin. router/web-router.go:80-83 applies CreativeRequireSameOrigin to relay routes. router/relay-router.go:13-16 installs global CORS, and middleware/cors.go:11-14 enables AllowAllOrigins, AllowCredentials, and AllowHeaders [\"*\"].",
+      "recommendation": "Derive Creative expected origin from a configured public origin or Request.Host/TLS after trusted proxy normalization only. Ignore or strip X-Forwarded-* for Creative same-origin unless the request comes from a configured trusted proxy. Consider adding X-Forwarded-Host/Proto to forbidden relay headers for direct client requests. Add tests proving forged X-Forwarded-* cannot make a cross-origin Origin pass.",
+      "validation": "Add route-level tests with a valid session: GET /creative/relay/v1/videos/task_123 with Origin=https://evil.example and forged X-Forwarded-Host/Proto must remain 403. Also verify the real reverse proxy strips or overwrites X-Forwarded-* and browser CORS behavior with credentials. Not executed here due read-only filesystem preventing test cache/temp creation."
+    },
+    {
+      "title": "Route tests miss Suno/MJ double-version and FRONTEND_BASE_URL production-router cases",
+      "severity": "Low",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "router/web_router_test.go:40-113",
+        "controller/creative_test.go:2244-2282",
+        "router/main.go:20-33"
+      ],
+      "impact": "Existing tests catch many controller/middleware invariants, but production route regressions for /creative/relay/v1/v1/suno, /creative/relay/v1/v1/mj, and the SetRouter FRONTEND_BASE_URL branch could slip through.",
+      "scenario": "A future change could accidentally remount legacy Suno/MJ routes, reintroduce a double-version path, or keep Creative absent in external-frontend mode without failing current tests.",
+      "evidence": "router/web_router_test.go:100-103 only asserts /creative/relay/v1/v1/videos is 404. controller/creative_test.go:2244-2282 builds a helper router for relay middleware but does not exercise router.SetRouter with FRONTEND_BASE_URL. A repository search found no tests for FRONTEND_BASE_URL or /creative/relay/v1/v1/suno|mj.",
+      "recommendation": "Add SetWebRouter/SetRouter tests for canonical Suno/MJ paths, double-version Suno/MJ rejection, unsupported MJ fail-closed through the production route stack, and FRONTEND_BASE_URL behavior. Keep controller helper tests, but do not let them substitute for production router wiring tests.",
+      "validation": "Run targeted router/controller tests after adding coverage. Not run in this read-only session."
+    }
+  ],
+  "reviewed": [
+    "new2fly .trellis active task files: task.json, prd.md, design.md, implement.md.",
+    "new2fly Creative contracts: backend/frontend creative-asset-sync, creative-async-video-relay, creative-async-suno-relay, creative-async-mj-relay.",
+    "new-api/router/web-router.go: /creative SPA, /creative/api assets/documents/bootstrap, /creative/relay/v1 chat/images/videos/suno/mj, unsupported MJ route registration, NoRoute handling.",
+    "new-api/router/main.go: SetRouter ordering and FRONTEND_BASE_URL branch.",
+    "new-api/router/relay-router.go: legacy /v1, /suno, /mj token-auth routes are not remounted under /creative.",
+    "new-api/router/api-router.go: no competing /creative API route wiring found.",
+    "new-api/middleware/creative.go: CreativeSessionHeaderBridge, CreativeRequireSameOrigin, CreativeRequireNonce, CreativeRelaySessionBroker, relay model reader.",
+    "new-api/middleware/auth.go: UserAuth session bridge/access-token behavior and TokenAuth context setup.",
+    "new-api/controller/creative.go: relay forbidden-field middleware, video gate/idempotency, Suno/MJ submit guards, session-broker token setup, video/Suno/MJ route handlers, MJ unsupported handler.",
+    "new-api/controller/creative_asset.go: asset upload/get/content/delete browser-session and Authorization rejection checks.",
+    "new-api/router/web_router_test.go, middleware/creative_test.go, controller/creative_test.go, controller/creative_asset_test.go relevant route/middleware tests."
+  ],
+  "gaps": [
+    "无法运行 go test：read-only sandbox 连 /tmp cache/temp 目录也不可创建；尝试命令为 GOCACHE=/tmp/new-api-gocache GOTMPDIR=/tmp/new-api-gotmp go test ./router ./middleware ./controller -run 'Creative|SetWebRouter' -count=1，失败于 mkdir read-only file system。",
+    "未做运行时浏览器验证：真实 Cookie SameSite、CORS credential 行为、Service Worker/referrer policy 对 GET relay same-origin 的影响未验证。",
+    "未验证生产反向代理是否会剥离或覆盖 X-Forwarded-Host/X-Forwarded-Proto。",
+    "本分支只审计 backend route/middleware surface；未深入审计 relay adaptor、billing/CAS、polling key affinity、opentu frontend transport。"
+  ]
+}

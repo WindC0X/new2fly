@@ -1,0 +1,135 @@
+{
+  "branch": "backend-asset-sync-storage",
+  "scope": "new2fly Creative Asset Sync 后端合同；静态审计 /mnt/f/code/project/new-api，并抽样核对 /mnt/f/code/project/opentu 上传适配器。未使用旧报告作为证据。",
+  "conclusion": "new-api 已实现 /creative/api/assets 的 POST/GET/content/DELETE、CreativeAsset/CreativeDocumentAssetRef 模型、S3/DB 存储适配、MIME/SVG/大小校验、owner-scope 查询和引用删除 409 的主体路径。但仍有关键合同缺口：配额检查非原子、全局缓存中间件会让部分错误响应缓存、删除不可重试且与引用刷新存在竞态、生产 S3 健康 fail-closed 不完整，以及公开响应字段与 sizeBytes 合同漂移。",
+  "findings": [
+    {
+      "title": "资产配额检查与写入不是原子操作，可并发绕过用户字节/数量上限",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "service/creative_asset.go:281-288",
+        "service/creative_asset.go:317-324",
+        "service/creative_asset.go:402-424",
+        "model/creative_asset.go:113-123"
+      ],
+      "impact": "用户可通过并发上传多个不同内容，在每个请求都通过旧的 Count/Sum 检查后同时写入，导致 S3/DB 存储量超过 UserMaxBytes/UserMaxAssets；这破坏合同要求的 content hash dedupe/quota accounting。",
+      "scenario": "攻击者并发发起 N 个接近上限的 POST /creative/api/assets。每个请求在插入前都看到相同的历史 total/count，全部通过 checkQuotaAndStorageHealth，随后各自 Store 并 DB.Create，最终总量超过配额。",
+      "evidence": "CreateOrGet 先按 contentHash 查重，再调用 checkQuotaAndStorageHealth，随后才 Store 和 DB.Create；checkQuotaAndStorageHealth 使用 CountCreativeAssets 与 SumCreativeAssetBytes 的普通查询，没有事务、锁、配额 reservation 或 CAS。唯一索引只保护同 hash 去重，不能保护不同 hash 的配额总量。",
+      "recommendation": "把配额检查、配额预留和资产元数据写入放入同一事务；对用户资产配额行或用户行加 SELECT ... FOR UPDATE，或引入 CreativeAssetQuotaUsage 表做原子增量/CAS；S3 对象写入失败时回滚 reservation，DB 创建失败时清理对象。补并发测试：小 UserMaxBytes/UserMaxAssets 下并发上传不同文件只能有一个成功。",
+      "validation": "未运行 go test；尝试 GOCACHE=/tmp/codex-go-cache go test ./controller ./service ./model -run 'TestCreativeAsset|TestCreativeDocumentAssetRefs' -count=1 失败，原因是当前沙箱只读，无法 mkdir /tmp/codex-go-cache。"
+    },
+    {
+      "title": "全局 Cache 中间件使部分 Creative API 错误响应以 max-age=604800 返回，违反 private/no-store/nosniff 合同",
+      "severity": "Medium",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "router/web-router.go:43-59",
+        "middleware/cache.go:7-14",
+        "middleware/creative.go:95-128",
+        "controller/creative_asset.go:80-100",
+        "controller/creative_asset.go:271-281"
+      ],
+      "impact": "缺失会让 /creative/api/assets 相关的 401/403/404/503/nonce 错误或内容错误在浏览器/代理层被错误缓存，造成 owner-scoped content URL 的拒绝服务、状态混淆，且错误 JSON 缺少 nosniff。",
+      "scenario": "GET /creative/api/assets/:id/content 在无会话、跨用户 404、存储故障等路径上会先经过 middleware.Cache 设置 Cache-Control: max-age=604800；部分路径在进入 controller 设置 private headers 前就中止，或 content 错误路径直接 creativeAssetError，未覆盖该缓存头。",
+      "evidence": "SetWebRouter 在注册 creativeAPIRouter 前全局 Use(middleware.Cache())；Cache 对非 / 请求设置 max-age=604800。CreativeRequireNonce 的错误响应直接 c.JSON 并 Abort，没有 no-store/nosniff。CreativeGetAssetContent 只有 416 和成功路径调用 creativeSetPrivateContentHeaders；其他 creativeAssetError 路径未设置 private headers。",
+      "recommendation": "在 /creative/api 与 /creative/relay 分组前添加专用中间件，先设置 Cache-Control: private, no-store、Pragma: no-cache、X-Content-Type-Options: nosniff，并确保所有 Abort/error 路径继承；或让全局 Cache 跳过 /creative/api 和 /creative/relay。补集成测试覆盖 SetWebRouter 下的 missing session、missing nonce、cross-user 404、storage disabled/content error headers。",
+      "validation": "静态确认；未能在只读沙箱运行 Go 测试。"
+    },
+    {
+      "title": "DELETE 先删除 DB 元数据再删除对象，失败后无法按 assetId 重试并可能遗留私有对象",
+      "severity": "Medium",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api",
+      "files": [
+        "service/creative_asset.go:368-385",
+        "model/creative_asset.go:141-143",
+        "service/creative_asset.go:610-614",
+        "service/creative_asset.go:728-744"
+      ],
+      "impact": "不满足合同中的 delete object best-effort/retryable。S3 DeleteObject 失败时，DB 行已删除，用户再次 DELETE 只能得到 404，后台也失去 ObjectKey/Version 元数据，导致对象孤儿和存储成本/数据保留风险。",
+      "scenario": "DELETE /creative/api/assets/:assetId 对未引用 S3 资产执行：DeleteCreativeAssetMetadata 成功删除 DB 行；随后 storage.Delete 因 S3 临时错误返回失败。API 返回错误，但资产元数据已经丢失，后续无法通过 assetId 找到 ObjectKey 重试删除。",
+      "evidence": "DeleteIfUnreferenced 在 CountCreativeAssetRefs 后立即 model.DeleteCreativeAssetMetadata，然后才 runtime.storage.Delete。S3 Delete 只是直接调用 DeleteObject，无 retry queue、tombstone、pending_delete 状态或事务性 outbox。",
+      "recommendation": "改为事务内标记 pending_delete/deleting 并保留 ObjectKey；对象删除成功后再 finalize metadata 删除。失败时保留可重试状态并由后台任务重试。至少应先尝试对象删除，成功后再删 DB；同时记录幂等删除状态。补测试：FakeS3 DeleteObject 第一次失败时，DB 元数据仍可用于第二次重试。",
+      "validation": "静态确认；未能运行测试。"
+    },
+    {
+      "title": "文档引用刷新与资产删除之间没有事务/锁，referenced delete 409 可被竞态绕过",
+      "severity": "Medium",
+      "confidence": "Medium",
+      "status": "likely",
+      "repo": "new-api",
+      "files": [
+        "service/creative_asset.go:368-380",
+        "model/creative_asset.go:151-191",
+        "model/creative_asset.go:205-237",
+        "controller/creative.go:349-367",
+        "controller/creative.go:440-459"
+      ],
+      "impact": "同一用户并发保存文档和删除资产时，DELETE 可能在引用写入前看到 ref count 为 0 并删除资产，随后文档保存插入 CreativeDocumentAssetRef 或持久化包含已删除资产的 snapshot，破坏 referenced delete 409 与 document snapshot sanitization 的一致性。",
+      "scenario": "请求 A 更新文档：ValidateCreativeDocumentAssetRefs 先确认 asset 存在；请求 B 同时 DELETE 该 asset，CountCreativeAssetRefs 为 0 后删除；请求 A 继续 RefreshCreativeDocumentAssetRefs，把已删除 assetId 写入 refs，之后文档内容 URL 返回 404。",
+      "evidence": "ValidateCreativeDocumentAssetRefs、Create/UpdateCreativeDocumentSnapshot、RefreshCreativeDocumentAssetRefs 是分离步骤；DeleteIfUnreferenced 的 CountCreativeAssetRefs 与 DeleteCreativeAssetMetadata 也不是同一把锁保护的事务。模型层没有外键或锁来保证 asset 与 ref 的生命周期一致。",
+      "recommendation": "将文档 mutation 的 asset 验证、文档写入、ref refresh 放入同一事务，并对涉及的 CreativeAsset 行加锁；DELETE 也应在同一事务中锁定 asset 与 refs 后判断并标记删除。补并发测试模拟 update/delete 交错，确保要么 DELETE 409，要么文档 mutation 失败且不落 stale refs。",
+      "validation": "需要运行并发集成测试验证具体 DB 隔离行为；当前仅静态确认缺少事务/锁。"
+    },
+    {
+      "title": "公开 asset JSON 字段与后端合同不一致：返回 size 和 timestamps，而非只返回 sizeBytes 合同形态",
+      "severity": "Low",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "new-api + opentu",
+      "files": [
+        "service/creative_asset.go:102-110",
+        "service/creative_asset.go:475-488",
+        "controller/creative_asset.go:56-60",
+        "packages/drawnix/src/services/creative-document-assets.ts:760-764"
+      ],
+      "impact": "后端合同示例要求返回 { id, url, contentHash, mimeType, mediaType, sizeBytes } 且只暴露公开字段；当前返回 size、createdTime、updatedTime。虽然未泄漏 ObjectKey/S3 字段，但会造成严格客户端或验收测试与合同漂移。",
+      "scenario": "集成方按 new2fly 后端合同读取 asset.sizeBytes 做展示/配额确认时得到 undefined；同时响应包含合同未列出的 createdTime/updatedTime。opentu 当前只解包 url，因此不会立即暴露，但跨项目合同不一致。",
+      "evidence": "CreativeAssetPublic 的 JSON tag 是 size 而不是 sizeBytes，并额外定义 CreatedTime/UpdatedTime。CreativeAssetPublicResponse 填充 Size/CreatedTime/UpdatedTime。opentu unwrapAssetContentUrl 只接受 url/contentUrl，未校验 sizeBytes。",
+      "recommendation": "将公开 DTO 改为 sizeBytes，并移除或明确纳入合同的 timestamps；增加 controller JSON shape 测试，断言不含 ObjectKey/StorageBackend/bucket/sourceUrl 且字段名与合同完全一致。",
+      "validation": "静态确认；未能运行测试。"
+    },
+    {
+      "title": "生产 S3 unhealthy fail-closed 只检查配置字段完整性，bootstrap 可能报告 enabled 直到首次上传才失败",
+      "severity": "Medium",
+      "confidence": "Medium",
+      "status": "needs-runtime-verification",
+      "repo": "new-api",
+      "files": [
+        "service/creative_asset.go:198-233",
+        "service/creative_asset.go:236-246",
+        "service/creative_asset.go:548-572",
+        "controller/creative.go:176-195"
+      ],
+      "impact": "合同要求缺失/不健康的生产 S3 配置 fail closed。当前 NewCreativeAssetRuntime 只检查 endpoint/region/bucket/access key/secret 非空，Status 因 storage 非 nil 就返回 enabled；bucket 权限错误、endpoint 不可达、签名不兼容等不健康状态要到上传 Store/HeadObject 才暴露，前端 bootstrap 仍会启用资产同步。",
+      "scenario": "生产配置字段齐全但 bucket 权限错误。CreativeBootstrap 返回 assetSync.enabled=true；opentu 开始上传，所有资产同步在首次 PutObject/HeadObject 才失败，用户文档保存被阻塞或进入降级错误。",
+      "evidence": "NewCreativeAssetRuntime 对 s3-compatible 仅调用 creativeS3ConfigComplete；Status 只检查 disabled/storage nil。真正的 PutObject 后 HeadObject 验证只在 Store 中执行，不在初始化或状态探针中执行。",
+      "recommendation": "增加启动/定期 health probe：对 bucket/prefix 做最小权限 HeadBucket/Put+Head+Delete 测试或可配置 health object；健康失败时 Status 返回 disabled 且前端 bootstrap 不启用。补 fake S3 unhealthy client 测试，断言 production runtime Status fail-closed 且不落 DB。",
+      "validation": "需要可写测试环境中添加/运行 fake unhealthy S3 runtime 测试；当前未调用任何真实或生产端点。"
+    }
+  ],
+  "reviewed": [
+    "new2fly/.trellis/spec/backend/creative-asset-sync.md: API、DB、storage、validation/error/test 合同。",
+    "new-api/router/web-router.go: Creative API/relay route wiring and middleware order。",
+    "new-api/controller/creative_asset.go: POST/GET/content/DELETE handlers, multipart validation, headers, error mapping。",
+    "new-api/service/creative_asset.go: runtime config, DB/S3 storage adapters, MIME/SVG/range/hash/quota/delete behavior。",
+    "new-api/model/creative_asset.go: CreativeAsset、CreativeDocumentAssetRef、owner-scoped queries、asset ref parsing/validation。",
+    "new-api/model/main.go: AutoMigrate 注册 CreativeAsset 和 CreativeDocumentAssetRef。",
+    "new-api/controller/creative.go: document create/update/delete asset ref refresh and forbidden field scanning。",
+    "new-api/middleware/creative.go 与 middleware/auth.go: session bridge、nonce/same-origin、UserAuth access-token handling。",
+    "new-api/controller/creative_asset_test.go、service/creative_asset_test.go、model/creative_asset_test.go: 现有测试覆盖范围。",
+    "opentu/packages/drawnix/src/services/creative-document-assets.ts: upload/download adapter 对 /creative/api/assets 的基本响应消费。"
+  ],
+  "gaps": [
+    "未读取或使用旧审计报告、归档任务、workspace journals、.codebuddy 报告作为证据。",
+    "验证命令受只读文件系统限制失败：GOCACHE=/tmp/codex-go-cache go test ./controller ./service ./model -run 'TestCreativeAsset|TestCreativeDocumentAssetRefs' -count=1 无法创建 /tmp/codex-go-cache。",
+    "未做 MySQL/PostgreSQL 实库迁移验证；当前证据仅来自 GORM 模型/AutoMigrate 注册和 SQLite-oriented tests。",
+    "未调用任何真实 S3/生产端点；S3 unhealthy fail-closed finding 需要 fake unhealthy client 或本地兼容服务复验。"
+  ]
+}

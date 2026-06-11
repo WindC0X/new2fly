@@ -1,0 +1,73 @@
+{
+  "branch": "frontend-asset-sync-sw",
+  "scope": "Opentu Creative Asset Sync 前端与 Service Worker 合同；仅做只读静态审计，并用 new-api 路由作路径对齐检查。",
+  "conclusion": "当前实现已覆盖深拷贝出站重写、同源 session 上传、云引用 hydrate 到 unified cache、以及 SW 对 /creative/api/assets/* 的前置放行。但仍有 2 个 High 级合同缺口：URL 发现白名单漏掉若干必需字段/生成媒体前缀；无云引用远端文档冷启动导入会绕过 signed/bucket URL 校验。另有必需测试矩阵覆盖不足。",
+  "findings": [
+    {
+      "title": "资产 URL 发现白名单漏掉 __aitu_generated__/image|video 与 posters/covers/clips 字符串数组",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "opentu",
+      "files": [
+        "packages/drawnix/src/services/creative-document-assets.ts:80-94",
+        "packages/drawnix/src/services/creative-document-assets.ts:378-435",
+        "packages/drawnix/src/services/creative-document-assets.ts:585-664",
+        "packages/drawnix/src/utils/virtual-media-url.ts:25-38",
+        "packages/drawnix/src/services/creative-document-assets.test.ts:39-107"
+      ],
+      "impact": "必需本地媒体可能不上传、不报错，直接以本地虚拟 URL 写入云文档，导致其他浏览器/会话无法 hydrate，违反 new2fly Creative asset-sync fail-closed 与“只保存 /creative/api/assets/:id/content”合同。",
+      "scenario": "快照包含 imageUrl: '/__aitu_generated__/image/a.png'、videoUrl: '/__aitu_generated__/video/v.mp4'、posters: ['/__aitu_cache__/image/p.png']、covers: ['/asset-library/c.png'] 或 clips: ['/__aitu_cache__/video/c.mp4'] 时，当前重写器不会把这些字符串识别为上传候选；断言也不会拦截这些键，随后 document adapter 可保存破损云文档。",
+      "evidence": "REQUIRED_URL_FIELDS 只含 url/imageUrl/videoUrl/audioUrl/poster/src/thumbnail/thumbnailUrl/previewImageUrl/coverUrl/imageLargeUrl；REQUIRED_URL_ARRAY_FIELDS 只含 urls/thumbnailUrls。rewriteRequiredUrlFields 只有在 keyHint 命中这些字段时才重写字符串。isAIGeneratedVirtualUrl 只接受 /__aitu_generated__/audio/。现有测试只覆盖 data、/__aitu_cache__/、/asset-library/、/__aitu_generated__/audio/ 和 clips 内对象字段，未覆盖 generated image/video、posters/covers/string clips。",
+      "recommendation": "扩展虚拟媒体识别到 /__aitu_generated__/{image,video,audio}/；扩展字段表或改为基于值特征+安全路径的递归发现，至少覆盖 posterUrl、posters、cover、covers、clips 字符串数组及缩略图数组别名；对未知本地虚拟媒体字段 fail-closed。",
+      "validation": "静态确认。建议新增参数化 Vitest：上述字段在 assetSyncEnabled=true 时全部上传重写；assetSyncEnabled=false 时全部阻塞且错误不含原始 URL。"
+    },
+    {
+      "title": "冷启动 hydrate 在“无云资产引用”分支绕过 signed/bucket URL 校验",
+      "severity": "High",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "opentu",
+      "files": [
+        "packages/drawnix/src/services/creative-document-assets.ts:245-264",
+        "packages/drawnix/src/services/creative-document-assets.ts:667-740",
+        "packages/drawnix/src/services/creative-document-sync.ts:1213-1228"
+      ],
+      "impact": "若后端历史数据、迁移数据或异常响应包含签名 URL/对象存储 URL，前端会在无 /creative/api/assets/* 引用时直接导入并本地保存，违反 credential-stripping 与 signed/bucket/sourceUrl 不持久化合同。",
+      "scenario": "远端文档 snapshot.elements[0].imageUrl 为 https://bucket.s3.amazonaws.com/x.png?X-Amz-Signature=...，且没有任何 /creative/api/assets/:id/content。syncRemoteDocumentsForColdStart 走 no-cloud-ref 快路径，documentToBoard 后 upsertBoardFromCloud，未调用 hydrateCreativeDocumentAssets 的 unsafe URL 检查。",
+      "evidence": "getUnsafeRemoteUrlKind 能识别 signed-query/object-storage-url，但 hydrateCreativeDocumentAssets 在 hasCreativeAssetContentRefs(copy) 为 false 时直接 return copy。syncRemoteDocumentsForColdStart 也在 !hasCreativeAssetContentRefs(remote) 时直接 documentToBoard + upsertBoardFromCloud。",
+      "recommendation": "无论是否存在 cloud asset refs，远端导入前都应运行 unsafe URL/value 校验或统一 sanitizer；发现 signed/bucket/provider URL 时拒绝导入、记录 sanitized status，并保持本地 pending/冲突状态不被破坏。",
+      "validation": "静态确认。建议新增冷启动测试：远端无 cloud refs 但含 signed imageUrl/bucket URL/sourceUrl/ObjectKey 时不得 upsert，status.lastAssetSyncError 为 sanitized code。"
+    },
+    {
+      "title": "必需测试矩阵覆盖不足，SW 仅做源码顺序断言",
+      "severity": "Medium",
+      "confidence": "High",
+      "status": "confirmed",
+      "repo": "opentu",
+      "files": [
+        "packages/drawnix/src/services/creative-document-assets.test.ts:39-265",
+        "packages/drawnix/src/services/creative-document-sync.test.ts:865-1028",
+        "apps/web/src/sw/creative-asset-pass-through.spec.ts:18-34"
+      ],
+      "impact": "合同要求的 blob、generated image/video、poster/cover/clip 数组、sourceUrl/ObjectKey 清洗、hydrate 401/404/MIME/size/quota 安全失败、以及 SW image/audio/video/fetch destination 无私有缓存写入，都可能回归而测试不报错。",
+      "scenario": "即使开发者后续移动 SW 分支或新增 cache.put('/creative/api/assets/...')，当前测试主要通过字符串顺序检查，不模拟 FetchEvent destination，也不验证 caches.open/put 未发生；URL 发现缺口同样不会被现有 prepare 测试发现。",
+      "evidence": "asset prepare 测试覆盖一个综合 happy path、disabled、signed prepare、hydrate success、adapter upload；未见 blob、/__aitu_generated__/image|video、posters/covers/string clips、hydrate failure、sourceUrl/ObjectKey 持久化测试。SW spec 读取 index.ts 并比较字符串位置，没有执行 fetch handler 或断言 cache writes。",
+      "recommendation": "补齐合同矩阵：prepare/hydrate 参数化字段测试、sanitizer 持久化测试、409 后 pending 不变测试扩展、hydrate 401/404/network/MIME/size/quota fail-safe 测试；为 SW 建立最小 FetchEvent/caches mock，覆盖 image/audio/video/fetch destinations 并断言不 respondWith 缓存私有资产。",
+      "validation": "静态确认测试缺口；未运行 Vitest/Nx。"
+    }
+  ],
+  "reviewed": [
+    "new2fly/.trellis/spec/frontend/creative-asset-sync.md 与 backend/creative-asset-sync.md 当前合同。",
+    "opentu/packages/drawnix/src/services/creative-document-assets.ts：确认 prepare 使用 cloneJsonLike 深拷贝，upload 使用 credentials:'same-origin'，不发送 Authorization/X-API-Key，download/hydrate 写入 cacheLocalMediaByContent。",
+    "opentu/packages/drawnix/src/services/creative-mode.ts 与 creative-session-broker.ts：确认 bootstrap 要求 session-broker csrfToken/nonce，assetSyncEnabled 默认 false，禁用原因做基础脱敏。",
+    "opentu/packages/drawnix/src/services/creative-document-sync.ts：确认 flush 前 prepare outbound copy；409 冲突后 pending snapshot 保留；cloud refs 成功 hydrate 后 suppressOutboundSync 本地导入。",
+    "opentu/apps/web/src/sw/index.ts 与 creative-asset-pass-through.ts：确认同源 /creative/api/assets/* 分支在虚拟媒体、静态、XHR/API 缓存处理之前 return。",
+    "new-api/router/web-router.go:56-73：确认后端存在 /creative/api/assets 路径并在 POST/DELETE 上挂 CreativeRequireNonce。"
+  ],
+  "gaps": [
+    "未运行 Vitest/Nx/浏览器 SW runtime 验证；本子代理处于只读审计约束，避免生成缓存或修改目标仓库。",
+    "需要运行时验证：真实 Service Worker FetchEvent 中 /creative/api/assets/* 对 image/audio/video/fetch destination 均不 respondWith、不 cache.put。",
+    "需要补充后端/前端联调验证：含非法 signed/bucket URL 的远端文档响应是否会被前端阻断且不会写入 workspaceStorageService。"
+  ]
+}
