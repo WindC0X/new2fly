@@ -13,6 +13,9 @@
 - Route registration:
   - `SetCreativeRouter(router *gin.Engine)` registers `/creative/api/*` and `/creative/relay/v1/*` independently of static web serving.
   - `SetRouter` must register Creative API/relay even when `FRONTEND_BASE_URL` is configured for non-Creative SPA fallback.
+- Global web rate limiting:
+  - `GlobalWebRateLimit` may bypass normal static/app-shell reads such as `GET`/`HEAD /creative`, `/creative/`, `/creative/*` static assets, service worker, metadata, and frontend app routes.
+  - It must not bypass `/creative/api`, `/creative/api/*`, `/creative/relay`, or `/creative/relay/*`; those API/relay paths still fail closed and set private no-store cache headers on errors.
 - Origin helpers:
   - Creative same-origin checks derive expected origin from `Request.URL.Scheme`/TLS and `Request.Host` by default.
   - Raw `X-Forwarded-Proto` / `X-Forwarded-Host` are not trusted unless a future trusted-proxy gate is explicitly implemented and tested.
@@ -25,6 +28,7 @@
 
 - `FRONTEND_BASE_URL` only controls non-Creative fallback. Creative API/relay paths must never redirect to the external frontend host.
 - Matched, unmatched, wrong-method, and trailing-slash Creative API/relay paths must fail closed with controlled API/relay responses and `Cache-Control: private, no-store`.
+- Creative static/app-shell assets must not be made unavailable by the global web rate limiter during normal browser boot/chunk loading. API/relay endpoints remain protected by API/session/nonce/origin controls and must not be blanket-exempted together with static paths.
 - Global web cache middleware must skip or be overridden for Creative API/relay; no API/relay error may inherit long-lived static web cache such as `max-age=604800`.
 - Browser relay requests must not provide upstream credentials or routing authority in headers, query, JSON body, form fields, or multipart file part names.
 - Forbidden aliases include API keys/secrets, MJ API secret variants, upstream/base URL/provider/channel/group/model overrides, notify/callback/webhook variants, and owner/user override variants. Route-specific guards may allow only the documented generic top-level `model`; Suno/MJ submit derive model server-side.
@@ -38,6 +42,8 @@
 ### 4. Validation & Error Matrix
 
 - `/creative/api/*` or `/creative/relay/v1/*` under `FRONTEND_BASE_URL` -> route normally or return controlled fail-closed JSON; never `301/307` to frontend.
+- Repeated `GET`/`HEAD` requests for `/creative/`, `/creative/sw.js`, `/creative/version.json`, and existing `/creative/assets/*` -> no global-web-rate-limit `429` during ordinary app bootstrap.
+- Repeated requests to `/creative/api/*` or `/creative/relay/*` -> still subject to protective API/session/rate-limit boundaries and return private no-store errors when rejected.
 - Creative unmatched/wrong-method/trailing-slash route -> `404`/auth error before external redirect; `private, no-store` cache headers.
 - Missing browser session -> `401/403` non-leaky response, still no-store.
 - Raw forwarded-host spoof -> expected origin remains request host; cross-origin request fails.

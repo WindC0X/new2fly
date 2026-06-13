@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check rebuilt embedded artifact and staging smoke/route evidence."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Check API/relay boundaries remain no-store/non-SPA while fixing web/static rate limits."}
+{"file":".trellis/tasks/archive/2026-06/06-13-newapi-opentu-staging-deployment/check.md","reason":"Compare post-fix staging health and route checks against current deployment baseline."}
+{"file":".trellis/tasks/archive/2026-06/06-13-newapi-opentu-container-staging-parity/check.md","reason":"Compare fixed staging against earlier clean container parity."}

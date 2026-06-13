@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded Creative route/static/staging contract and no-overclaim release gates."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Creative API/relay/cache/routing/security boundary while changing rate-limit behavior."}
+{"file":".trellis/tasks/archive/2026-06/06-13-newapi-opentu-staging-deployment/check.md","reason":"Current persistent staging deployment setup and verification baseline."}
+{"file":".trellis/tasks/archive/2026-06/06-13-newapi-opentu-container-staging-parity/check.md","reason":"Prior container parity and route/header baseline without persistent staging traffic."}

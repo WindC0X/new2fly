@@ -1,0 +1,175 @@
+# Initial staging status
+timestamp_utc=2026-06-13T16:01:19+00:00
+
+## compose ps
+NAME                            IMAGE                                    COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+newapi-opentu-staging-new-api   new-api-creative-embed:staging-current   "/new-api --log-dir …"   new-api   43 minutes ago   Up 43 minutes (healthy)   127.0.0.1:39084->3000/tcp
+
+## api status
+status=200
+content-type=application/json; charset=utf-8
+
+## docker inspect state
+status=running running=true restarting=false exitCode=0 started=2026-06-13T15:17:44.664316384Z finished=0001-01-01T00:00:00Z restartCount=0 health=healthy
+
+## log tail
+[GIN] 2026/06/13 - 23:51:50 | web | 202606131551501322614218268d9d6uHyKpH9z | 200 |   27.761594ms |      172.27.0.1 |     GET /creative/assets/tool-windows-iA_5tfIc.js
+2026/06/13 23:51:50 [sessions] ERROR! securecookie: the value is not valid
+[GIN] 2026/06/13 - 23:51:50 | api | 202606131551502602905638268d9d6nZZhhI9d | 401 |      457.93µs |      172.27.0.1 |     GET /creative/api/bootstrap
+[GIN] 2026/06/13 - 23:51:50 | web | 202606131551502695432898268d9d6i6pn0oBY | 200 |   22.517268ms |      172.27.0.1 |     GET /creative/assets/external-skills-BcV6ATYi.js
+[GIN] 2026/06/13 - 23:51:52 | api | 202606131551528124067258268d9d6XOtL6shS | 200 |      143.39µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:51:54 | web | 202606131551549537052948268d9d6JYcvkwGC | 200 |       917.6µs |      172.27.0.1 |     GET /creative/assets/useCharacters-DRBoWvvj.css
+[GIN] 2026/06/13 - 23:51:54 | web | 202606131551549543407868268d9d6DJsO3B0M | 200 |     811.141µs |      172.27.0.1 |     GET /creative/assets/character-Bo9jcTNu.css
+[GIN] 2026/06/13 - 23:51:54 | web | 202606131551549710285508268d9d6X4Ro2KlO | 200 |     937.817µs |      172.27.0.1 |     GET /creative/assets/TaskQueuePanel-BLAoI_R9.js
+[GIN] 2026/06/13 - 23:51:54 | web | 202606131551549846663528268d9d6KNFoAmj5 | 200 |    1.128006ms |      172.27.0.1 |     GET /creative/assets/useCharacters-DBfjEPis.js
+[GIN] 2026/06/13 - 23:51:54 | web | 202606131551549859239638268d9d6BbqLy8dd | 200 |     252.485µs |      172.27.0.1 |     GET /creative/assets/video-recovery-service-tKsQk37X.js
+[GIN] 2026/06/13 - 23:51:55 | web | 202606131551554999497818268d9d6qJD7nepP | 200 |    1.255425ms |      172.27.0.1 |     GET /creative/assets/DrawnixDeferredFeatures-u56nYwZh.js
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551582383240588268d9d63bqhtN7v | 200 |     310.085µs |      172.27.0.1 |     GET /dashboard
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551583160021758268d9d6tLlOhGy4 | 200 |    9.375066ms |      172.27.0.1 |     GET /static/js/vendor-tanstack.c30df73066.js
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551583039931248268d9d6NRLxcLni | 200 |   29.644304ms |      172.27.0.1 |     GET /static/js/vendor-ui-primitives.90765933ee.js
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551583249678398268d9d6uLhd7OwO | 200 |   11.410588ms |      172.27.0.1 |     GET /static/js/lib-react.c31ec8aa30.js
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551583180304248268d9d6ib2A5y5R | 200 |   23.026884ms |      172.27.0.1 |     GET /static/css/index.3efe8485f4.css
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551583302426278268d9d6UtJjeOta | 200 |   55.499172ms |      172.27.0.1 |     GET /static/js/558.3159b9ee27.js
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551583312886898268d9d621acJKds | 200 |  124.097541ms |      172.27.0.1 |     GET /static/js/index.63be753df3.js
+[GIN] 2026/06/13 - 23:51:58 | api | 202606131551585463853358268d9d6yRInChrs | 200 |    2.966893ms |      172.27.0.1 |     GET /api/status
+
+2026/06/13 23:51:58 [31;1m/build/model/user.go:1066 [35;1mrecord not found
+[0m[33m[2.282ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE role = 100 AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+[GIN] 2026/06/13 - 23:51:58 | api | 202606131551585544897318268d9d68Fw8tGeV | 200 |    3.124076ms |      172.27.0.1 |     GET /api/setup?t=1781365920347
+
+2026/06/13 23:51:58 [31;1m/build/model/user.go:1066 [35;1mrecord not found
+[0m[33m[0.396ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE role = 100 AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+[GIN] 2026/06/13 - 23:51:58 | api | 202606131551586007000098268d9d6Lygi25Cj | 200 |      745.74µs |      172.27.0.1 |     GET /api/setup?t=1781365920365
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551586087908348268d9d6VaxLsIkP | 200 |     672.952µs |      172.27.0.1 |     GET /favicon.ico
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551586232252358268d9d6JqS0k4ua | 200 |    1.074612ms |      172.27.0.1 |     GET /static/js/async/7393.e1b0da7abe.js
+[GIN] 2026/06/13 - 23:51:58 | api | 202606131551586545072758268d9d6SCz37EF9 | 200 |     827.179µs |      172.27.0.1 |     GET /api/status
+
+2026/06/13 23:51:58 [31;1m/build/model/user.go:1066 [35;1mrecord not found
+[0m[33m[0.371ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE role = 100 AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+[GIN] 2026/06/13 - 23:51:58 | api | 202606131551586581918708268d9d6HUOu7xVS | 200 |     619.846µs |      172.27.0.1 |     GET /api/setup?t=1781365920444
+[GIN] 2026/06/13 - 23:51:58 | web | 202606131551587017024278268d9d6qFvdSCMp | 200 |     223.264µs |      172.27.0.1 |     GET /logo.png
+[GIN] 2026/06/13 - 23:52:05 | api | 202606131552057411184078268d9d6voD6vXS2 | 200 |     129.146µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:20 | api | 202606131552209125707298268d9d6ZaNipEUg | 200 |     340.269µs |             ::1 |     GET /api/status
+
+2026/06/13 23:52:21 [31;1m/build/model/user.go:1066 [35;1mrecord not found
+[0m[33m[0.239ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE role = 100 AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+[GIN] 2026/06/13 - 23:52:22 | api | 202606131552218931788338268d9d6IV245E5t | 200 |  256.408429ms |      172.27.0.1 |    POST /api/setup
+[GIN] 2026/06/13 - 23:52:22 | api | 202606131552221701079188268d9d66yqfGRis | 200 |     506.803µs |      172.27.0.1 |     GET /api/setup?t=1781365944160
+[GIN] 2026/06/13 - 23:52:22 | api | 202606131552222124846658268d9d6DQbva74p | 200 |     151.959µs |      172.27.0.1 |     GET /api/setup?t=1781365944187
+[GIN] 2026/06/13 - 23:52:22 | web | 202606131552222405710658268d9d6Gz4GuWIc | 200 |    1.655246ms |      172.27.0.1 |     GET /static/js/async/5272.7fb987a674.js
+[GIN] 2026/06/13 - 23:52:22 | web | 202606131552222405710818268d9d6IpoSWotf | 200 |     2.33924ms |      172.27.0.1 |     GET /static/js/async/7646.a30662804b.js
+[GIN] 2026/06/13 - 23:52:22 | api | 202606131552222733256858268d9d6OwbpztHJ | 200 |     171.071µs |      172.27.0.1 |     GET /api/notice
+[GIN] 2026/06/13 - 23:52:22 | api | 202606131552222733087478268d9d6l1ntFBuy | 200 |     392.951µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:22 | api | 202606131552222733223688268d9d68SZux3yA | 200 |     662.242µs |      172.27.0.1 |     GET /api/home_page_content
+[GIN] 2026/06/13 - 23:52:26 | api | 202606131552264026051968268d9d6JE2RgpC0 | 200 |     290.436µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:26 | web | 202606131552264145767048268d9d6gxteo2M2 | 200 |      663.76µs |      172.27.0.1 |     GET /static/js/async/2748.eb60f89bdd.js
+[GIN] 2026/06/13 - 23:52:26 | web | 202606131552264153362708268d9d6cbiix6dp | 200 |    3.363901ms |      172.27.0.1 |     GET /static/js/async/7294.2127e43aab.js
+[GIN] 2026/06/13 - 23:52:26 | web | 202606131552264154751228268d9d6yETqN4uO | 200 |    4.591506ms |      172.27.0.1 |     GET /static/js/async/1603.c252ca8f03.js
+[GIN] 2026/06/13 - 23:52:26 | web | 202606131552264142704398268d9d6hf1vlXaC | 200 |    8.217391ms |      172.27.0.1 |     GET /static/js/async/7717.873eafc26a.js
+[GIN] 2026/06/13 - 23:52:26 | web | 202606131552264142741488268d9d6jJNNHc7D | 200 |   85.765777ms |      172.27.0.1 |     GET /static/js/async/9582.65fc86f0e6.js
+[GIN] 2026/06/13 - 23:52:26 | api | 202606131552265354384728268d9d6z59CEdXn | 200 |     423.071µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:26 | web | 202606131552265451655498268d9d6LkMgchlm | 200 |     874.756µs |      172.27.0.1 |     GET /static/js/async/8994.1217d3c84d.js
+[GIN] 2026/06/13 - 23:52:26 | web | 202606131552264141164398268d9d6amdYLlOI | 200 |  151.466924ms |      172.27.0.1 |     GET /static/js/async/310.a68cb883f1.js
+[GIN] 2026/06/13 - 23:52:27 | api | 202606131552272247609378268d9d6GBqbh3lN | 200 |    6.469499ms |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:27 | api | 202606131552272681625298268d9d6bIFFNkNl | 200 |     327.419µs |      172.27.0.1 |     GET /api/status
+2026/06/13 23:52:27 [sessions] ERROR! securecookie: the value is not valid
+[GIN] 2026/06/13 - 23:52:27 | api | 202606131552273118390008268d9d68N3khxsi | 200 |    1.873193ms |      172.27.0.1 |     GET /api/rankings?period=week
+[GIN] 2026/06/13 - 23:52:28 | api | 202606131552285716931988268d9d6JOvKBNaN | 200 |     666.805µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:29 | web | 20260613155229715604708268d9d6iwIrlayN | 429 |     196.097µs |      172.27.0.1 |     GET /static/js/async/4148.bf7b0cd862.js
+[GIN] 2026/06/13 - 23:52:29 | web | 20260613155229715605078268d9d6NIb3njyV | 200 |     930.023µs |      172.27.0.1 |     GET /static/js/async/9912.f24ad27471.js
+[GIN] 2026/06/13 - 23:52:29 | web | 20260613155229715604988268d9d6xmkxvDIE | 200 |    4.151348ms |      172.27.0.1 |     GET /static/js/async/4708.cb66658061.js
+[GIN] 2026/06/13 - 23:52:32 | api | 202606131552322183261838268d9d6ygD7o45a | 200 |     399.884µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:32 | api | 202606131552322393110948268d9d6sBETaXpc | 200 |     226.801µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:32 | api | 202606131552326762325578268d9d62rVZwn2c | 200 |     253.499µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:32 | api | 202606131552327045469718268d9d6klDmzdsZ | 200 |     490.622µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:33 | api | 202606131552336999127798268d9d6xVgfYWVO | 200 |     237.852µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:35 | api | 20260613155235142721318268d9d6C8GVxVfh | 200 |     320.643µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:35 | api | 20260613155235363158618268d9d6LCBJHWFL | 200 |     290.544µs |      172.27.0.1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:36 | web | 202606131552369052476468268d9d6cPSv62o2 | 429 |     168.824µs |      172.27.0.1 |     GET /rankings
+[GIN] 2026/06/13 - 23:52:39 | web | 202606131552392389621418268d9d6EBXdq0Mk | 429 |     183.231µs |      172.27.0.1 |     GET /rankings
+[GIN] 2026/06/13 - 23:52:40 | web | 202606131552406811015238268d9d6e4bN8gwz | 429 |      141.42µs |      172.27.0.1 |     GET /
+[GIN] 2026/06/13 - 23:52:42 | web | 202606131552423973280118268d9d6q2eMpvTo | 429 |     125.974µs |      172.27.0.1 |     GET /
+[GIN] 2026/06/13 - 23:52:43 | web | 202606131552433007518128268d9d6gDTpmlLD | 429 |     106.572µs |      172.27.0.1 |     GET /
+[GIN] 2026/06/13 - 23:52:48 | api | 202606131552487959561168268d9d68qPJANJO | 200 |     126.371µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:52:51 | web | 202606131552514101744748268d9d6vh1jWrSd | 429 |     143.326µs |      172.27.0.1 |     GET /
+[GIN] 2026/06/13 - 23:52:59 | web | 202606131552591067448858268d9d6owzOBhFV | 429 |     109.181µs |      172.27.0.1 |     GET /creative/
+[GIN] 2026/06/13 - 23:52:59 | web | 202606131552594337176808268d9d6RRCq4ZOK | 429 |     123.506µs |      172.27.0.1 |     GET /creative/sw.js
+[GIN] 2026/06/13 - 23:52:59 | web | 202606131552595952068528268d9d643kLH6nT | 429 |     215.495µs |      172.27.0.1 |     GET /creative/api/bootstrap
+[GIN] 2026/06/13 - 23:52:59 | web | 202606131552596847523858268d9d6SyDaynJ8 | 429 |     103.851µs |      172.27.0.1 |     GET /creative/sw.js
+[GIN] 2026/06/13 - 23:53:00 | web | 202606131553001315217118268d9d69K4FZLWK | 429 |      84.594µs |      172.27.0.1 |     GET /dashboard
+[GIN] 2026/06/13 - 23:53:01 | api | 202606131553015816756168268d9d6YP0ea6T6 | 200 |     131.608µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:53:16 | api | 202606131553166548077728268d9d6eDhyToiS | 200 |     152.856µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:53:27 | web | 20260613155327128511108268d9d6BFHWPJgu | 429 |     176.331µs |      172.27.0.1 |     GET /creative/assets/settings-dialog-Dcm1G4kx.css
+[GIN] 2026/06/13 - 23:53:27 | web | 20260613155327300189428268d9d6Rqg9IsNR | 429 |     225.658µs |      172.27.0.1 |     GET /creative/sw.js
+[GIN] 2026/06/13 - 23:53:27 | web | 20260613155327530847278268d9d6CQuSQZOe | 429 |      96.051µs |      172.27.0.1 |     GET /creative/assets/settings-dialog-CwPKuxG5.js
+[GIN] 2026/06/13 - 23:53:27 | web | 20260613155327590059888268d9d6aVPYKCPU | 429 |     158.599µs |      172.27.0.1 |     GET /creative/?board=6aaf437c-5c11-4533-95a7-600d9636126a&_lazy_chunk_retry=1&_t=1781366010425
+[GIN] 2026/06/13 - 23:53:28 | web | 202606131553281905577548268d9d6JyKx3hLF | 429 |     197.711µs |      172.27.0.1 |     GET /creative/sw.js
+[GIN] 2026/06/13 - 23:53:29 | api | 202606131553294091486008268d9d6Z4b7Wdz1 | 200 |     172.352µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:53:44 | api | 202606131553445403277418268d9d63yjpmpge | 200 |     127.796µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:54:00 | api | 202606131554007447308538268d9d62MA1ebYd | 200 |     131.569µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:54:11 | api | 202606131554114559460778268d9d6w5vSlEAP | 200 |     119.486µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:54:30 | api | 202606131554305193025588268d9d6oi435hno | 200 |     138.068µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:54:45 | api | 202606131554456000172288268d9d6enUN5bHK | 200 |     190.402µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:54:57 | api | 202606131554576906297988268d9d6JhSRXLGP | 200 |     131.949µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:55:12 | api | 202606131555127987487038268d9d6Dq9JxK1M | 200 |     143.731µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:55:24 | web | 202606131555241101871478268d9d6t0rbIHsi | 200 |    1.520129ms |      172.27.0.1 |     GET /creative/
+[GIN] 2026/06/13 - 23:55:24 | web | 202606131555244398294628268d9d6Wt4OqtOR | 200 |    5.667043ms |      172.27.0.1 |     GET /creative/sw.js
+2026/06/13 23:55:24 [sessions] ERROR! securecookie: the value is not valid
+[GIN] 2026/06/13 - 23:55:24 | api | 202606131555245684709218268d9d6MJdweRJ2 | 401 |     558.173µs |      172.27.0.1 |     GET /creative/api/bootstrap
+[GIN] 2026/06/13 - 23:55:26 | api | 202606131555262610564908268d9d6sjEyiaBO | 200 |      131.95µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:55:27 | web | 20260613155527152067498268d9d6VB4R7DQV | 200 |    20.22116ms |      172.27.0.1 |     GET /creative/sw.js
+[GIN] 2026/06/13 - 23:55:29 | web | 202606131555294364013828268d9d6H0G1qqRH | 200 |     1.13404ms |      172.27.0.1 |     GET /creative/assets/settings-dialog-Dcm1G4kx.css
+[GIN] 2026/06/13 - 23:55:29 | web | 202606131555294496699308268d9d61Lozt83M | 200 |    1.435529ms |      172.27.0.1 |     GET /creative/assets/settings-dialog-CwPKuxG5.js
+[GIN] 2026/06/13 - 23:55:29 | web | 202606131555294605460728268d9d6nRWw7Y9J | 200 |     275.988µs |      172.27.0.1 |     GET /creative/assets/model-benchmark-launcher-X_7Rq7De.js
+[GIN] 2026/06/13 - 23:55:29 | web | 202606131555294723255878268d9d6IHYl42Oa | 200 |      837.98µs |      172.27.0.1 |     GET /creative/assets/winbox.bundle.min-CoRPjCs5.js
+[GIN] 2026/06/13 - 23:55:29 | web | 202606131555295523451748268d9d6Teg2B16O | 200 |      44.633µs |      172.27.0.1 |     GET /logo-tuzi.png
+[GIN] 2026/06/13 - 23:55:35 | web | 202606131555355985768318268d9d6Hajg9esM | 200 |      51.526µs |      172.27.0.1 |     GET /logo-tuzi.png
+[GIN] 2026/06/13 - 23:55:39 | web | 202606131555393874037368268d9d6V3Bg8BS7 | 200 |      43.605µs |      172.27.0.1 |     GET /logo-tuzi.png
+[GIN] 2026/06/13 - 23:55:41 | api | 202606131555413277840868268d9d6WuDAGxN9 | 200 |      175.55µs |             ::1 |     GET /api/status
+[SYS] 2026/06/13 - 23:55:51 | 正在更新数据看板数据... 
+[SYS] 2026/06/13 - 23:55:51 | 保存数据看板数据成功，共保存0条数据 
+[GIN] 2026/06/13 - 23:55:54 | api | 202606131555541070579518268d9d6VhX55xfF | 200 |     138.489µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:56:09 | api | 202606131556091787374298268d9d6ERTjtgUX | 200 |     137.176µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:56:21 | api | 202606131556219477777048268d9d6FAolJerR | 200 |     138.233µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307399044158268d9d6f6JBxH8d | 200 |    1.198944ms |      172.27.0.1 |     GET /creative/assets/ResizableDivider-ClzYJk-6.css
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307402649148268d9d6Xyxkp67E | 200 |    2.222343ms |      172.27.0.1 |     GET /creative/assets/VideoAnalyzer-DvF56ngj.css
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307411463188268d9d65YQeZAgs | 200 |    2.849159ms |      172.27.0.1 |     GET /creative/assets/MediaLibrarySidebar-CNCXXhfY.css
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307415186378268d9d6aECADpAL | 200 |    2.493338ms |      172.27.0.1 |     GET /creative/assets/MusicAnalyzer-DHa6anV5.css
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307409644978268d9d6nBjIyFrr | 200 |    3.208204ms |      172.27.0.1 |     GET /creative/assets/ComicCreator-DjAR34b-.css
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307749887868268d9d6EoQQQcGT | 200 |    3.036281ms |      172.27.0.1 |     GET /creative/assets/ComicCreator-DHS_4W_8.js
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307894936038268d9d6ZZm16TNJ | 200 |      251.71µs |      172.27.0.1 |     GET /creative/assets/VideoAnalyzer-DyACAKDC.js
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307895041538268d9d61sw874OQ | 200 |     282.381µs |      172.27.0.1 |     GET /creative/assets/useMediaViewer-DajLB9CY.js
+[GIN] 2026/06/13 - 23:56:30 | web | 202606131556307894934798268d9d6N5KWzgWY | 200 |     409.489µs |      172.27.0.1 |     GET /creative/assets/ResizableDivider-Cvp0-CRW.js
+[GIN] 2026/06/13 - 23:56:32 | web | 202606131556327618441708268d9d64ulnA6km | 200 |      31.501µs |      172.27.0.1 |     GET /logo-tuzi.png
+[GIN] 2026/06/13 - 23:56:36 | api | 202606131556369895358408268d9d6J2rwkVyc | 200 |     156.208µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:56:49 | api | 202606131556497871585578268d9d6IKs0zHLz | 200 |     180.421µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:57:04 | api | 202606131557048521534048268d9d6iX91rUic | 200 |      195.45µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:57:06 | web | 202606131557064529307868268d9d6KEZtpjjC | 200 |     592.716µs |      172.27.0.1 |     GET /creative/assets/batch-image-generation-DgBXF-sY.css
+[GIN] 2026/06/13 - 23:57:06 | web | 202606131557064642419028268d9d6fk8RhGNa | 200 |    1.773883ms |      172.27.0.1 |     GET /creative/assets/batch-image-generation-DFnFOd1O.js
+[GIN] 2026/06/13 - 23:57:07 | web | 202606131557078309579478268d9d6EeXZbiYl | 200 |      37.212µs |      172.27.0.1 |     GET /logo-tuzi.png
+[GIN] 2026/06/13 - 23:57:17 | api | 202606131557176658059278268d9d60AbxLaSt | 200 |     128.721µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:57:24 | web | 202606131557248350443698268d9d6aB4aLABn | 200 |    1.269842ms |      172.27.0.1 |     GET /creative/assets/ModelBenchmarkWorkbench-CC2lNbTT.css
+[GIN] 2026/06/13 - 23:57:24 | web | 202606131557248468963848268d9d6uocLtI8C | 200 |    1.589112ms |      172.27.0.1 |     GET /creative/assets/ModelBenchmarkWorkbench-CuW1ckvd.js
+[GIN] 2026/06/13 - 23:57:32 | api | 202606131557327310234658268d9d68Xnv11di | 200 |     142.168µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:57:45 | api | 202606131557455451826878268d9d61pxozPfT | 200 |     159.652µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:58:00 | api | 202606131558006285319518268d9d6P8pTnPlD | 200 |     162.652µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:58:13 | api | 202606131558134002138608268d9d62OhnftjV | 200 |     135.578µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:58:20 | web | 202606131558209283533888268d9d6p9bKHBIc | 200 |      34.916µs |      172.27.0.1 |     GET /logo-tuzi.png
+[GIN] 2026/06/13 - 23:58:28 | api | 202606131558284957764558268d9d6dpJR8bs4 | 200 |     161.765µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:58:31 | web | 202606131558317068809238268d9d69nFJd0FY | 200 |      30.721µs |      172.27.0.1 |     GET /logo-tuzi.png
+[GIN] 2026/06/13 - 23:58:41 | api | 202606131558412826626098268d9d6xfgNBwHh | 200 |     153.814µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:58:56 | api | 202606131558563878797738268d9d6YwPlZGCk | 200 |     186.462µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:59:00 | web | 202606131559008540603668268d9d6sDjPQEzi | 200 |      45.188µs |      172.27.0.1 |     GET /logo-tuzi.png
+[GIN] 2026/06/13 - 23:59:12 | api | 202606131559125937356578268d9d6LPPpBS6V | 200 |     232.763µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:59:23 | api | 20260613155923510900308268d9d6cf3EKSQW | 200 |     277.935µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:59:38 | api | 202606131559386100090708268d9d667Dxzkbb | 200 |     239.398µs |             ::1 |     GET /api/status
+[GIN] 2026/06/13 - 23:59:53 | api | 202606131559537169507528268d9d6TJngcXMG | 200 |     145.809µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 00:00:12 | api | 202606131600122551240768268d9d6rA8lvm16 | 200 |     129.027µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 00:00:27 | api | 202606131600273238395128268d9d6A4ayhOIN | 200 |     114.108µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 00:00:28 | web | 202606131600283911005098268d9d6QbyUSEfu | 200 |   17.482086ms |      172.27.0.1 |     GET /creative/sw.js
+[SYS] 2026/06/14 - 00:00:35 | 正在更新数据看板数据... 
+[SYS] 2026/06/14 - 00:00:35 | 保存数据看板数据成功，共保存0条数据 
+[GIN] 2026/06/14 - 00:00:39 | api | 20260613160039844281498268d9d6cGv3hIXK | 200 |     114.932µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 00:00:54 | api | 202606131600541517256128268d9d6OIQ1e58N | 200 |      147.57µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 00:01:09 | api | 202606131601097881228478268d9d6VcAgovyx | 200 |      158.28µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 00:01:19 | api | 202606131601195496710958268d9d6g70bThiU | 200 |     129.829µs |      172.27.0.1 |     GET /api/status

@@ -40,6 +40,9 @@
 - Docker/container packaging:
   - `new-api/Dockerfile` rebuilds the default/classic frontends but does not build OpenTU; it copies the prebuilt Creative artifact with `COPY ./web/creative/dist ./web/creative/dist`
   - `.dockerignore` may exclude default/classic generated dist paths, but must not exclude `web/creative/dist` for embedded Creative image builds
+- Embedded model/provider UI source:
+  - OpenTU embedded under `/creative/` uses the managed session-broker profile id `new-api-creative` (`New API Creative`) and receives its selectable model catalog from `new-api` `/creative/api/bootstrap` plus `/creative/api/models`.
+  - The embedded UI must not expose or fall back to OpenTU standalone default provider profiles or static model catalogs as selectable sources.
 - Backend route contract:
   - `new-api` serves the SPA under `/creative/`.
   - `new-api` serves hashed chunks under `/creative/assets/*`; missing `/creative/assets/*` paths are static 404s, not SPA fallback.
@@ -63,6 +66,7 @@
 - No-secrets RC verification must not inherit arbitrary host environment into the temporary `new-api` server. Use `env -i` plus only the minimum build/runtime variables needed for local SQLite and Go caches. Do not pass provider, payment, CDN, analytics, Pyroscope, Redis, or production endpoint variables.
 - A local embedded smoke server should disable known background external-update paths where supported, for example `CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED=false`; keep the smoke short-lived and stop it immediately after the browser check.
 - Embedded release readiness is not complete until the target environment has a redacted presence-only env check and a read-only route/CDN check for `/creative/`, `/creative/sw.js`, existing `/creative/assets/*`, missing `/creative/assets/*`, `/creative/api/*`, and `/creative/relay/v1/*`.
+- Embedded model/provider settings, generation dropdowns, and model benchmark tools must filter provider/profile state to the managed `new-api-creative` session-broker profile. If bootstrap/auth fails or `/creative/api/models` is unavailable, install/show an unavailable managed profile with an empty catalog rather than showing OpenTU legacy defaults.
 - Local/intranet staging is an allowed intermediate gate when no real target exists, but the report must keep production-only surfaces as `not-run`: public route/CDN/DNS, production env presence, S3-compatible asset storage, provider/payment/channel health, publish credentials, Docker/NPM publish, deploy/upload/SSH, production `FRONTEND_BASE_URL` mode, and final sourcemap policy.
 - Redacted local route checks should record method, path, status, selected headers (`content-type`, `cache-control`, `location`, `x-content-type-options` when present), and classification only. Do not record response bodies, cookies, auth headers, query secrets, provider credentials, or generated-task payloads.
 - The embedded `new-api` Docker path depends on prebuilt `web/creative/dist`; the Dockerfile does not build OpenTU. CI/release orchestration must run the artifact identity gate before image build/push.
@@ -75,6 +79,7 @@
 - `new-api/web/creative/dist` differs from `new-api/router/web/creative/dist` -> fail; resync both targets from the same Opentu dist.
 - `new-api` Go embed/static tests pass but Opentu source was changed after the dist sync -> fail release readiness; rebuild and resync before packaging.
 - Missing `/creative/assets/*` returns Creative SPA HTML -> fail; hashed asset prefix is reserved for static chunks and must fail as a static miss.
+- Embedded `/creative/` settings or model selectors show OpenTU standalone provider defaults such as default/OpenAI/Gemini/Tuzi/Doubao/Kling/Flux/Midjourney instead of `New API Creative` -> fail; the embedded catalog is controlled by `new-api` session-broker APIs, not by local OpenTU provider setup.
 - Full `git diff --check` fails only inside generated dist -> treat as release-policy risk; do not hand-normalize one target unless all artifact copies remain byte-identical.
 - `pnpm e2e:smoke` cold-start fails before app readiness but prewarmed/long-wait runtime succeeds -> classify as E2E harness/readiness risk, not as proof of runtime failure.
 - `sw.js.map` or other generated maps are emitted -> decide by production sourcemap policy; if forbidden, disable/strip at the Opentu artifact source and keep all embedded copies identical.

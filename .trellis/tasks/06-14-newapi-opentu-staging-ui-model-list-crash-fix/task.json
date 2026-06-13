@@ -1,0 +1,28 @@
+{
+  "id": "newapi-opentu-staging-ui-model-list-crash-fix",
+  "name": "newapi-opentu-staging-ui-model-list-crash-fix",
+  "title": "Staging UI, model list, and 429 crash perception fix",
+  "description": "Fix embedded OpenTU console-button overlap, model/provider list source, and perceived staging crash caused by static/creative 429s.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "staging-bugfix",
+  "package": "new-api/opentu",
+  "priority": "P2",
+  "creator": "WindC0X",
+  "assignee": "WindC0X",
+  "createdAt": "2026-06-14",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "initial_findings": "container healthy restartCount=0; logs show creative/static 429s; model UI still shows OpenTU defaults"
+  }
+}
