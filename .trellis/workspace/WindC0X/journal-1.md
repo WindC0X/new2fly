@@ -400,3 +400,37 @@ Closed Creative Embed HIGH findings, ran dynamic final goal-attainment audit, re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: New API / OpenTU release readiness verification
+
+**Date**: 2026-06-13
+**Task**: New API / OpenTU release readiness verification
+**Branch**: `master`
+
+### Summary
+
+Rebuilt OpenTU with /creative/ base, synced new-api embedded Creative dist, ran local and dynamic release-readiness verification, recorded mostly_ready report and artifact contract specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `adc3e10` | (see git log) |
+| `1ba38cd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
