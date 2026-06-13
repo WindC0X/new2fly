@@ -571,3 +571,36 @@ Verified live remote-backed OpenTU/new-api/new2fly release candidate with artifa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: Release environment readiness checks
+
+**Date**: 2026-06-13
+**Task**: Release environment readiness checks
+**Branch**: `master`
+
+### Summary
+
+Completed Tier A static/offline release-environment readiness checks for embedded OpenTU/new-api RC: env/secrets matrix, route/CDN/S3/publish/provider surfaces, dynamic-workflow sidecar review, live runbook, and spec update. No secrets or production/provider/payment/CDN endpoints were accessed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `afaefd8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
