@@ -1,0 +1,145 @@
+$ cd /mnt/f/code/project/opentu && pnpm --filter @aitu/drawnix exec vitest run [creative targeted suite]
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+ RUN  v3.2.4 /mnt/f/code/project/opentu/packages/drawnix
+
+stderr | src/services/__tests__/video-api-service.session-broker.test.ts > video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency
+Decryption failed: TypeError: Failed to execute 'decrypt' on 'SubtleCrypto': 3rd argument is not instance of ArrayBuffer, Buffer, TypedArray, or DataView.
+    at codedTypeError (node:internal/crypto/webidl:45:15)
+    at makeException (node:internal/crypto/webidl:54:10)
+    at Object.converters.BufferSource (node:internal/crypto/webidl:221:11)
+    at SubtleCrypto.decrypt (node:internal/crypto/webcrypto:962:28)
+    at decrypt (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:237:43)
+    at testCrypto (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:285:23)
+    at SettingsManager.initializeCrypto (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:294:30)
+    at SettingsManager.initializeAsync (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:263:7) {
+  code: 'ERR_INVALID_ARG_TYPE'
+}
+
+stderr | src/services/__tests__/video-api-service.session-broker.test.ts > video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency
+Crypto functionality is not available, sensitive data will be stored as plain text
+
+stderr | src/services/__tests__/video-api-service.session-broker.test.ts > video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+stderr | src/services/__tests__/video-api-service.session-broker.test.ts > video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+ ✓ src/services/__tests__/video-api-service.session-broker.test.ts (11 tests) 2720ms
+   ✓ video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency  2688ms
+ ✓ src/services/__tests__/audio-api-service.test.ts (18 tests) 2857ms
+Sourcemap for "/mnt/f/code/project/opentu/node_modules/.pnpm/postmessage-duplex@1.2.0/node_modules/postmessage-duplex/dist/index.esm.js" points to missing source files
+ ✓ src/services/creative-document-assets.test.ts (9 tests) 53ms
+stderr | src/services/creative-document-sync.test.ts > creative workspace document cloud sync > freezes a conflicted board queue without silently overwriting remote state
+[CreativeDocumentCloudSync] conflict recorded: {
+  boardId: 'board-1',
+  revision: 9,
+  recordedAt: 1781285107355,
+  hasRemoteSnapshot: true
+}
+
+stderr | src/services/creative-document-sync.test.ts > creative workspace document cloud sync > uploads local media into only the outbound snapshot copy before a 409 freeze
+[CreativeDocumentCloudSync] conflict recorded: {
+  boardId: 'board-1',
+  revision: 9,
+  recordedAt: 1781285107371,
+  hasRemoteSnapshot: false
+}
+
+stderr | src/services/creative-document-sync.test.ts > creative workspace document cloud sync > keeps local-only media pending when asset sync is disabled and does not call document mutation
+[CreativeDocumentCloudSync] upload failed: creative_asset_sync_disabled:$.snapshot.elements[0].imageUrl:local-only-media-url
+
+ ✓ src/services/creative-document-sync.test.ts (23 tests) 52ms
+stderr | src/services/creative-session-broker.test.ts > initializeCreativeManagedSessionBroker bootstrap auth > returns error and clears stale auth material for wrong auth.mode
+[CreativeSessionBroker] initialization failed: creative bootstrap auth.mode must be session-broker
+
+stderr | src/services/creative-session-broker.test.ts > initializeCreativeManagedSessionBroker bootstrap auth > returns error and clears stale auth material for missing nonce
+[CreativeSessionBroker] initialization failed: creative bootstrap auth.nonce is required
+
+ ✓ src/services/creative-session-broker.test.ts (10 tests) 48ms
+stderr | src/services/__tests__/media-api-routing.test.ts > media-api provider routing > submits async image reference images and mask to /v1/videos form data
+Decryption failed: TypeError: Failed to execute 'decrypt' on 'SubtleCrypto': 3rd argument is not instance of ArrayBuffer, Buffer, TypedArray, or DataView.
+    at codedTypeError (node:internal/crypto/webidl:45:15)
+    at makeException (node:internal/crypto/webidl:54:10)
+    at Object.converters.BufferSource (node:internal/crypto/webidl:221:11)
+    at SubtleCrypto.decrypt (node:internal/crypto/webcrypto:962:28)
+    at decrypt (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:237:43)
+    at testCrypto (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:285:23)
+    at SettingsManager.initializeCrypto (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:294:30)
+    at SettingsManager.initializeAsync (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:263:7) {
+  code: 'ERR_INVALID_ARG_TYPE'
+}
+
+stderr | src/services/__tests__/media-api-routing.test.ts > media-api provider routing > submits async image reference images and mask to /v1/videos form data
+Crypto functionality is not available, sensitive data will be stored as plain text
+
+stderr | src/services/__tests__/media-api-routing.test.ts > media-api provider routing > submits async image reference images and mask to /v1/videos form data
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+stderr | src/services/__tests__/media-api-routing.test.ts > media-api provider routing > submits async image reference images and mask to /v1/videos form data
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+ ✓ src/services/__tests__/media-api-routing.test.ts (12 tests) 36ms
+stderr | src/services/model-adapters/mj-image-adapter.test.ts
+Decryption failed: TypeError: Failed to execute 'decrypt' on 'SubtleCrypto': 3rd argument is not instance of ArrayBuffer, Buffer, TypedArray, or DataView.
+    at codedTypeError (node:internal/crypto/webidl:45:15)
+    at makeException (node:internal/crypto/webidl:54:10)
+    at Object.converters.BufferSource (node:internal/crypto/webidl:221:11)
+    at SubtleCrypto.decrypt (node:internal/crypto/webcrypto:962:28)
+    at decrypt (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:237:43)
+    at testCrypto (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:285:23)
+    at SettingsManager.initializeCrypto (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:294:30)
+    at SettingsManager.initializeAsync (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:263:7) {
+  code: 'ERR_INVALID_ARG_TYPE'
+}
+
+stderr | src/services/model-adapters/mj-image-adapter.test.ts
+Crypto functionality is not available, sensitive data will be stored as plain text
+
+stderr | src/services/model-adapters/mj-image-adapter.test.ts
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+stderr | src/services/model-adapters/mj-image-adapter.test.ts
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+ ✓ src/services/model-adapters/mj-image-adapter.test.ts (7 tests) 19ms
+ ✓ src/services/provider-routing/provider-transport.session-broker.test.ts (13 tests) 16ms
+
+ Test Files  8 passed (8)
+      Tests  103 passed (103)
+   Start at  01:23:28
+   Duration  192.35s (transform 4.76s, setup 72ms, collect 9.86s, tests 5.80s, environment 144.43s, prepare 23.59s)
+

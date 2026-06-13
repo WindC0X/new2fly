@@ -1,0 +1,3 @@
+$ cd /mnt/f/code/project/new-api && git diff --check
+$ cd /mnt/f/code/project/new2fly && git diff --check
+$ cd /mnt/f/code/project/opentu && git diff --check

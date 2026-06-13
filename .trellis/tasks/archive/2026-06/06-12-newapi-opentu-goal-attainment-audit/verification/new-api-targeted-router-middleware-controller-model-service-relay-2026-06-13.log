@@ -1,0 +1,92 @@
+$ cd /mnt/f/code/project/new-api && go test -count=1 ./router ./middleware ./controller ./model ./service ./relay/...
+ok  	github.com/QuantumNous/new-api/router	0.125s
+ok  	github.com/QuantumNous/new-api/middleware	0.025s
+ok  	github.com/QuantumNous/new-api/controller	0.609s
+ok  	github.com/QuantumNous/new-api/model	0.186s
+ok  	github.com/QuantumNous/new-api/service	1.523s
+ok  	github.com/QuantumNous/new-api/relay	0.025s
+ok  	github.com/QuantumNous/new-api/relay/channel	0.029s
+?   	github.com/QuantumNous/new-api/relay/channel/ai360	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/ali	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/aws	0.019s
+?   	github.com/QuantumNous/new-api/relay/channel/baidu	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/baidu_v2	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/claude	0.023s
+?   	github.com/QuantumNous/new-api/relay/channel/cloudflare	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/codex	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/cohere	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/coze	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/deepseek	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/dify	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/gemini	0.022s
+?   	github.com/QuantumNous/new-api/relay/channel/jimeng	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/jina	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/lingyiwanwu	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/minimax	0.025s
+?   	github.com/QuantumNous/new-api/relay/channel/mistral	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/mokaai	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/moonshot	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/ollama	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/openai	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/openrouter	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/palm	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/perplexity	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/replicate	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/siliconflow	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/submodel	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/task/ali	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/task/doubao	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/task/gemini	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/task/hailuo	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/task/jimeng	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/task/kling	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/task/mj	0.029s
+?   	github.com/QuantumNous/new-api/relay/channel/task/sora	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/task/suno	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/task/taskcommon	0.030s
+?   	github.com/QuantumNous/new-api/relay/channel/task/vertex	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/task/vidu	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/tencent	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/vertex	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/volcengine	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/xai	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/xinference	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/xunfei	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/zhipu	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/zhipu_4v	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/common	0.028s
+?   	github.com/QuantumNous/new-api/relay/common_handler	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/constant	0.008s
+[ERR] 2026/06/13 - 01:16:51 | SYSTEM | stream ended: reason=timeout, received=1 
+[ERR] 2026/06/13 - 01:16:56 | SYSTEM | timeout waiting for goroutines to exit 
+[ERR] 2026/06/13 - 01:16:56 | SYSTEM | scanner error: io: read/write on closed pipe 
+[INFO] 2026/06/13 - 01:16:56 | SYSTEM | stream ended: reason=done 
+[ERR] 2026/06/13 - 01:16:56 | SYSTEM | stream ended: reason=done soft_errors=1, received=5 
+[ERR] 2026/06/13 - 01:16:56 | SYSTEM | stream ended: reason=handler_stop end_error="fatal at 50" soft_errors=1, received=59 
+[INFO] 2026/06/13 - 01:16:56 | SYSTEM | stream ended: reason=done 
+[ERR] 2026/06/13 - 01:16:56 | SYSTEM | stream ended: reason=handler_stop end_error="fatal" soft_errors=2, received=12 
+[ERR] 2026/06/13 - 01:16:56 | SYSTEM | stream ended: reason=handler_stop end_error="stop at 10" soft_errors=1, received=11 
+[ERR] 2026/06/13 - 01:16:56 | SYSTEM | stream ended: reason=done soft_errors=10, received=10 
+--- FAIL: TestStreamScannerHandler_SkipsNonDataLines (0.00s)
+panic: non-positive interval for NewTicker [recovered, repanicked]
+
+goroutine 33 [running]:
+testing.tRunner.func1.2({0x11262a0, 0x14b64a0})
+	/home/windc0x/.local/go-toolchains/go1.25.6/src/testing/testing.go:1872 +0x237
+testing.tRunner.func1()
+	/home/windc0x/.local/go-toolchains/go1.25.6/src/testing/testing.go:1875 +0x35b
+panic({0x11262a0?, 0x14b64a0?})
+	/home/windc0x/.local/go-toolchains/go1.25.6/src/runtime/panic.go:783 +0x132
+time.NewTicker(0x1e02e70?)
+	/home/windc0x/.local/go-toolchains/go1.25.6/src/time/tick.go:38 +0xbb
+github.com/QuantumNous/new-api/relay/helper.StreamScannerHandler(0xc00084a000, 0xc0006e4090, 0xc000033008, 0xc0006c6120)
+	/mnt/f/code/project/new-api/relay/helper/stream_scanner.go:65 +0x235
+github.com/QuantumNous/new-api/relay/helper.TestStreamScannerHandler_SkipsNonDataLines(0xc000103c00)
+	/mnt/f/code/project/new-api/relay/helper/stream_scanner_test.go:225 +0x62a
+testing.tRunner(0xc000103c00, 0x1361788)
+	/home/windc0x/.local/go-toolchains/go1.25.6/src/testing/testing.go:1934 +0xea
+created by testing.(*T).Run in goroutine 1
+	/home/windc0x/.local/go-toolchains/go1.25.6/src/testing/testing.go:1997 +0x465
+FAIL	github.com/QuantumNous/new-api/relay/helper	7.136s
+?   	github.com/QuantumNous/new-api/relay/reasonmap	[no test files]
+FAIL

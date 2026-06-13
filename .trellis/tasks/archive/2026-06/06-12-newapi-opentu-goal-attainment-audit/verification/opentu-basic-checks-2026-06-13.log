@@ -1,0 +1,1 @@
+$ cd /mnt/f/code/project/opentu && node --check scripts/publish-npm.js && git diff --check

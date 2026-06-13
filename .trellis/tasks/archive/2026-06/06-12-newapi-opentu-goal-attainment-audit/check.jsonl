@@ -1,0 +1,12 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend active spec index for cross-repo contracts."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend active spec index for cross-repo contracts."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Backend security boundary contract relevant to goal attainment."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Backend asset lifecycle contract relevant to goal attainment."}
+{"file":".trellis/spec/backend/creative-async-video-relay.md","reason":"Backend async video relay contract relevant to goal attainment."}
+{"file":".trellis/spec/backend/creative-async-suno-relay.md","reason":"Backend async Suno relay contract relevant to goal attainment."}
+{"file":".trellis/spec/backend/creative-async-mj-relay.md","reason":"Backend async MJ relay contract relevant to goal attainment."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"Frontend asset sync contract relevant to goal attainment."}
+{"file":".trellis/spec/frontend/creative-async-video-relay.md","reason":"Frontend async video relay contract relevant to goal attainment."}
+{"file":".trellis/spec/frontend/creative-async-suno-relay.md","reason":"Frontend async Suno relay contract relevant to goal attainment."}
+{"file":".trellis/spec/frontend/creative-async-mj-relay.md","reason":"Frontend async MJ relay contract relevant to goal attainment."}
+{"file": ".trellis/spec/backend/creative-async-task-billing-consistency.md", "reason": "Backend async submit/idempotency/billing outbox consistency contract; required for Creative relay remediation and checks."}

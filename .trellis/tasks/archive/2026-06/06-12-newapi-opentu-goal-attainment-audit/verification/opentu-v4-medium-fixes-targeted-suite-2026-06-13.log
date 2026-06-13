@@ -1,0 +1,83 @@
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+ RUN  v3.2.4 /mnt/f/code/project/opentu/packages/drawnix
+
+ ✓ src/services/__tests__/audio-api-service.test.ts (19 tests) 2732ms
+   ✓ audio-api-service > polls Suno tasks when submit returns the task id as data string  656ms
+stderr | src/services/__tests__/video-api-service.session-broker.test.ts > video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency
+Decryption failed: TypeError: Failed to execute 'decrypt' on 'SubtleCrypto': 3rd argument is not instance of ArrayBuffer, Buffer, TypedArray, or DataView.
+    at codedTypeError (node:internal/crypto/webidl:45:15)
+    at makeException (node:internal/crypto/webidl:54:10)
+    at Object.converters.BufferSource (node:internal/crypto/webidl:221:11)
+    at SubtleCrypto.decrypt (node:internal/crypto/webcrypto:962:28)
+    at decrypt (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:237:43)
+    at testCrypto (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:285:23)
+    at SettingsManager.initializeCrypto (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:294:30)
+    at SettingsManager.initializeAsync (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:263:7) {
+  code: 'ERR_INVALID_ARG_TYPE'
+}
+
+stderr | src/services/__tests__/video-api-service.session-broker.test.ts > video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency
+Crypto functionality is not available, sensitive data will be stored as plain text
+
+stderr | src/services/__tests__/video-api-service.session-broker.test.ts > video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+stderr | src/services/__tests__/video-api-service.session-broker.test.ts > video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+ ✓ src/services/__tests__/video-api-service.session-broker.test.ts (12 tests) 1818ms
+   ✓ video-api-service session-broker routing > allows empty apiKey for session-broker video submit and sends canonical same-origin request with idempotency  1789ms
+ ✓ src/services/__tests__/provider-routing.test.ts (26 tests) 16ms
+stderr | src/services/model-adapters/mj-image-adapter.test.ts
+Decryption failed: TypeError: Failed to execute 'decrypt' on 'SubtleCrypto': 3rd argument is not instance of ArrayBuffer, Buffer, TypedArray, or DataView.
+    at codedTypeError (node:internal/crypto/webidl:45:15)
+    at makeException (node:internal/crypto/webidl:54:10)
+    at Object.converters.BufferSource (node:internal/crypto/webidl:221:11)
+    at SubtleCrypto.decrypt (node:internal/crypto/webcrypto:962:28)
+    at decrypt (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:237:43)
+    at testCrypto (/mnt/f/code/project/opentu/packages/utils/src/crypto/aes-gcm.ts:285:23)
+    at SettingsManager.initializeCrypto (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:294:30)
+    at SettingsManager.initializeAsync (/mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:263:7) {
+  code: 'ERR_INVALID_ARG_TYPE'
+}
+
+stderr | src/services/model-adapters/mj-image-adapter.test.ts
+Crypto functionality is not available, sensitive data will be stored as plain text
+
+stderr | src/services/model-adapters/mj-image-adapter.test.ts
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+stderr | src/services/model-adapters/mj-image-adapter.test.ts
+[ConfigWriter] Failed to save configs: ReferenceError: indexedDB is not defined
+    at /mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:45:21
+    at new Promise (<anonymous>)
+    at getAppDB (/mnt/f/code/project/opentu/packages/drawnix/src/services/app-database.ts:39:15)
+    at ConfigIndexedDBWriter.getDB (/mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:33:12)
+    at /mnt/f/code/project/opentu/packages/drawnix/src/utils/config-indexeddb-writer.ts:134:31
+
+ ✓ src/services/model-adapters/mj-image-adapter.test.ts (8 tests) 20ms
+
+ Test Files  4 passed (4)
+      Tests  65 passed (65)
+   Start at  04:53:12
+   Duration  66.12s (transform 2.83s, setup 41ms, collect 1.75s, tests 4.59s, environment 47.03s, prepare 9.44s)
+

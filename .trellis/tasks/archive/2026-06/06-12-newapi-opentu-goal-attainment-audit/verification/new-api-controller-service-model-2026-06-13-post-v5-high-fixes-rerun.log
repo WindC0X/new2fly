@@ -1,0 +1,4 @@
+$ go test -count=1 ./controller ./service ./model
+ok  	github.com/QuantumNous/new-api/controller	0.480s
+ok  	github.com/QuantumNous/new-api/service	1.447s
+ok  	github.com/QuantumNous/new-api/model	0.120s

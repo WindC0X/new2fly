@@ -1,0 +1,4 @@
+$ cd /mnt/f/code/project/new-api && go test -count=1 ./model ./service ./controller
+ok  	github.com/QuantumNous/new-api/model	0.233s
+ok  	github.com/QuantumNous/new-api/service	1.412s
+ok  	github.com/QuantumNous/new-api/controller	0.506s

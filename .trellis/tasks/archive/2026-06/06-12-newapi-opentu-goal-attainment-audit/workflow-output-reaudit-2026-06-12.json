@@ -1,0 +1,1971 @@
+{
+  "newapi-opentu-goal-attainment-reaudit-2026-06-12": [
+    {
+      "area": "opentu frontend creative/session/asset implementation",
+      "confidence": 0,
+      "evidenceFiles": [],
+      "findings": [],
+      "goals": [],
+      "nextActions": [],
+      "score": 0,
+      "status": "unknown",
+      "summary": "开始审计。",
+      "verificationGaps": [],
+      "verifiedNonIssues": []
+    },
+    {
+      "area": "quality gates, CI, and test coverage",
+      "confidence": 0.1,
+      "evidenceFiles": [],
+      "findings": [],
+      "goals": [
+        "Audit verification readiness for ../new-api and ../opentu using current source, scripts, CI configs, tests, and safe local inspection only."
+      ],
+      "nextActions": [],
+      "score": 0,
+      "status": "unknown",
+      "summary": "开始按 Trellis 审计任务进行只读复核。",
+      "verificationGaps": [],
+      "verifiedNonIssues": []
+    },
+    {
+      "area": "security and abuse-boundary review",
+      "confidence": 0.1,
+      "evidenceFiles": [],
+      "findings": [],
+      "goals": [
+        "Perform a fresh current-source-only security re-audit of ../new-api and ../opentu.",
+        "Inspect credential exposure, browser secret boundaries, SSRF/open redirect, signed URL handling, owner scoping, cache/no-store, CSRF/nonce, CORS/origin, proxy/image fetch, logs/errors leaking secrets, and direct provider fallback."
+      ],
+      "nextActions": [
+        "Use bounded local inspection and code search across /mnt/f/code/project/new-api and /mnt/f/code/project/opentu.",
+        "Avoid previous report/arbitration/remediation/archive outputs and avoid reading secrets or calling endpoints."
+      ],
+      "score": 0,
+      "status": "unknown",
+      "summary": "开始基于当前源码和配置进行只读安全复审。",
+      "verificationGaps": [],
+      "verifiedNonIssues": []
+    },
+    {
+      "area": "Goals, scope, and acceptance reconstruction",
+      "confidence": 0.86,
+      "evidenceFiles": [
+        "/mnt/f/code/project/new2fly/AGENTS.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/index.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/index.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-backend-security-boundary.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-asset-sync.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-task-billing-consistency.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-asset-sync.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md",
+        "/mnt/f/code/project/new-api/README.md",
+        "/mnt/f/code/project/new-api/README.en.md",
+        "/mnt/f/code/project/new-api/README.zh_CN.md",
+        "/mnt/f/code/project/new-api/docs/openapi/creative-embed.md",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/opentu/README.md",
+        "/mnt/f/code/project/opentu/docs/README.md",
+        "/mnt/f/code/project/opentu/docs/CONCEPTS.md",
+        "/mnt/f/code/project/opentu/docs/FEATURE_FLOWS.md",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts"
+      ],
+      "findings": [
+        {
+          "confidence": 0.93,
+          "details": "new-api README 当前暴露 Creative Embed API Matrix，但该矩阵把 Suno/MJ Creative 路由描述为 `/creative/relay/v1/music*` 与 `/creative/relay/v1/images/*`；活跃 Trellis specs、当前 backend router 与 Opentu frontend 服务均使用 `/creative/relay/v1/suno/...` 和 `/creative/relay/v1/mj/...` 作为 Suno/MJ 的规范路径。该矛盾会直接污染验收口径。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/README.md:162-177",
+            "/mnt/f/code/project/new-api/docs/openapi/creative-embed.md:17-31",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md:13-16",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md:14-20",
+            "/mnt/f/code/project/new-api/router/web-router.go:118-130",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts:866-902",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:118-166"
+          ],
+          "id": "F-GOAL-001",
+          "impact": "审计者或实现者若以 README 链接矩阵为准，会编写错误路由验收、错误客户端调用或错误部署文档；当前目标仍可从 specs/source 重建，但文档权威性受损。",
+          "recommendation": "将 `docs/openapi/creative-embed.md` 更新为当前 canonical routes：video `/videos`, Suno `/suno/submit/:action` 与 `/suno/fetch`, MJ `/mj/submit/imagine`, `/mj/task/:task_id/fetch`, `/mj/task/list-by-condition`, `/mj/image/:task_id`；明确 `/images/generations` 是通用 image relay 而非 MJ Creative tranche。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "Creative Embed API Matrix 与活跃 Suno/MJ 验收路径冲突"
+        },
+        {
+          "confidence": 0.88,
+          "details": "backend index 将 Creative security、asset、video、suno、mj specs 标为 Active，但未索引当前存在的 `creative-async-task-billing-consistency.md`。该文件定义 submit response buffering、TaskBillingOutbox、terminal CAS、selected-key/upstream-id fail-closed 等跨 provider 验收要求。",
+          "evidence": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/index.md:22-26",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-task-billing-consistency.md:1-9",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-task-billing-consistency.md:26-38",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-task-billing-consistency.md:58-65"
+          ],
+          "id": "F-GOAL-002",
+          "impact": "依赖 backend index 读取 active specs 的人员/代理会漏掉 billing/outbox/CAS/key-affinity 的横切验收标准，导致目标重建不完整。",
+          "recommendation": "如果该 spec 仍为 active，将其加入 `.trellis/spec/backend/index.md`；如果不是 active，移动到归档或在文件头明确状态，避免“存在但不可发现”。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "Backend spec index 漏索引活跃计费一致性合同"
+        },
+        {
+          "confidence": 0.84,
+          "details": "README 多语言版本对 Creative Embed 文档入口不一致：`README.md` 与 `README.zh_CN.md` 包含 Creative Embed API Matrix，`README.en.md`、`README.fr.md`、`README.ja.md`、`README.zh_TW.md` 的 Quick Navigation 缺少该入口。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/README.md:170-177",
+            "/mnt/f/code/project/new-api/README.zh_CN.md:170-177",
+            "/mnt/f/code/project/new-api/README.en.md:165-173",
+            "/mnt/f/code/project/new-api/README.fr.md:170-178",
+            "/mnt/f/code/project/new-api/README.ja.md:170-178",
+            "/mnt/f/code/project/new-api/README.zh_TW.md:170-178"
+          ],
+          "id": "F-GOAL-003",
+          "impact": "跨语言 README*.md 无法一致暴露当前 combined Creative goal；对“使用 README/docs 重建目标”的审计会得到不同结果。",
+          "recommendation": "同步 README*.md 的 Creative Embed 入口，并在矩阵修正后保持所有语言链接一致。",
+          "severity": "low",
+          "status": "confirmed",
+          "title": "new-api README*.md 对 Creative Embed 入口不同步"
+        },
+        {
+          "confidence": 0.78,
+          "details": "可推断的 combined 目标分散在 new2fly Trellis specs、new-api README/docs/source、opentu README/docs/source 中；new2fly `AGENTS.md` 仅说明 Trellis 目录，backend/frontend index 仍有多个基础指南为 `To fill`，没有单一 combined acceptance artifact。",
+          "evidence": [
+            "/mnt/f/code/project/new2fly/AGENTS.md:6-17",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/index.md:15-27",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/index.md:15-27",
+            "/mnt/f/code/project/new-api/README.md:55-61",
+            "/mnt/f/code/project/opentu/README.md:29-35",
+            "/mnt/f/code/project/opentu/docs/CONCEPTS.md:5-22"
+          ],
+          "id": "F-GOAL-004",
+          "impact": "目标本身可以重建，但需要人工合并多个文件并处理冲突；对后续 goal-attainment audit 来说，范围边界和验收优先级不是一眼可测试。",
+          "recommendation": "新增或更新一个 active combined Creative Embed acceptance index，列出权威目标、canonical routes、frontend/backend ownership、必须测试命令和已知 out-of-scope 项。",
+          "severity": "low",
+          "status": "likely",
+          "title": "缺少单一 combined 项目目标与验收索引"
+        }
+      ],
+      "goals": [
+        "高层 new-api 目标：作为合法授权场景下的 AI API gateway/AI asset management system，提供组织级认证、多模型管理、用量统计、成本核算、私有部署、权限管理、计费、智能路由与 OpenAI/Claude/Gemini/Midjourney/Suno 等接口支持。证据：new-api README.md:55-61, 183-203, 264-274。",
+        "高层 Opentu 目标：作为以画布为核心工作区底座的开源 AI 应用平台，连接多模型生成、工具、素材、知识与工作流；支撑画布工作区、任务队列、素材库、统一缓存、工具箱/插件、PPT/内容工作流。证据：opentu README.md:1-4, 29-35；CONCEPTS.md:5-22。",
+        "当前 combined 目标（推断）：将 Opentu Creative 作为 new-api 同源嵌入面运行，前端使用 session-broker `/creative/relay/v1` 与 `/creative/api`，后端以 browser session、same-origin、nonce、owner scope、no-store cache、credential stripping、secret redaction 保护 Creative API/relay 边界。证据：backend creative-backend-security-boundary.md:5-35；frontend creative-asset-sync.md:25-41。",
+        "资产同步验收：Opentu outbound prepare 必须纯函数式地把本地媒体上传/改写为 `/creative/api/assets/:id/content`，后端资产 API 必须 owner-scoped、支持 Range、隐藏存储细节、S3 production fail-closed、DB storage 仅 local/test/canary、quota DB-authoritative、删除两阶段。证据：backend creative-asset-sync.md:12-53, 55-96；frontend creative-asset-sync.md:12-52, 60-71。",
+        "异步生成验收：Video、Suno、MJ 在 session-broker 下使用 canonical routes、稳定 idempotency key、server-side model/action inference（Suno/MJ）、owner-scoped fetch/content/image proxy、stored selected-key affinity、unsupported no-fallback、前端不发送上游凭据或路由覆盖。证据：backend creative-async-video-relay.md:13-55；backend creative-async-suno-relay.md:13-61；backend creative-async-mj-relay.md:14-76；frontend creative-async-video-relay.md:12-52；frontend creative-async-suno-relay.md:12-58；frontend creative-async-mj-relay.md:13-59。",
+        "计费一致性验收：Creative async submit success 必须缓冲到 provider success、Task insert、idempotency completion、submit_settle 完成或 durable outbox；terminal polling 必须 CAS single-winner，再 settle/refund；Creative idempotent task 缺 upstream id 或 selected key 时 fail-closed，不走 legacy fallback。证据：backend creative-async-task-billing-consistency.md:13-38, 39-65。"
+      ],
+      "nextActions": [
+        "修正 `new-api/docs/openapi/creative-embed.md` 的 Suno/MJ route matrix，并同步 README*.md Creative Embed 入口。",
+        "将 `creative-async-task-billing-consistency.md` 加入 backend spec index，或显式标为非 active。",
+        "建立一个 combined Creative Embed acceptance index，声明 docs/spec/source 的优先级、canonical routes、MVP/out-of-scope 与测试映射。",
+        "后续 goal-attainment audit 可按 active specs 的 Tests Required 映射到 Go targeted tests 与 Opentu Vitest/typecheck，而不是按 stale matrix。"
+      ],
+      "score": 78,
+      "status": "partial",
+      "summary": "当前目标总体可重建且大部分 active Creative specs 具备可测试验收矩阵；但 combined 目标没有单一权威索引，且 new-api Creative Embed docs 与 active specs/source 存在路由冲突，backend index 也漏掉一个横切 billing consistency spec。因此目标清晰度和可测试性为“部分满足”。",
+      "verificationGaps": [
+        "未运行 Go/Vitest/typecheck；本轮仅按用户要求做目标/验收重建与只读审计，未验证测试实际通过。",
+        "未读取 previous reports、archive task outputs、codex-flow/codebuddy 产物；因此未利用历史结论。",
+        "未调用任何生产端点或外部官方文档；结论仅基于当前本地 README/docs/spec/source/package scripts/tests。",
+        "未对所有 source files 做全量审计；源码读取仅用于验证 docs/spec 中的 canonical routes 与测试入口。"
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.9,
+          "details": "活跃 Creative specs 自身具备较强可测试性：每个核心合同均包含 Signatures、Contracts、Validation & Error Matrix、Good/Base/Bad Cases、Tests Required。",
+          "evidence": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-backend-security-boundary.md:36-65",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-asset-sync.md:55-96",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md:31-55",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md:37-59"
+          ],
+          "id": "VN-GOAL-001",
+          "impact": "后续验收可直接转化为 targeted tests/checklists；问题主要是索引和外部 docs 冲突，不是 specs 缺少验收标准。",
+          "recommendation": "保持该 spec 模板，并在 combined index 中引用这些 Tests Required。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "活跃 Creative specs 已包含明确测试验收矩阵"
+        },
+        {
+          "confidence": 0.87,
+          "details": "当前前后端源码对 Suno/MJ session-broker canonical paths 基本一致，支持 active specs；不支持 stale matrix 中的 `/music` 作为 Suno 主路径。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/router/web-router.go:118-130",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts:866-902",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:118-166"
+          ],
+          "id": "VN-GOAL-002",
+          "impact": "路由冲突目前主要表现为文档/验收口径风险，而不是现有 Opentu 与 new-api canonical path 不一致。",
+          "recommendation": "优先修文档矩阵；不要为迎合 stale matrix 回退到 `/music` 或将 MJ imagine 伪装成 `/images/generations`。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "当前 Suno/MJ 源码与 active specs 的 canonical paths 对齐"
+        },
+        {
+          "confidence": 0.82,
+          "details": "Opentu package scripts 与 tsconfig.spec 已提供 typecheck/lint/test/e2e 等本地验证入口，且 spec tests 会包含 `src/**/*.test.ts(x)`。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/package.json:25-39",
+            "/mnt/f/code/project/opentu/packages/drawnix/tsconfig.spec.json:12-22"
+          ],
+          "id": "VN-GOAL-003",
+          "impact": "frontend acceptance 不只是文档描述，具备可映射到本地脚本的验证路径。",
+          "recommendation": "在 combined acceptance index 中列明最小必跑命令和 targeted Vitest suites。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Opentu 侧存在可用的本地验证入口"
+        }
+      ]
+    },
+    {
+      "area": "new2fly orchestration and Trellis governance",
+      "confidence": 0.88,
+      "evidenceFiles": [
+        "AGENTS.md",
+        ".gitignore",
+        ".trellis/.gitignore",
+        ".trellis/config.yaml",
+        ".trellis/workflow.md",
+        ".trellis/workflow.md.new",
+        ".trellis/scripts/common/config.py",
+        ".trellis/scripts/common/packages_context.py",
+        ".trellis/scripts/common/session_context.py",
+        ".trellis/spec/backend/index.md",
+        ".trellis/spec/frontend/index.md",
+        ".trellis/spec/backend/creative-async-task-billing-consistency.md",
+        ".trellis/tasks/00-bootstrap-guidelines/task.json",
+        ".trellis/tasks/00-bootstrap-guidelines/prd.md",
+        ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/task.json",
+        ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/prd.md",
+        ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/design.md",
+        ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/implement.md",
+        ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/implement.jsonl",
+        ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/check.jsonl"
+      ],
+      "findings": [
+        {
+          "confidence": 0.9,
+          "details": "new2fly 当前 Trellis 配置没有声明 sibling repos 为 packages/git packages；`get_context.py --mode packages` 返回 single-repo，active task 的 `package`/`scope` 也是 null。虽然任务 PRD/设计明确覆盖 `/mnt/f/code/project/new-api` 与 `/mnt/f/code/project/opentu`，Trellis 运行时不会自动展示或治理这两个独立 git repo 的状态、包作用域、spec 路由。推断影响：跨仓任务依赖人工在任务文档里写路径，容易漏读 sibling repo 的 AGENTS/spec/git 状态。",
+          "evidence": [
+            ".trellis/config.yaml:61-77 只有 packages 示例注释；实际有效配置跳到 channel/codex。",
+            ".trellis/scripts/common/config.py:271-289：无 packages 时返回 single-repo。",
+            ".trellis/scripts/common/session_context.py:178-191：独立 package git 状态只以 config.yaml 中 `git: true` 为权威。",
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/task.json:8-9：scope/package 为 null。",
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/prd.md:5-9：任务目标覆盖 new2fly/new-api/opentu 三个目录。"
+          ],
+          "id": "NF-001",
+          "impact": "跨仓协调能力部分失效；主上下文与 sub-agent 可能只看到 new2fly 的 Trellis 状态，无法系统性约束 new-api/opentu 的检查、提交边界和 spec 注入。",
+          "recommendation": "在 `.trellis/config.yaml` 声明 `new-api`、`opentu` 为 packages（含 `path` 与 `git: true`，或建立明确的外部 workspace 路由），并将对应 specs 改为 package/layer 结构；给跨仓任务设置 scope/package 或父子任务映射。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "Trellis 仍按 single-repo 运行，未把 new-api/opentu 纳入可治理 package 图"
+        },
+        {
+          "confidence": 0.95,
+          "details": "大量基础 backend/frontend spec 仍是 Trellis 初始化模板，index 也标记为 `To fill`。bootstrap 任务仍 in_progress，且 PRD 明确说明空 spec 会让 sub-agent 写 generic code。",
+          "evidence": [
+            ".trellis/spec/backend/index.md:17-21：Directory/Database/Error/Quality/Logging 均为 `To fill`。",
+            ".trellis/spec/frontend/index.md:17-21：Directory/Component/Hook/State/Quality 均为 `To fill`。",
+            ".trellis/spec/backend/directory-structure.md:9-19、23-30、34-54：仍为模板问题与 `(To be filled by the team)`。",
+            ".trellis/spec/frontend/component-guidelines.md:9-20、23-59：仍为模板问题与 `(To be filled by the team)`。",
+            ".trellis/tasks/00-bootstrap-guidelines/task.json:5-6：Bootstrap Guidelines 仍 in_progress。",
+            ".trellis/tasks/00-bootstrap-guidelines/prd.md:10-14：空 spec 会导致 sub-agents 写 generic code。"
+          ],
+          "id": "NF-002",
+          "impact": "核心工程规范缺失；即使 creative 专项 specs 较完整，目录、错误处理、日志、测试、组件、状态管理等日常改动仍缺少项目真实约束。",
+          "recommendation": "优先完成 bootstrap task：用 new-api/opentu 当前代码与本地 AGENTS/README/CONTRIBUTING 提炼真实规范，移除模板占位，并把 index 状态改为 Active/Partial。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "基础 spec scaffolds 未完成，sub-agent 容易退化为通用编码风格"
+        },
+        {
+          "confidence": 0.93,
+          "details": "`creative-async-task-billing-consistency.md` 是实质性后端合同，覆盖 async submit、idempotency、billing outbox、key affinity 等高风险路径，但它没有出现在 backend index，也没有进入 active task 的 implement/check manifests。",
+          "evidence": [
+            ".trellis/spec/backend/creative-async-task-billing-consistency.md:7-9：覆盖 new-api async task submit/polling/billing/key affinity 代码。",
+            ".trellis/spec/backend/creative-async-task-billing-consistency.md:28-37：定义 submit 成功缓冲、CAS、outbox claim、Creative key affinity 等合同。",
+            ".trellis/spec/backend/creative-async-task-billing-consistency.md:58-65：列出必测项。",
+            ".trellis/spec/backend/index.md:22-26：backend index 只列 security/assets/video/suno/mj，未列 billing consistency。",
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/implement.jsonl:1-11 与 check.jsonl:1-11 均未包含该文件。"
+          ],
+          "id": "NF-003",
+          "impact": "最容易造成双扣费、双退款、重放提交、错误 key fallback 的规范可能不会被 implement/check agents 自动加载。",
+          "recommendation": "把该文件加入 `.trellis/spec/backend/index.md`，并补进当前 task 的 `implement.jsonl`/`check.jsonl`；如有 frontend 对应影响，也补充前端或 cross-layer spec。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "关键 billing/idempotency spec 存在但未被索引或注入当前任务"
+        },
+        {
+          "confidence": 0.84,
+          "details": "当前 active task 是 in_progress，但 PRD 接受项仍全部未勾选；同一目录下存在 report/arbitration/remediation 文件（本次未读取内容），而用户明确要求 fresh re-audit 不依赖旧报告。任务文档还要求 codex-flow 多代理全三仓审计，而本次用户只要求 orchestration-only 子审计。",
+          "evidence": [
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/task.json:6：status 为 in_progress。",
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/prd.md:38-45：接受项仍为未勾选。",
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/prd.md:27、42：要求排除 prior reports/archive conclusions。",
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/design.md:27-35：设计为七个全三仓审计 lens。",
+            "安全列目录发现当前 task 下存在 report.md、arbitration-2026-06-12.md、remediation-2026-06-12.md；未读取内容。"
+          ],
+          "id": "NF-004",
+          "impact": "新审计员在读取 task artifacts 时容易误读旧报告，或因任务总目标与当前子审计范围不一致而扩大/污染范围。",
+          "recommendation": "把当前 fresh re-audit 拆为 child task 或在 active task 增加明确的 sub-area artifact；将旧 report/arbitration/remediation 移到 archive/ignored evidence 区，或在 task README/manifest 中强制 exclude。",
+          "severity": "medium",
+          "status": "likely",
+          "title": "active task 证据边界不干净，fresh audit 与旧产物同目录共存"
+        },
+        {
+          "confidence": 0.78,
+          "details": "workflow 治理文档存在陈旧/分叉信号：正式 `.trellis/workflow.md` 的“Full contract”路径指向不存在的 `.trellis/spec/cli/backend/workflow-state-contract.md` 和 `.trellis/scripts/inject-workflow-state.py`；同时存在被 `.trellis/.gitignore` 忽略的 `.trellis/workflow.md.new`，其内容是 channel-worker workflow，与当前正式 workflow 的 sub-agent flow 不同。",
+          "evidence": [
+            ".trellis/workflow.md:705-710：引用 missing full contract 和旧脚本路径。",
+            ".codex/hooks/inject-workflow-state.py:183、319-342：实际 Codex hook 从 `.trellis/workflow.md` 读取 workflow-state 并注入。",
+            ".trellis/.gitignore:24-29：忽略 `.backup-*` 与 `*.new`。",
+            ".trellis/workflow.md.new:1-11：另一个 channel-driven workflow 草案仍在工作区。",
+            ".trellis/workflow.md:225-230：正式 in_progress breadcrumb 使用 trellis-implement/trellis-check sub-agent flow。"
+          ],
+          "id": "NF-005",
+          "impact": "维护者排查 workflow-state 时会被错误路径误导；忽略但存在的 workflow 草案可能被人工搜索或 agent 宽泛读取误当作当前规范。",
+          "recommendation": "修正文档引用到实际 hook/spec 位置；删除或归档 `.trellis/workflow.md.new` 与备份目录，必要时在搜索/agent 指南中显式排除 ignored workflow drafts。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "workflow 文档存在 stale references 和 ignored 分叉草案"
+        },
+        {
+          "confidence": 0.86,
+          "details": "root `.gitignore` 只忽略 `.codegraph/`、`.codex-flow/` 和 Claude local settings，未忽略 `.cache/`；安全检查显示 `.cache` 下有 8084 个 Go build cache 文件处于 untracked top-level 目录。",
+          "evidence": [
+            ".gitignore:1-6：未包含 `.cache/`。",
+            "安全命令 `find .cache -type f | wc -l` 返回 8084。",
+            "`git status --short -uno` 只显示 spec/journal 修改；开启 untracked 后出现大量 `.cache/go-build/...`。"
+          ],
+          "id": "NF-006",
+          "impact": "git status 噪音会干扰 Trellis Phase 3.4 的提交分组、审计复现和脏工作区判断。",
+          "recommendation": "将 `.cache/` 加入 root `.gitignore`，并清理本地 cache；避免在 orchestration repo 内生成语言构建缓存。",
+          "severity": "low",
+          "status": "confirmed",
+          "title": "本地 build cache 未忽略，污染 orchestration 工作区状态"
+        }
+      ],
+      "goals": [
+        "验证 new2fly 是否作为 Trellis orchestration workspace 有清晰的工作流状态、任务状态和证据边界。",
+        "检查 active specs/indexes 是否完整、无 stale placeholder，并能覆盖 new-api/opentu 跨仓合同。",
+        "评估 new2fly 是否通过配置、任务 manifests、AGENTS/workflow 有效协调 sibling repos。"
+      ],
+      "nextActions": [
+        "先修 NF-003：把 billing consistency spec 纳入 backend index 与当前 task manifests。",
+        "修 NF-001：在 `.trellis/config.yaml` 建立 new-api/opentu package/git repo 映射，并按 package 组织 specs 或明确外部仓治理规则。",
+        "完成 bootstrap task，清理所有 `(To be filled by the team)` 基础 specs。",
+        "隔离当前 task 旧报告产物，给 fresh sub-audit 建 child task 或独立 manifest。",
+        "清理 `.trellis/workflow.md.new`、修正 workflow stale references，并忽略/清理 `.cache/`。"
+      ],
+      "score": 52,
+      "status": "partial",
+      "summary": "new2fly 已具备 Trellis workflow、active task、creative 专项 specs 和 curated jsonl manifests，因此 orchestration 基础可用；但它仍以 single-repo 模式运行，未把 new-api/opentu 纳入 package/git governance，基础 specs 大量未完成，一个关键 billing/idempotency spec 未索引，active task 证据边界混有旧报告产物，workflow 文档也有 stale 分叉痕迹。整体为“部分达成”，高风险集中在跨仓协调与 spec 注入完整性。",
+      "verificationGaps": [
+        "未读取 report.md、arbitration*.md、remediation*.md、archive task outputs、.codex-flow journals 或 prior assistant messages。",
+        "按用户要求仅审计 new2fly orchestration；没有深入验证 new-api/opentu 业务代码实现。",
+        "当前环境为 read-only，未修改/清理任何文件，也未运行会写入或依赖生产/secret 的命令。",
+        "未运行 codex-flow workflow；本次依据当前源码、spec、task artifacts、配置与安全本地检查。"
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.9,
+          "details": "backend/frontend/guides index 中已经列出的 markdown links 均能解析到现有文件；问题不是 broken link，而是有重要文件未被 index 引用。",
+          "evidence": [
+            ".trellis/spec/backend/index.md:17-26",
+            ".trellis/spec/frontend/index.md:17-26",
+            ".trellis/spec/guides/index.md:24-25",
+            "本地 link check 对三个 index 的已列链接均返回 OK。"
+          ],
+          "id": "VNI-001",
+          "impact": "已列 specs 的基础可达性正常。",
+          "recommendation": "保持 link check；另加 unreferenced-spec check。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "已列 spec index 链接未发现缺失目标"
+        },
+        {
+          "confidence": 0.88,
+          "details": "active task 的 implement/check manifests 不是 seed-only，`task.py validate` 报告 11 entries 且通过。",
+          "evidence": [
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/implement.jsonl:1-11",
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/check.jsonl:1-11",
+            "`python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-12-newapi-opentu-goal-attainment-audit` 输出 All validations passed。"
+          ],
+          "id": "VNI-002",
+          "impact": "sub-agent 至少会加载当前列出的 creative specs；NF-003 是遗漏特定关键 spec，不是 manifests 全空。",
+          "recommendation": "保留 validate，同时扩展 validate 以发现未索引/未注入的 active spec。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "当前 task JSONL manifest 结构有效"
+        },
+        {
+          "confidence": 0.86,
+          "details": "正式 workflow 的主要 workflow-state blocks 存在，且 Codex sub-agent 模式在 config 与 hook 中可见。",
+          "evidence": [
+            ".trellis/workflow.md:176-180 no_task block。",
+            ".trellis/workflow.md:192-197 planning block。",
+            ".trellis/workflow.md:225-230 in_progress block。",
+            ".trellis/config.yaml:111-112 设置 `codex.dispatch_mode: sub-agent`。",
+            ".codex/hooks/inject-workflow-state.py:250-272 根据 Codex dispatch_mode 选择 breadcrumb key。"
+          ],
+          "id": "VNI-003",
+          "impact": "当前 per-turn breadcrumb 机制不是完全缺失；NF-005 只针对 stale references/ignored draft 的维护风险。",
+          "recommendation": "继续使用正式 `.trellis/workflow.md` 作为唯一 workflow-state source，并清理陈旧副本。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "核心 workflow-state 注入路径存在"
+        }
+      ]
+    },
+    {
+      "area": "cross-repo end-to-end contract compatibility",
+      "confidence": 0.94,
+      "evidenceFiles": [
+        "/mnt/f/code/project/new-api/controller/creative.go",
+        "/mnt/f/code/project/new-api/controller/creative_asset.go",
+        "/mnt/f/code/project/new-api/dto/openai_video.go",
+        "/mnt/f/code/project/new-api/middleware/creative.go",
+        "/mnt/f/code/project/new-api/model/task.go",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/opentu/services/creative-mode.ts",
+        "/mnt/f/code/project/opentu/services/creative-session-broker.ts",
+        "/mnt/f/code/project/opentu/services/provider-routing/provider-transport.ts",
+        "/mnt/f/code/project/opentu/services/video-api-service.ts",
+        "/mnt/f/code/project/opentu/services/audio-api-service.ts",
+        "/mnt/f/code/project/opentu/services/model-adapters/mj-image-adapter.ts",
+        "/mnt/f/code/project/opentu/services/creative-document-assets.ts",
+        "/mnt/f/code/project/opentu/services/creative-document-sync.ts"
+      ],
+      "findings": [],
+      "goals": [
+        "Audit current source only for contract compatibility between ../opentu client expectations and ../new-api responses/routes.",
+        "Focus on /creative/api/bootstrap/models/assets/documents, /creative/relay/v1/videos, /suno, /mj, X-Creative-CSRF, X-Creative-Nonce, Idempotency-Key, status enums, DTO fields, local task ids, asset content URLs, MJ image proxy, and video content."
+      ],
+      "nextActions": [
+        "For higher assurance, run the focused test suites in both repositories: new-api creative/video proxy tests and opentu provider/video/audio/MJ/document tests.",
+        "Add/keep cross-repo contract tests for bootstrap auth header propagation, relay idempotency key requirements, media status enums, asset content URL unwrapping, and MJ/video proxy URLs."
+      ],
+      "score": 92,
+      "status": "met",
+      "summary": "Fresh read-only audit found no confirmed current contract mismatch in the requested surface. Current code shows canonical routes, header propagation, idempotency-key forwarding, status handling, document/asset DTO unwrapping, MJ proxy URLs, and video content paths are aligned. Remaining risk is mostly absence of an executable cross-repo contract suite in this audit run, not an observed incompatibility.",
+      "verificationGaps": [
+        "Commands were bounded to source/spec/test inspection; no dependency install, server startup, or live endpoint calls were performed.",
+        "Current tests were inspected as evidence but not executed in this read-only/no-install audit pass.",
+        "No database fixture was loaded, so DB-dependent model endpoint-type availability was inferred from current code paths and tests rather than live data."
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.97,
+          "details": "The frontend fetches bootstrap from `/creative/api/bootstrap`, expects `auth.csrfToken`, `auth.nonce`, optional auth user/groups/models, and stores them in creative mode. The backend mounts the same route and returns `auth` with `csrfToken`, `nonce`, `expiresAt`, user, groups and capabilities. Unsafe session-broker requests then attach `X-Creative-CSRF` and `X-Creative-Nonce`, and backend middleware validates those headers against the issued cookie/session nonce. This contradicts the suspected CSRF/nonce mismatch.",
+          "evidence": [
+            "/mnt/f/code/project/new-api/router/web-router.go:53-88",
+            "/mnt/f/code/project/new-api/controller/creative.go:152-205",
+            "/mnt/f/code/project/new-api/middleware/creative.go:19-63",
+            "/mnt/f/code/project/new-api/middleware/creative.go:81-130",
+            "/mnt/f/code/project/opentu/services/creative-mode.ts:55-64",
+            "/mnt/f/code/project/opentu/services/creative-session-broker.ts:167-193",
+            "/mnt/f/code/project/opentu/services/provider-routing/provider-transport.ts:243-327"
+          ],
+          "id": "VNI-CSRF-NONCE-BOOTSTRAP",
+          "impact": "No observed auth bootstrap/header contract break for current session-broker requests.",
+          "recommendation": "Keep a focused integration test that bootstraps then performs one unsafe relay request with both creative headers.",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Bootstrap auth and X-Creative-CSRF/X-Creative-Nonce propagation align"
+        },
+        {
+          "confidence": 0.93,
+          "details": "The frontend model loader infers capabilities from `type`, `modality`, `modalities`, `supported_endpoint_types`, and model id text. The backend `/creative/api/models` returns `supported_endpoint_types` for each model. Current endpoint constants include chat, image, video, and audio-compatible endpoints, so video/audio/image model capability inference has a current-code source. No mismatch was found on field naming or capability array shape.",
+          "evidence": [
+            "/mnt/f/code/project/new-api/controller/creative.go:207-222",
+            "/mnt/f/code/project/new-api/controller/model.go:153-169",
+            "/mnt/f/code/project/new-api/dto/pricing.go:6-12",
+            "/mnt/f/code/project/new-api/constant/endpoint_type.go:3-18",
+            "/mnt/f/code/project/opentu/services/creative-session-broker.ts:79-98",
+            "/mnt/f/code/project/opentu/services/creative-session-broker.ts:232-274"
+          ],
+          "id": "VNI-MODELS-ENDPOINT-TYPES",
+          "impact": "No observed `/creative/api/models` field or endpoint-type incompatibility for image/video/audio/text capability inference.",
+          "recommendation": "Maintain fixture coverage with representative models whose `supported_endpoint_types` include image, video and audio endpoints.",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Model capability DTO and frontend inference align"
+        },
+        {
+          "confidence": 0.95,
+          "details": "The frontend requires an idempotency key for session-broker media submits and sends stable values derived from local task/request ids. The backend rejects relay submits without `Idempotency-Key` or `X-Creative-Request-Id`, and its idempotency code keys video/Suno/MJ records by the local creative idempotency key. This is compatible with local task id based deduplication; no missing-header mismatch was found.",
+          "evidence": [
+            "/mnt/f/code/project/new-api/controller/creative.go:519-552",
+            "/mnt/f/code/project/new-api/controller/creative.go:740-939",
+            "/mnt/f/code/project/new-api/model/task.go:164-263",
+            "/mnt/f/code/project/opentu/services/provider-routing/provider-transport.ts:346-370",
+            "/mnt/f/code/project/opentu/services/video-api-service.ts:441-554",
+            "/mnt/f/code/project/opentu/services/audio-api-service.ts:866-908",
+            "/mnt/f/code/project/opentu/services/model-adapters/mj-image-adapter.ts:118-180"
+          ],
+          "id": "VNI-IDEMPOTENCY-LOCAL-TASK",
+          "impact": "No observed relay submit incompatibility from missing or unstable idempotency/local-task identifiers.",
+          "recommendation": "Keep tests asserting duplicate submits with the same key return the original task rather than creating another upstream task.",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Idempotency-Key and local task id propagation align"
+        },
+        {
+          "confidence": 0.94,
+          "details": "The backend video DTO uses `id`, `object`, `model`, `status`, `created_at`, `completed_at`, `expires_at`, optional `error`, and maps successful tasks to `completed`. The frontend polling code accepts `completed` as a terminal successful status and constructs `/creative/relay/v1/videos/:id/content` for video content. The backend mounts and serves that content path only for successful tasks through the video proxy. No `succeeded` vs `completed` mismatch was found in the active new-api path.",
+          "evidence": [
+            "/mnt/f/code/project/new-api/dto/openai_video.go:8-53",
+            "/mnt/f/code/project/new-api/model/task.go:20-45",
+            "/mnt/f/code/project/new-api/model/task.go:713-722",
+            "/mnt/f/code/project/new-api/controller/creative.go:703-709",
+            "/mnt/f/code/project/new-api/relay/relay_task.go:411-466",
+            "/mnt/f/code/project/opentu/services/video-api-service.ts:676-798",
+            "/mnt/f/code/project/opentu/services/media-api/video-api.ts:328-503"
+          ],
+          "id": "VNI-VIDEO-STATUS-CONTENT",
+          "impact": "No observed video status enum or content URL contract mismatch for completed new-api tasks.",
+          "recommendation": "Retain compatibility handling for both `completed` and `succeeded` if other providers use OpenAI-compatible variants.",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Video status enum and content path align"
+        },
+        {
+          "confidence": 0.92,
+          "details": "Backend asset create/list/get responses place asset objects under `data.asset` or `data.assets`, with content URL `/creative/api/assets/:id/content`. The frontend unwrappers accept `url`, `contentUrl`, and nested `asset.url`/`asset.contentUrl`, validate same-origin creative asset content URLs, and use them for document image references. Current code therefore contradicts the suspected asset content URL field mismatch.",
+          "evidence": [
+            "/mnt/f/code/project/new-api/controller/creative_asset.go:22-129",
+            "/mnt/f/code/project/new-api/service/creative_asset.go:102-111",
+            "/mnt/f/code/project/new-api/model/creative_asset.go:424-547",
+            "/mnt/f/code/project/opentu/services/creative-document-assets.ts:211-238",
+            "/mnt/f/code/project/opentu/services/creative-document-assets.ts:593-750",
+            "/mnt/f/code/project/opentu/services/creative-document-assets.ts:761-855"
+          ],
+          "id": "VNI-ASSET-CONTENT-URL",
+          "impact": "No observed asset content URL shape mismatch for current create/list/get/content flows.",
+          "recommendation": "Keep the dual `url`/`contentUrl` frontend tolerance unless backend DTO is formally frozen to one field.",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Asset DTO/content URL contract aligns"
+        },
+        {
+          "confidence": 0.91,
+          "details": "Backend document responses use `data.document`/`data.documents`, revision metadata, and created/updated time fields. Frontend document sync unwraps these envelopes and maps revision and time fields while handling the current backend response shape. No document envelope or timestamp field mismatch was found.",
+          "evidence": [
+            "/mnt/f/code/project/new-api/controller/creative.go:296-479",
+            "/mnt/f/code/project/new-api/controller/creative.go:1901-1934",
+            "/mnt/f/code/project/opentu/services/creative-document-sync.ts:491-509",
+            "/mnt/f/code/project/opentu/services/creative-document-sync.ts:572-676"
+          ],
+          "id": "VNI-DOCUMENT-DTO",
+          "impact": "No observed `/creative/api/documents` response-envelope incompatibility for current sync flows.",
+          "recommendation": "Add contract tests around create/update/list conflict/revision responses if not already covered end-to-end.",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Document DTO envelope and revision fields align"
+        },
+        {
+          "confidence": 0.9,
+          "details": "The frontend MJ adapter submits to `/creative/relay/v1/mj`, polls/list-fetches MJ task DTOs, and expects `imageUrl` for successful images. Backend MJ DTO construction emits `imageUrl` as `/creative/relay/v1/mj/image/:task_id` when a successful task has a result URL, and mounts that image proxy route. If a successful upstream task lacks a result URL, backend withholds `imageUrl`; the frontend continues polling/timeout rather than consuming an invalid URL. That is a degraded-provider-data path, not a demonstrated frontend/backend contract mismatch in current code.",
+          "evidence": [
+            "/mnt/f/code/project/new-api/controller/creative.go:554-682",
+            "/mnt/f/code/project/new-api/controller/creative.go:1066-1155",
+            "/mnt/f/code/project/opentu/services/model-adapters/mj-image-adapter.ts:32-99",
+            "/mnt/f/code/project/opentu/services/model-adapters/mj-image-adapter.ts:199-242"
+          ],
+          "id": "VNI-MJ-IMAGE-PROXY",
+          "impact": "No observed MJ image proxy path/field mismatch when backend has a task result URL; missing upstream result URL remains a provider-data edge case.",
+          "recommendation": "Consider surfacing a clearer terminal error if status is success but result URL is absent for repeated polls.",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "MJ image proxy field and path align"
+        },
+        {
+          "confidence": 0.89,
+          "details": "The backend explicitly mounts canonical creative routes and has guards against malformed relay material such as double-v1/trailing slash cases. The frontend uses the canonical `/creative/api/*` and `/creative/relay/v1/*` paths. No route-prefix mismatch was found for the audited bootstrap, models, assets, documents, videos, Suno, or MJ surfaces.",
+          "evidence": [
+            "/mnt/f/code/project/new-api/router/web-router.go:53-160",
+            "/mnt/f/code/project/new-api/controller/creative.go:481-517",
+            "/mnt/f/code/project/opentu/services/provider-routing/provider-transport.ts:88-216",
+            "/mnt/f/code/project/opentu/services/audio-api-service.ts:974-1245",
+            "/mnt/f/code/project/opentu/services/video-api-service.ts:182-188"
+          ],
+          "id": "VNI-CANONICAL-ROUTES",
+          "impact": "No observed route prefix/versioning mismatch in current client/server code.",
+          "recommendation": "Keep route-construction centralized in opentu and reject malformed relay prefixes in new-api as regression protection.",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Canonical creative API/relay routes align"
+        }
+      ]
+    },
+    {
+      "area": "quality gates, CI, and test coverage",
+      "confidence": 0.88,
+      "evidenceFiles": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/quality-guidelines.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/quality-guidelines.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/type-safety.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md",
+        "/mnt/f/code/project/new-api/.github/workflows/pr-check.yml",
+        "/mnt/f/code/project/new-api/.github/workflows/release.yml",
+        "/mnt/f/code/project/new-api/.github/workflows/electron-build.yml",
+        "/mnt/f/code/project/new-api/Dockerfile",
+        "/mnt/f/code/project/new-api/go.mod",
+        "/mnt/f/code/project/new-api/web/default/package.json",
+        "/mnt/f/code/project/new-api/web/classic/package.json",
+        "/mnt/f/code/project/new-api/web/default/src/components/ui/dropdown-menu.test.tsx",
+        "/mnt/f/code/project/new-api/controller/creative_test.go",
+        "/mnt/f/code/project/new-api/service/task_polling_affinity_test.go",
+        "/mnt/f/code/project/new-api/relay/channel/task/mj/adaptor_test.go",
+        "/mnt/f/code/project/opentu/.github/workflows/ci.yml",
+        "/mnt/f/code/project/opentu/package.json",
+        "/mnt/f/code/project/opentu/packages/drawnix/project.json",
+        "/mnt/f/code/project/opentu/packages/drawnix/tsconfig.lib.json",
+        "/mnt/f/code/project/opentu/packages/drawnix/tsconfig.spec.json",
+        "/mnt/f/code/project/opentu/packages/drawnix/vitest.config.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/video-api-service.session-broker.test.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/audio-api-service.test.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.session-broker.test.ts",
+        "/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.test.ts"
+      ],
+      "findings": [
+        {
+          "confidence": 0.94,
+          "details": "new-api 有大量 Go 测试，但当前 GitHub Actions 没有在 pull_request/push 上运行 go test、go vet、lint、typecheck 或前端测试。唯一 PR 工作流是 pull_request_target 上的 anti-slop 模板检查；release/electron/docker 工作流主要执行 bun build/go build/docker build。Dockerfile 同样只 install/build，不运行测试。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/.github/workflows/pr-check.yml:8-16",
+            "/mnt/f/code/project/new-api/.github/workflows/release.yml:31-39",
+            "/mnt/f/code/project/new-api/.github/workflows/release.yml:50-57",
+            "/mnt/f/code/project/new-api/.github/workflows/electron-build.yml:44-64",
+            "/mnt/f/code/project/new-api/Dockerfile:7-10",
+            "/mnt/f/code/project/new-api/Dockerfile:33-41"
+          ],
+          "id": "QG-001",
+          "impact": "后端/API 网关的关键目标（安全边界、异步任务、计费幂等、资源代理）即使有测试文件，也不会被 CI 自动证明；当前代码是否通过测试未知，发布构建也可能绕过回归。",
+          "recommendation": "新增 new-api CI：on pull_request/push 运行 go test ./...、关键包 targeted go test、go vet/staticcheck（如采用）、web/default typecheck+lint+build:check、web/classic lint/eslint/build，并在 release/docker publish 前依赖该质量门禁。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "new-api 缺少可证明目标达成的 PR/Push 自动质量门禁"
+        },
+        {
+          "confidence": 0.9,
+          "details": "new-api web/default 有一个 TSX 测试文件使用 node:test，但 package.json 没有 test 脚本，也未看到 vitest/jest/playwright 运行配置；web/classic 只有 build/lint/eslint 等脚本。release/electron 工作流只 build 前端，且 default 构建命令设置 DISABLE_ESLINT_PLUGIN。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/web/default/package.json:6-18",
+            "/mnt/f/code/project/new-api/web/classic/package.json:46-58",
+            "/mnt/f/code/project/new-api/web/default/src/components/ui/dropdown-menu.test.tsx:1-3",
+            "/mnt/f/code/project/new-api/.github/workflows/release.yml:31-39",
+            "/mnt/f/code/project/new-api/.github/workflows/electron-build.yml:44-52"
+          ],
+          "id": "QG-002",
+          "impact": "API 网关前端存在测试意图但不可执行/不可发现，构建不能证明 UI 行为或类型安全目标；前端回归可能只在人工或运行时暴露。",
+          "recommendation": "为 web/default 明确添加 test 脚本和测试依赖/runner（例如 bun test 或 vitest，按项目约定选择），并把 test/typecheck/lint 纳入 CI；对 classic 至少执行 lint/eslint/build。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "new-api 前端测试未被脚本和 CI 绑定"
+        },
+        {
+          "confidence": 0.92,
+          "details": "opentu 有 CI，但主质量门禁只运行 nx affected -t test build、lint（且 lint 显式 --exclude=drawnix）、smoke/visual/size；未运行 root pnpm check，也未运行 active spec 要求的 packages/drawnix/tsconfig.spec.json --noEmit。当前 drawnix typecheck target 只执行 tsconfig.lib.json，且 tsconfig.lib.json 排除 *.test/*.spec；tsconfig.spec.json 才包含测试文件。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/.github/workflows/ci.yml:37-43",
+            "/mnt/f/code/project/opentu/.github/workflows/ci.yml:53-65",
+            "/mnt/f/code/project/opentu/package.json:34-37",
+            "/mnt/f/code/project/opentu/packages/drawnix/project.json:9-20",
+            "/mnt/f/code/project/opentu/packages/drawnix/tsconfig.lib.json:12-22",
+            "/mnt/f/code/project/opentu/packages/drawnix/tsconfig.spec.json:12-22",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/type-safety.md:45-52",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-video-relay.md:47-52",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-suno-relay.md:52-58",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-async-mj-relay.md:55-59"
+          ],
+          "id": "QG-003",
+          "impact": "前端安全敏感测试夹具可能通过 Vitest 转译执行但绕过 tsc 级别的 spec typecheck；Drawnix 是核心产品包却被 CI lint 排除，无法证明 active Trellis 类型安全和 lint 目标完全达成。",
+          "recommendation": "在 CI 添加 pnpm check 或等价 targets；新增/绑定 drawnix:spec-typecheck（tsc -p packages/drawnix/tsconfig.spec.json --noEmit）并移除或单独补偿 --exclude=drawnix 的 lint 缺口。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "opentu CI 未覆盖 active specs 要求的测试类型检查，并排除了 Drawnix lint"
+        },
+        {
+          "confidence": 0.84,
+          "details": "opentu CI 的 affected 计算固定使用 --base=origin/develop；该仓库确有 origin/develop，但 CI 触发是 main push 和 pull_request。若 PR base 或发布分支不是 develop，受影响项目集合可能与实际合并目标不一致。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/.github/workflows/ci.yml:3-8",
+            "/mnt/f/code/project/opentu/.github/workflows/ci.yml:30-39"
+          ],
+          "id": "QG-004",
+          "impact": "CI 可能少跑或多跑项目；在 goal-attainment 审计中，这降低了 CI 结果对当前目标分支的证明力。",
+          "recommendation": "使用 nx-set-shas 输出或 GitHub 事件 base/head SHA，避免硬编码 origin/develop；至少为 main push 和 PR 分支分别定义基准。",
+          "severity": "medium",
+          "status": "likely",
+          "title": "opentu affected 基准固定到 origin/develop，证明范围可能偏离实际 PR/主干"
+        },
+        {
+          "confidence": 0.86,
+          "details": "检查到测试配置会生成 coverage 目录，但未发现强制覆盖率阈值、coverprofile/codecov 门禁或当前测试结果产物。new-api 没有 CI cover 约束；opentu drawnix/utils/react-board vitest config 只配置 coverage reportsDirectory/provider。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/packages/drawnix/vite.config.ts:107-118",
+            "/mnt/f/code/project/opentu/packages/utils/vite.config.ts:26-33",
+            "/mnt/f/code/project/opentu/packages/react-board/vite.config.ts:50-61"
+          ],
+          "id": "QG-005",
+          "impact": "即使测试能运行，也只能证明有限行为断言，不证明关键目标的覆盖充分性；本次只读审计未发现可复用的当前绿色输出。",
+          "recommendation": "为关键 creative/session-broker/asset/billing 包设置覆盖率报告和最低阈值，保存 CI artifacts，并把 target-specific test matrix 结果纳入发布准入。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "缺少覆盖率阈值和当前绿色测试输出，无法量化目标覆盖充分性"
+        },
+        {
+          "confidence": 0.93,
+          "details": "new2fly 的 active specs 对多个 creative 后端/前端流程列出测试要求，但 backend/frontend quality-guidelines.md 仍是模板占位；Trellis 工作流要求 lint/type-check/tests，但 orchestration workspace 没有仓库级 package/build/test 脚本来统一执行 sibling repo gates。",
+          "evidence": [
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/quality-guidelines.md:7-43",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/quality-guidelines.md:7-43",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md:54-61",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md:69-76",
+            "/mnt/f/code/project/new2fly/.trellis/workflow.md:565-572"
+          ],
+          "id": "QG-006",
+          "impact": "审计/开发流程有规范要求，但缺少稳定、可复用的跨仓库质量门禁清单；不同开发者或 CI 容易漏跑关键验证。",
+          "recommendation": "把 new-api/opentu 的必跑命令、targeted suites、coverage 阈值和发布准入写入 active quality guidelines，并在 new2fly 增加只读验证脚本/文档作为跨仓库 gate 清单。",
+          "severity": "low",
+          "status": "confirmed",
+          "title": "Trellis 质量规范占位，跨仓库验证命令未固化"
+        }
+      ],
+      "goals": [
+        "确认 new-api 与 opentu 的 package scripts、CI、测试文件是否能证明当前开发目标达成。",
+        "核对 active Trellis specs 中对 creative async relay、asset sync、security boundary、type safety 的测试要求是否被脚本/CI 覆盖。",
+        "识别应运行但当前未运行或未被 CI 强制的验证命令。"
+      ],
+      "nextActions": [
+        "在 /mnt/f/code/project/new-api 运行并记录：go test ./...；必要时补充 go test -race ./controller ./middleware ./model ./service ./router ./relay/constant ./relay/common ./relay/channel/task/mj ./relay/channel/task/suno ./relay/channel/task/taskcommon。",
+        "在 /mnt/f/code/project/new-api/web 执行依赖安装后运行：cd default && bun run typecheck && bun run lint && bun run build:check；cd ../classic && bun run lint && bun run eslint && bun run build；为 default 的 TSX 测试补 test 脚本后运行。",
+        "在 /mnt/f/code/project/opentu 运行并记录：pnpm install --frozen-lockfile && pnpm check && pnpm test && pnpm build && pnpm e2e:smoke。",
+        "补跑 active specs 明确要求的前端测试类型检查：pnpm exec tsc -p packages/drawnix/tsconfig.spec.json --noEmit，并对 video/audio/MJ/provider-routing/asset-sync targeted Vitest suites 单独归档结果。",
+        "新增 new-api CI 质量门禁；修正 opentu CI 的 spec typecheck、Drawnix lint 和 affected base；为关键包引入覆盖率阈值和 artifacts。"
+      ],
+      "score": 54,
+      "status": "partial",
+      "summary": "现有源码显示两端都有不少针对 creative/session-broker/asset/billing/security 的测试，尤其 opentu 的前端 targeted suites 和 new-api 的 Go targeted tests 较丰富；但证明链不完整：new-api 没有实际测试/类型/静态检查 CI，opentu CI 漏掉 active specs 要求的 spec typecheck 并排除 Drawnix lint，且没有当前绿色测试输出或覆盖率阈值。因此当前 CI/test coverage 只能部分支持目标达成，不能充分证明 goal attainment。",
+      "verificationGaps": [
+        "未运行测试、构建、lint 或依赖安装；当前环境为只读，且这些命令通常会写入缓存/dist/coverage。",
+        "未发现可作为当前代码通过依据的 test-result/coverage artifacts；不能假设现有测试通过。",
+        "Nx inferred test targets 的实际解析需在 opentu 依赖安装后用 nx show/run 验证；本审计只基于当前配置文件推断。",
+        "new-api Go 测试可能依赖嵌入 dist、SQLite/环境初始化或并发时序；需以真实 go test 输出确认。",
+        "未调用外部 CI 或生产端点；GitHub Actions 实际历史成功率不在本次证据范围。"
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.9,
+          "details": "new-api 并非没有测试：当前源码中发现 58 个 *_test.go，覆盖 controller/middleware/model/service/router/relay 等关键目录；creative relay、idempotency、CAS billing、stored-key affinity、MJ adaptor 等均有 targeted test anchors。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/controller/creative_test.go:441-450",
+            "/mnt/f/code/project/new-api/controller/creative_test.go:1445-1514",
+            "/mnt/f/code/project/new-api/service/task_polling_affinity_test.go:59-97",
+            "/mnt/f/code/project/new-api/service/task_polling_affinity_test.go:182-239",
+            "/mnt/f/code/project/new-api/relay/channel/task/mj/adaptor_test.go:25-106",
+            "/mnt/f/code/project/new-api/model/task_cas_test.go:150-240"
+          ],
+          "id": "VNI-001",
+          "impact": "源码层面的 targeted coverage 基础存在；主要缺口是 CI/命令绑定和当前运行证据，而不是完全缺少测试。",
+          "recommendation": "保留这些 targeted suites，并将其纳入 CI matrix。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "new-api 存在大量后端 targeted tests"
+        },
+        {
+          "confidence": 0.92,
+          "details": "opentu 并非没有 CI：ci.yml 在 main push/pull_request 运行 affected test/build、lint、Playwright smoke、visual regression 和 size；package scripts 也提供 check/test/e2e/build。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/.github/workflows/ci.yml:3-8",
+            "/mnt/f/code/project/opentu/.github/workflows/ci.yml:37-65",
+            "/mnt/f/code/project/opentu/package.json:25-38"
+          ],
+          "id": "VNI-002",
+          "impact": "前端质量门禁已有基础，只需补齐 spec typecheck、Drawnix lint、coverage/artifacts 和 affected base 准确性。",
+          "recommendation": "在现有 CI 上增量加 gate，而不是重建整套 CI。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "opentu 已有基础 CI 与本地脚本"
+        },
+        {
+          "confidence": 0.91,
+          "details": "opentu 的 creative/session-broker/asset sync 相关 targeted tests 覆盖面较广：视频、Suno、MJ、provider transport、creative document assets/sync、service worker pass-through 均有明确测试用例。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/video-api-service.session-broker.test.ts:157-543",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/audio-api-service.test.ts:885-1311",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/provider-routing/provider-transport.session-broker.test.ts:14-374",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.test.ts:55-245",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-assets.test.ts:42-317",
+            "/mnt/f/code/project/opentu/apps/web/src/sw/creative-asset-pass-through.spec.ts:7-18"
+          ],
+          "id": "VNI-003",
+          "impact": "功能目标具备可测试断言基础；若补齐 typecheck/CI 绑定，可显著提升 goal-attainment 证明力。",
+          "recommendation": "把这些 suites 明确列入 CI targeted matrix，并归档结果。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "opentu creative 关键路径已有 targeted test suites"
+        }
+      ]
+    },
+    {
+      "area": "operations, deployment, configuration, and docs",
+      "confidence": 0.86,
+      "evidenceFiles": [
+        "/mnt/f/code/project/new-api/docs/openapi/creative-embed.md",
+        "/mnt/f/code/project/new-api/docs/openapi/api.json",
+        "/mnt/f/code/project/new-api/docs/openapi/relay.json",
+        "/mnt/f/code/project/new-api/.env.example",
+        "/mnt/f/code/project/new-api/docker-compose.yml",
+        "/mnt/f/code/project/new-api/docker-compose.dev.yml",
+        "/mnt/f/code/project/new-api/Dockerfile",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/new-api/service/creative_asset.go",
+        "/mnt/f/code/project/opentu/README.md",
+        "/mnt/f/code/project/opentu/docs/CDN_DEPLOYMENT.md",
+        "/mnt/f/code/project/opentu/docs/NPM_CDN_DEPLOY.md",
+        "/mnt/f/code/project/opentu/docs/CREATIVE_EMBED_DEPLOYMENT.md",
+        "/mnt/f/code/project/opentu/package.json",
+        "/mnt/f/code/project/opentu/apps/web/vite.config.ts",
+        "/mnt/f/code/project/opentu/apps/web/src/sw/cdn-fallback.ts",
+        "/mnt/f/code/project/opentu/apps/web/public/cdn-config.js",
+        "/mnt/f/code/project/opentu/netlify.toml",
+        "/mnt/f/code/project/opentu/vercel.json"
+      ],
+      "findings": [
+        {
+          "confidence": 0.94,
+          "details": "Creative OpenAPI/部署文档与当前路由和活动规格明显不一致：文档把 Suno/MJ 写成 `/music`、`/images/generations`、`/images/fetch`，而当前后端和 Trellis 活动规格的规范路径是 `/suno/submit/:action`、`/suno/fetch/:id`、`/mj/submit/imagine`、`/mj/task/:task_id/fetch`、`/mj/task/list-by-condition`、`/mj/image/:task_id`。同时机器可读 `api.json` 与 `relay.json` 当前没有任何 `/creative` path。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/docs/openapi/creative-embed.md:26-31",
+            "/mnt/f/code/project/new-api/router/web-router.go:118-130",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md:14-16",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md:15-18",
+            "local inspection: docs/openapi/api.json paths=131 creative_paths=0; relay.json paths=35 creative_paths=0"
+          ],
+          "id": "OPS-001",
+          "impact": "部署方、SDK/客户端生成器或验收脚本会按错误接口联调，Suno/MJ Creative 能力即使代码可用也会被文档误导为不可用或调用失败。",
+          "recommendation": "把 `creative-embed.md` 路由矩阵改为当前 canonical routes，并补齐 `/models`、preferences、documents、assets、video/Suno/MJ；同时将 Creative endpoints 纳入机器可读 OpenAPI 或明确标注 sidecar-only，并加文档/路由一致性检查。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "Creative API 文档和 OpenAPI 产物已落后于当前路由"
+        },
+        {
+          "confidence": 0.96,
+          "details": "Opentu CDN/混合部署文档列出的多个命令在当前 `package.json` 中不存在：`deploy`、`deploy:dry`、`deploy:cdn-only`、`deploy:server-only`、`cdn:build`、`cdn:publish`、`deploy:package`。当前实际脚本是 `release*`、`npm:publish*`、`deploy:upload`、`deploy:nginx`。文档还要求 `DEPLOY_WEB_DIR`，但实际打包/上传脚本要求 `DEPLOY_UPLOAD_DIR`、`DEPLOY_SCRIPT_PATH`、`DEPLOY_AUTO_DEPLOY` 等。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/docs/CDN_DEPLOYMENT.md:40-51",
+            "/mnt/f/code/project/opentu/docs/CDN_DEPLOYMENT.md:135-146",
+            "/mnt/f/code/project/opentu/docs/CDN_DEPLOYMENT.md:181-185",
+            "/mnt/f/code/project/opentu/package.json:56-77",
+            "/mnt/f/code/project/opentu/scripts/create-deploy-package.js:120-131",
+            "/mnt/f/code/project/opentu/scripts/create-deploy-package.js:258-261",
+            "/mnt/f/code/project/opentu/scripts/upload-and-deploy.js:7-18"
+          ],
+          "id": "OPS-002",
+          "impact": "值班或发布人员照文档执行会直接失败；服务器部署变量按文档配置后也不足以完成上传/发布，形成发布阻塞。",
+          "recommendation": "同步更新 `CDN_DEPLOYMENT.md` 的命令与 `.env` 模板；或补回兼容 script alias。把混合发布最小可用流程明确为当前 `pnpm release`/`release:dry`/`deploy:upload` 等真实命令。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "Opentu 部署 Runbook 命令和环境变量严重漂移"
+        },
+        {
+          "confidence": 0.91,
+          "details": "NPM CDN 文档和 `publish-npm.js` 输出仍宣称可通过 CDN 访问 `index.html`，但当前发布包明确是“HTML not included”，`files` 列表排除了 `index.html` 与 `sw.js`；混合部署脚本也排除 HTML，并在 npm package metadata 中写入 `htmlIncluded:false`。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/docs/NPM_CDN_DEPLOY.md:26-46",
+            "/mnt/f/code/project/opentu/docs/NPM_CDN_DEPLOY.md:73-85",
+            "/mnt/f/code/project/opentu/scripts/publish-npm.js:86-119",
+            "/mnt/f/code/project/opentu/scripts/publish-npm.js:269-274",
+            "/mnt/f/code/project/opentu/scripts/deploy-hybrid.js:49-57",
+            "/mnt/f/code/project/opentu/scripts/deploy-hybrid.js:1076-1084"
+          ],
+          "id": "OPS-003",
+          "impact": "发布后按文档访问 CDN `index.html` 可能 404；发布脚本的成功提示也会误导验收，且与 Creative 同源 HTML/SW 规则冲突。",
+          "recommendation": "将 NPM CDN 文档改成“静态资源包，不含 HTML”的混合部署模式；修正 `publish-npm.js` 生成 README 和完成提示，或若仍支持完整 HTML 包，则拆成明确的 legacy/full-html 模式。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "NPM CDN 文档/脚本仍承诺发布不存在的 HTML 入口"
+        },
+        {
+          "confidence": 0.9,
+          "details": "CDN 文档仍描述 unpkg + jsDelivr 多 CDN 回退和 unpkg 优先，但当前运行时代码只保留 jsDelivr 与 local/origin fallback：`CDNName` 只有 `jsdelivr | local`，SW 与 `cdn-config.js` 的 `CDN_SOURCES` 均只有 jsDelivr，混合部署的运行时主链路也是 jsDelivr。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/docs/CDN_DEPLOYMENT.md:84-89",
+            "/mnt/f/code/project/opentu/docs/CDN_DEPLOYMENT.md:123-129",
+            "/mnt/f/code/project/opentu/apps/web/src/sw/cdn-fallback.ts:17",
+            "/mnt/f/code/project/opentu/apps/web/src/sw/cdn-fallback.ts:89-98",
+            "/mnt/f/code/project/opentu/apps/web/public/cdn-config.js:74-81",
+            "/mnt/f/code/project/opentu/scripts/deploy-hybrid.js:44-47"
+          ],
+          "id": "OPS-004",
+          "impact": "运维会错误假设存在多 CDN 高可用；当 jsDelivr 异常时，实际只剩源站兜底，监控和容量预案会偏离真实架构。",
+          "recommendation": "二选一：更新文档为“jsDelivr + 源站兜底”；或恢复 unpkg 源并补齐健康检查、熔断、测试和发布等待逻辑。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "多 CDN 文档与当前 jsDelivr-only 运行时不一致"
+        },
+        {
+          "confidence": 0.84,
+          "details": "后端推荐部署路径没有把 Creative 运行时开关整合进去：`.env.example` 已列出 `CREATIVE_*`，源码也实际读取这些变量；但 README 的常用环境变量表未列 Creative 配置，`docker-compose.yml`/dev compose 的 environment block 也没有任何 Creative 注释或 `env_file` 引用。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/.env.example:6-25",
+            "/mnt/f/code/project/new-api/service/creative_asset.go:139-157",
+            "/mnt/f/code/project/new-api/README.md:309-334",
+            "/mnt/f/code/project/new-api/docker-compose.yml:28-42",
+            "/mnt/f/code/project/new-api/docker-compose.dev.yml:29-34"
+          ],
+          "id": "OPS-005",
+          "impact": "按推荐 Docker Compose 部署时 Creative video/asset sync 默认关闭；生产开启资产同步所需的 S3/rollout/canary 配置不在主部署路径中，容易漏配或误用本地 DB 存储。",
+          "recommendation": "在 README 和 compose 中加入 Creative 专段：默认关闭、启用条件、生产必须 S3-compatible、canary DB 限制、完整 S3 变量；建议 compose 使用 `env_file: .env` 或保留注释模板。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "Creative 运行时配置未进入主部署文档和 Compose 模板"
+        },
+        {
+          "confidence": 0.78,
+          "details": "new-api Docker 构建依赖预先存在的 Opentu Creative 构建产物，但当前可见文档没有给出从 `opentu/dist/apps/web` 到 `new-api/web/creative/dist` 的本地/CI 同步步骤。Dockerfile 明确写着该产物由 CI 提供且不在 Dockerfile 中构建；new-api 直接 embed 该目录。此处为基于源码/文档的推断，未检查外部 CI。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/Dockerfile:36-41",
+            "/mnt/f/code/project/new-api/main.go:50-54",
+            "/mnt/f/code/project/opentu/package.json:27-29",
+            "/mnt/f/code/project/opentu/docs/CREATIVE_EMBED_DEPLOYMENT.md:3-11",
+            "/mnt/f/code/project/new-api/web/creative/dist/version.json:1-8"
+          ],
+          "id": "OPS-006",
+          "impact": "本地或非标准 CI 构建 new-api 镜像时可能嵌入过期 Opentu bundle；前后端源码通过测试但发布产物不同步，属于典型运行时漂移风险。",
+          "recommendation": "添加明确的 cross-repo build/sync 脚本和 CI gate：构建 Opentu web、复制到 new-api 两个 embed 目录、写入版本/commit provenance，并在 new-api 测试中校验 provenance 与期望来源。",
+          "severity": "medium",
+          "status": "likely",
+          "title": "new-api 嵌入式 Opentu 产物缺少可见的确定性同步流程"
+        },
+        {
+          "confidence": 0.79,
+          "details": "静态托管配置会把所有路径重写到 SPA：Netlify `/* -> /index.html`，Vercel `/(.*) -> /index.html`。而 Opentu 在 `/creative` 路径会进入 embedded mode 并请求 same-origin `/creative/api/bootstrap` JSON。若有人用 Netlify/Vercel 承载 Creative 路径，这些 API 请求会被静态 app shell 吞掉而不是返回受控 401/404 JSON。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/README.md:67-74",
+            "/mnt/f/code/project/opentu/netlify.toml:23-27",
+            "/mnt/f/code/project/opentu/vercel.json:6-10",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-mode.ts:3-5",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-mode.ts:105-110",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:276-293",
+            "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:387-407"
+          ],
+          "id": "OPS-007",
+          "impact": "独立静态部署被误用作 Creative Embed 时，bootstrap 失败会表现为 HTML JSON parse/error，而不是清晰的未配置后端；部署排障成本上升。",
+          "recommendation": "在 README/Creative Embed 文档中明确 Vercel/Netlify 仅适合 standalone 静态站；或为 `/creative/api/*`、`/creative/relay/v1/*` 配置显式 404/proxy 规则，避免 SPA 重写吞掉 API。",
+          "severity": "low",
+          "status": "likely",
+          "title": "静态托管配置对 Creative API 缺少负向路由/说明"
+        }
+      ],
+      "goals": [
+        "重新审计部署/运维/配置/文档漂移风险",
+        "覆盖 new2fly 活动规格、new-api README/env/compose/openapi/CREATIVE_* gates、opentu README/CDN/NPM/SW/package/vite/static-host configs",
+        "仅使用当前源码、活动规格、文档、配置与安全本地检查",
+        "标出被当前代码证伪的疑似问题"
+      ],
+      "nextActions": [
+        "优先修复 OPS-001 和 OPS-002：它们会直接导致接口联调和发布 Runbook 失败。",
+        "为 Opentu CDN 发布模式建立单一权威文档，并修正 `publish-npm.js` 的完成提示/生成 README。",
+        "把 Creative 生产配置加入 new-api README、`.env.example`、Compose 注释和部署 smoke checklist。",
+        "补充 cross-repo artifact sync 脚本/CI gate，记录 Opentu commit/build provenance 到 new-api embedded bundle。",
+        "增加文档一致性检查：package scripts ↔ docs 命令、router paths ↔ openapi/docs、CDN source list ↔ docs。"
+      ],
+      "score": 58,
+      "status": "partial",
+      "summary": "当前运维/部署准备度为“部分达标”。核心运行时代码已有不少 fail-closed 和同源边界保护，但部署文档、OpenAPI/路由矩阵、CDN 发布说明、Compose/环境变量模板与当前代码存在多处可导致上线或联调失败的漂移。",
+      "verificationGaps": [
+        "未运行 build/test/docker compose；本轮为 read-only 审计，未安装依赖、未生成产物。",
+        "未调用生产或外部 CDN/npm/Netlify/Vercel 端点；CDN 可用性与线上行为未验证。",
+        "未检查外部 CI/CD 配置；OPS-006 基于仓内 Dockerfile、当前产物和文档可见性推断。",
+        "按用户要求未读取历史报告、归档任务输出、codex-flow journals 或 prior assistant conclusions。",
+        "本分片未生成/运行 codex-flow 动态工作流；结论来自主线程对当前源码和文档的安全本地检查。"
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.92,
+          "details": "Creative asset sync 并非完全缺少生产保护：源码默认关闭 asset sync，production rollout 要求 `s3-compatible`，缺 S3 配置会创建 disabled runtime/返回未就绪，而不是静默落到 DB。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/service/creative_asset.go:139-157",
+            "/mnt/f/code/project/new-api/service/creative_asset.go:198-224",
+            "/mnt/f/code/project/new-api/service/creative_asset.go:236-246",
+            "/mnt/f/code/project/new-api/service/creative_asset.go:401-410",
+            "/mnt/f/code/project/new-api/docs/openapi/creative-embed.md:10-14"
+          ],
+          "id": "VN-001",
+          "impact": "降低生产误存 DB blob 或泄露 S3 配置的风险；剩余问题主要是部署文档没有把这些保护讲清楚。",
+          "recommendation": "保留当前 fail-closed 行为，并把该行为纳入部署文档与 smoke tests。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative asset production/S3 fail-closed gate 已存在"
+        },
+        {
+          "confidence": 0.9,
+          "details": "在 new-api 自身路由中，Creative API/relay 是本地注册并带 no-store/session middleware 的，不依赖 `FRONTEND_BASE_URL` 静态回退。",
+          "evidence": [
+            "/mnt/f/code/project/new-api/router/web-router.go:36-47",
+            "/mnt/f/code/project/new-api/router/web-router.go:53-58",
+            "/mnt/f/code/project/new-api/router/web-router.go:89-98",
+            "/mnt/f/code/project/new-api/router/web-router.go:188-192",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-backend-security-boundary.md:14-25"
+          ],
+          "id": "VN-002",
+          "impact": "new-api 同源部署路径下，Creative API 不应被外部前端重定向吞掉；OPS-007 主要针对独立静态托管误用。",
+          "recommendation": "继续用路由测试覆盖 `FRONTEND_BASE_URL` 模式、trailing slash 和 missing paths。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "new-api 同源 Creative 路由边界当前有代码保护"
+        },
+        {
+          "confidence": 0.86,
+          "details": "Opentu 已有专门 Creative Embed 部署说明，明确 HTML、sw.js、runtime config、`/creative/api/*`、`/creative/relay/v1/*` 必须同源，且只有 hashed static chunks 可进 CDN；SW 中也有 `/creative/api/assets` pass-through 判定。",
+          "evidence": [
+            "/mnt/f/code/project/opentu/docs/CREATIVE_EMBED_DEPLOYMENT.md:20-31",
+            "/mnt/f/code/project/opentu/apps/web/src/sw/creative-asset-pass-through.ts:1-7",
+            "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-asset-sync.md:24-27"
+          ],
+          "id": "VN-003",
+          "impact": "核心同源/CDN 边界不是完全缺文档；问题在于其它部署文档与静态托管配置没有一致地继承该边界。",
+          "recommendation": "把该说明提升为所有部署文档的共享约束，并在 CDN/Netlify/Vercel 小节显式引用。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative same-origin/CDN 例外规则已有局部权威文档"
+        }
+      ]
+    },
+    {
+      "areaStatuses": [
+        {
+          "area": "Goals, scope, and acceptance reconstruction",
+          "reason": "目标可从 active specs/source 重建，且 Creative specs 有可测试矩阵；但 docs route matrix 与 Suno/MJ canonical paths 冲突，billing consistency spec 未进入 backend index，缺少单一 combined acceptance index。",
+          "score": 78,
+          "status": "partial"
+        },
+        {
+          "area": "new2fly orchestration and Trellis governance",
+          "reason": "Trellis workflow/task/manifests 基础存在；但仍按 single-repo 运行，未治理 new-api/opentu，基础 specs 大量占位，关键 billing/idempotency spec 未索引/注入，active task 证据边界混有旧产物。",
+          "score": 52,
+          "status": "partial"
+        },
+        {
+          "area": "quality gates, CI, and test coverage",
+          "reason": "两端存在 targeted tests，opentu 也有基础 CI；但 new-api 缺少 PR/Push 测试质量门禁，opentu CI 漏掉 spec typecheck 并排除 Drawnix lint，缺少当前绿色输出与覆盖率阈值。",
+          "score": 54,
+          "status": "partial"
+        },
+        {
+          "area": "operations, deployment, configuration, and docs",
+          "reason": "运行时代码有部分 fail-closed/同源保护；但 Creative OpenAPI/route docs、Opentu 部署 runbook、CDN/NPM 文档、Compose/Creative 配置与当前代码明显漂移。",
+          "score": 58,
+          "status": "partial"
+        }
+      ],
+      "confidence": 0.87,
+      "criticalFindings": [
+        {
+          "confidence": 0.92,
+          "details": "跨仓治理链不完整：new2fly Trellis 未把 new-api/opentu 纳入 package/git governance，基础 backend/frontend specs 仍大量为模板占位，且 billing/idempotency spec 同时存在未索引、未注入当前 task manifests 的问题。",
+          "evidence": [
+            "NF-001",
+            "NF-002",
+            "NF-003",
+            "F-GOAL-002",
+            ".trellis/config.yaml:61-77",
+            ".trellis/spec/backend/index.md:17-26",
+            ".trellis/spec/frontend/index.md:17-26",
+            ".trellis/spec/backend/creative-async-task-billing-consistency.md:28-37"
+          ],
+          "id": "BLOCKER-001",
+          "impact": "跨仓 Creative 目标无法被 Trellis 稳定、自动、完整地约束；后续实现/检查代理可能漏掉高风险 billing、idempotency、key-affinity 合同。",
+          "recommendation": "在 `.trellis/config.yaml` 声明 new-api/opentu package/git 映射；完成基础 specs；把 billing consistency spec 加入 backend index 与当前 task manifests。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "跨仓 Trellis 治理与 spec 注入不完整"
+        },
+        {
+          "confidence": 0.93,
+          "details": "质量证明链不足：new-api CI 未运行 go test/vet/lint/frontend checks；opentu CI 未覆盖 active specs 要求的 drawnix spec typecheck，并显式排除 Drawnix lint；同时缺少当前绿色测试输出和覆盖率阈值。",
+          "evidence": [
+            "QG-001",
+            "QG-003",
+            "QG-005",
+            "/mnt/f/code/project/new-api/.github/workflows/pr-check.yml:8-16",
+            "/mnt/f/code/project/opentu/.github/workflows/ci.yml:37-65",
+            "/mnt/f/code/project/opentu/packages/drawnix/tsconfig.spec.json:12-22"
+          ],
+          "id": "BLOCKER-002",
+          "impact": "即使源码中存在 targeted tests，也不能自动证明当前目标达成；发布或合并可能绕过关键 Creative/security/billing/frontend 回归。",
+          "recommendation": "新增 new-api PR/Push CI gate；补齐 opentu drawnix spec typecheck 与 lint；为关键 Creative/session-broker/asset/billing suites 增加 CI matrix、覆盖率阈值和 artifacts。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "CI/test gate 不能充分证明 goal attainment"
+        },
+        {
+          "confidence": 0.94,
+          "details": "Creative 文档与当前 canonical routes 漂移：Creative Embed matrix 把 Suno/MJ 描述为 `/music`、`/images/generations` 等路径，而 active specs、backend router 与 frontend 服务使用 `/suno/...` 与 `/mj/...`；机器可读 OpenAPI 当前没有 creative paths。",
+          "evidence": [
+            "F-GOAL-001",
+            "OPS-001",
+            "/mnt/f/code/project/new-api/docs/openapi/creative-embed.md:26-31",
+            "/mnt/f/code/project/new-api/router/web-router.go:118-130",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md:14-16",
+            "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md:15-18"
+          ],
+          "id": "BLOCKER-003",
+          "impact": "联调、SDK/client generation、验收脚本和部署文档会按错误接口执行，导致功能被误判失败或调用失败。",
+          "recommendation": "修正 `creative-embed.md` route matrix；补齐 machine-readable OpenAPI 或明确 sidecar-only；增加 router paths ↔ docs/openapi 一致性检查。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "Creative API 文档与当前路由冲突"
+        },
+        {
+          "confidence": 0.95,
+          "details": "Opentu 部署 Runbook 与当前 package scripts/env drift 严重：文档列出多个不存在的 deploy/cdn 命令和不匹配的环境变量；NPM CDN 文档/脚本仍承诺不存在的 HTML 入口，多 CDN 文档也与 jsDelivr-only 运行时不一致。",
+          "evidence": [
+            "OPS-002",
+            "OPS-003",
+            "OPS-004",
+            "/mnt/f/code/project/opentu/docs/CDN_DEPLOYMENT.md:40-51",
+            "/mnt/f/code/project/opentu/package.json:56-77",
+            "/mnt/f/code/project/opentu/scripts/publish-npm.js:269-274",
+            "/mnt/f/code/project/opentu/apps/web/src/sw/cdn-fallback.ts:17"
+          ],
+          "id": "BLOCKER-004",
+          "impact": "发布人员按文档执行会直接失败或错误验收 CDN/HTML 产物；运维对可用性与回退链路的预期会偏离当前代码。",
+          "recommendation": "同步部署文档、package scripts、发布脚本输出和 env 模板；明确当前混合发布与 CDN fallback 的真实模式。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "Opentu 发布/部署文档不可作为可靠 Runbook"
+        },
+        {
+          "confidence": 0.82,
+          "details": "证据边界与目标索引仍有风险：combined Creative acceptance 没有单一权威索引，active task 目录中存在旧 report/arbitration/remediation 产物，workflow 文档有 stale references 和 ignored draft。",
+          "evidence": [
+            "F-GOAL-004",
+            "NF-004",
+            "NF-005",
+            "/mnt/f/code/project/new2fly/AGENTS.md:6-17",
+            ".trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/prd.md:38-45",
+            ".trellis/workflow.md:705-710"
+          ],
+          "id": "RISK-001",
+          "impact": "fresh audit 和后续实现容易被旧产物、分叉 workflow 或分散目标污染；验收优先级不够一眼可测试。",
+          "recommendation": "新增 combined Creative Embed acceptance index；隔离旧报告产物；修正 workflow stale references 并归档 ignored drafts。",
+          "severity": "medium",
+          "status": "likely",
+          "title": "目标/证据边界不够干净"
+        }
+      ],
+      "evidenceLimitations": [
+        "未运行 Go/Vitest/typecheck/lint/build/docker compose，也未安装依赖；不能假设现有测试通过。",
+        "未读取 prior reports、archive task outputs、codex-flow journals、codebuddy reports 或 prior assistant messages。",
+        "未调用生产端点、外部 CDN/npm/Netlify/Vercel、GitHub Actions 历史结果或外部 CI/CD。",
+        "OPS-006、OPS-007 等为基于当前源码/文档可见性的推断，仍需真实 CI/部署环境验证。",
+        "本综合结论仅基于四个 branch outputs；未新增独立源码审计 claim。"
+      ],
+      "finalSummary": "综合四个分支，当前 newapi + opentu Creative goal attainment 为“部分达成”，不能判定为已充分达成。主要阻塞不是单点代码完全缺失，而是跨仓 Trellis 治理不完整、质量门禁不能证明目标、Creative/OpenAPI/部署文档与当前代码漂移，以及 combined acceptance/证据边界不够干净。源码侧存在不少正向基础：active Creative specs 有测试矩阵，Suno/MJ 当前源码路径与 active specs 对齐，new-api/opentu 都存在 targeted tests，关键生产 fail-closed/同源规则也有局部代码和文档支持。",
+      "importantNonIssues": [
+        {
+          "confidence": 0.9,
+          "details": "活跃 Creative specs 已包含 Signatures、Contracts、Validation & Error Matrix、Good/Base/Bad Cases、Tests Required。",
+          "evidence": [
+            "VN-GOAL-001"
+          ],
+          "id": "VNI-001",
+          "impact": "后续验收可直接转为 targeted tests/checklists；问题主要是索引和文档冲突。",
+          "recommendation": "在 combined acceptance index 中引用这些 Tests Required。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative specs 本身具备明确验收矩阵"
+        },
+        {
+          "confidence": 0.87,
+          "details": "当前 backend router 与 Opentu frontend 服务对 Suno/MJ session-broker canonical paths 基本一致，不支持 stale matrix 中的 `/music` 作为 Suno 主路径。",
+          "evidence": [
+            "VN-GOAL-002"
+          ],
+          "id": "VNI-002",
+          "impact": "路由问题主要是文档/验收口径风险，不是当前前后端 canonical path 不一致。",
+          "recommendation": "修文档矩阵，不要为 stale matrix 回退实现路径。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Suno/MJ 源码与 active specs 路径对齐"
+        },
+        {
+          "confidence": 0.9,
+          "details": "new-api 当前存在大量 Go targeted tests；opentu 也有基础 CI、本地脚本和 Creative/session-broker targeted suites。",
+          "evidence": [
+            "QG VNI-001",
+            "QG VNI-002",
+            "QG VNI-003"
+          ],
+          "id": "VNI-003",
+          "impact": "测试基础存在；核心缺口是 CI/命令绑定、spec typecheck、覆盖率和当前运行证据。",
+          "recommendation": "把现有 targeted suites 纳入 CI matrix 并归档结果。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "两端并非缺少测试基础"
+        },
+        {
+          "confidence": 0.91,
+          "details": "Creative asset production/S3 fail-closed gate、new-api 同源 Creative 路由边界，以及 Opentu Creative Embed same-origin/CDN 例外文档均有当前证据支持。",
+          "evidence": [
+            "OPS VN-001",
+            "OPS VN-002",
+            "OPS VN-003"
+          ],
+          "id": "VNI-004",
+          "impact": "运行时边界不是完全缺失；剩余重点是把这些保护整合进主部署文档、Compose 和 smoke checks。",
+          "recommendation": "保留现有 fail-closed/同源行为，并把它们纳入部署 gate。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "核心运行时安全边界有局部有效实现"
+        },
+        {
+          "confidence": 0.87,
+          "details": "new2fly 的已列 spec index links 可解析，当前 task JSONL manifests 结构有效，正式 workflow-state 注入路径存在。",
+          "evidence": [
+            "new2fly VNI-001",
+            "new2fly VNI-002",
+            "new2fly VNI-003"
+          ],
+          "id": "VNI-005",
+          "impact": "Trellis 不是完全不可用；问题集中在未索引关键 spec、single-repo governance 和 stale placeholders。",
+          "recommendation": "保留现有 manifest validation 与 workflow-state 注入，扩展未索引 active spec 检查。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Trellis 基础机制存在"
+        }
+      ],
+      "overallScore": 58,
+      "overallStatus": "partial",
+      "overallVerdict": "部分达成；当前不能作为已充分完成的 goal attainment 接受。高优先级阻塞集中在跨仓 Trellis 治理/spec 注入、CI/测试证明链、Creative/OpenAPI route 文档和 Opentu 部署 Runbook 漂移。",
+      "prioritizedNextActions": [
+        "把 `creative-async-task-billing-consistency.md` 加入 backend index 与当前 task manifests，并在 `.trellis/config.yaml` 建立 new-api/opentu package/git governance。",
+        "修正 new-api Creative route matrix/OpenAPI：统一 Suno `/suno/...`、MJ `/mj/...` canonical routes，并同步 README*.md。",
+        "新增 new-api PR/Push CI gate；补齐 opentu drawnix spec typecheck、Drawnix lint、coverage/artifacts 和 targeted Creative suites。",
+        "修复 Opentu 部署文档/package scripts/env 模板/NPM CDN 输出/多 CDN 说明漂移。",
+        "建立 combined Creative Embed acceptance index，明确 canonical routes、跨仓 ownership、必跑验证命令、MVP/out-of-scope 与证据排除规则。"
+      ]
+    }
+  ],
+  "newapi-opentu-goal-attainment-reaudit-impl-supplement-2026-06-12": [
+    {
+      "area": "backend implementation/security supplement",
+      "confidence": 0,
+      "evidenceFiles": [],
+      "findings": [],
+      "nextActions": [],
+      "score": 0,
+      "status": "unknown",
+      "summary": "开始审计：将仅读取当前源码/测试，不修改文件，不读取 secrets，并控制 shell 命令不超过 8 条。",
+      "verificationGaps": [],
+      "verifiedNonIssues": []
+    },
+    {
+      "area": "frontend implementation/security supplement",
+      "confidence": 0.0,
+      "evidenceFiles": [],
+      "findings": [],
+      "nextActions": [],
+      "score": 0.0,
+      "status": "unknown",
+      "summary": "使用 Trellis 工作流上下文约束进行只读审计；不会修改文件或读取 secrets。",
+      "verificationGaps": [],
+      "verifiedNonIssues": []
+    },
+    {
+      "area": "security abuse-boundary supplement",
+      "confidence": 0.0,
+      "evidenceFiles": [],
+      "findings": [],
+      "nextActions": [],
+      "score": 0.0,
+      "status": "unknown",
+      "summary": "开始基于当前源码/测试进行只读审计。",
+      "verificationGaps": [],
+      "verifiedNonIssues": []
+    },
+    {
+      "area": "cross-repo compatibility supplement",
+      "confidence": 0.78,
+      "evidenceFiles": [
+        "../new-api/router/web-router.go",
+        "../new-api/middleware/creative.go",
+        "../new-api/controller/creative.go",
+        "../new-api/model/task.go",
+        "../opentu/packages/drawnix/src/services/media-api/video-api.ts",
+        "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts",
+        ".trellis/spec/backend/creative-backend-security-boundary.md",
+        ".trellis/spec/backend/creative-async-suno-relay.md",
+        ".trellis/spec/frontend/creative-async-suno-relay.md"
+      ],
+      "findings": [
+        {
+          "confidence": 0.82,
+          "details": "Opentu 的 session-broker 视频提交流程会构造 multipart FormData，并把 reference image blob 作为 input_reference 发送；new-api 的 CreativeRelaySessionBroker 在进入下游 Distribute/relay 前先调用 readCreativeRelayModel。该函数遇到 multipart/form-data 会 ParseMultipartFormReusable 后 defer form.RemoveAll()，函数返回时清理会先于 c.Next() 执行。若下游仍需读取 multipart file parts，临时文件/MultipartForm 可能已被清理，导致带参考图的视频/图片请求丢失文件或失败。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/media-api/video-api.ts:208-229",
+            "../opentu/packages/drawnix/src/services/media-api/video-api.ts:239-246",
+            "../new-api/middleware/creative.go:146-164",
+            "../new-api/middleware/creative.go:195-206"
+          ],
+          "id": "CR-COMPAT-001",
+          "impact": "带 referenceImages 的 /creative/relay/v1/videos 或其他 multipart creative relay 请求可能在后端选组阶段破坏请求体，前端表现为参考图不生效、上游 400、或生成结果不符合输入。",
+          "recommendation": "让 readCreativeRelayModel 做非破坏性读取：不要在该函数内 RemoveAll；把 multipart 清理延后到完整 handler 链结束后，或仅从 body storage 副本解析 model 并重置 Request.Body。补充一个 session-broker multipart reference image 的端到端/handler 测试。",
+          "severity": "high",
+          "status": "likely",
+          "title": "multipart model 预解析过早清理 FormData，可能破坏前端参考图请求"
+        }
+      ],
+      "nextActions": [
+        "优先为 CR-COMPAT-001 增加最小复现测试：Opentu 风格 FormData(model,prompt,input_reference) 经过 CreativeRelaySessionBroker 后，下游仍能读取文件内容。",
+        "补读并单独核对 controller/creative.go 中 CreativeRelayMJFetch、CreativeRelayMJImage、CreativeRelaySunoFetch 的 DTO 字段，确认 MJ image proxy 与 Suno fetch 是否只返回 owner-scoped sanitized DTO。",
+        "运行目标测试：new-api 的 middleware/router/controller creative 相关 Go tests，以及 opentu 的 session-broker/video-api/mj-adapter Vitest。"
+      ],
+      "score": 0.72,
+      "status": "partial",
+      "summary": "当前可验证的核心路由矩阵基本对齐：/creative/api bootstrap/models/documents/assets/content、/creative/relay/v1/videos、/suno、/mj 均在 new-api 注册；Opentu 的 MJ submit/fetch 路径与后端 creative MJ 路由匹配；视频关闭时后端以 404 gate，前端把 404/405/501 视为 unsupported。发现一个高风险兼容问题：后端 session-broker 为读取 multipart model 可能在下游处理前清理 FormData。",
+      "verificationGaps": [
+        "未修改文件、未读 secrets、未运行测试。",
+        "受 8 条 shell 命令预算限制，未完整展开 controller/creative.go 中所有 Suno/MJ/video DTO 生成函数；相关结论仅基于已列证据。",
+        "未使用历史 reports/logs/archives/.codebuddy/prior assistant conclusions 作为结论来源。"
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.9,
+          "details": "new-api 明确注册 /creative/api/bootstrap、/models、/documents、/assets、/assets/:id/content；这些 API 走 CreativeSessionHeaderBridge + UserAuth，unsafe 写操作额外走 CreativeRequireNonce。",
+          "evidence": [
+            "../new-api/router/web-router.go:54-72",
+            "../new-api/middleware/creative.go:65-76",
+            "../new-api/middleware/creative.go:95-127"
+          ],
+          "id": "VNI-001",
+          "impact": "前端 creative bootstrap、模型、文档、资产内容 URL 的基础路径存在，不是 404/SPA fallback 路由缺失问题。",
+          "recommendation": "保留 trailing-slash fail-closed 测试，避免回归到静态 SPA fallback。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "/creative/api 基础路由矩阵存在"
+        },
+        {
+          "confidence": 0.88,
+          "details": "new-api 在 /creative/relay/v1 下注册 videos、suno、mj；Suno submit/fetch 与 MJ submit/fetch/image proxy 路径均为 creative relay 前缀下的相对路径，不是 /creative/relay/v1/v1 双前缀。",
+          "evidence": [
+            "../new-api/router/web-router.go:89-130",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:123-135",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:153-165",
+            ".trellis/spec/frontend/creative-async-suno-relay.md:12-23"
+          ],
+          "id": "VNI-002",
+          "impact": "当前源代码未支持“MJ/Suno 路径拼错或双 /v1”的怀疑。",
+          "recommendation": "继续把 session-broker baseUrl 固定为 /creative/relay/v1，并在 provider transport 中拒绝非规范 creative base。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Suno/MJ creative relay 路径与前端期望对齐"
+        },
+        {
+          "confidence": 0.86,
+          "details": "MJ 前端适配器对 status 做 lower-case，并接受 success/succeed/completed/done，失败接受 fail/failed/failure/error；因此后端或上游返回 SUCCESS/FAILURE 大小写差异本身不会导致轮询误判。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:106-116",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:219-239"
+          ],
+          "id": "VNI-003",
+          "impact": "当前代码不支持“M J 状态枚举大小写导致成功任务无法完成”的怀疑。",
+          "recommendation": "若后端新增其他终态字符串，同步扩展前端 allowlist 并加测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "MJ status enum 大小写兼容已覆盖"
+        },
+        {
+          "confidence": 0.84,
+          "details": "后端 creative video relay 默认由 CREATIVE_VIDEO_RELAY_ENABLED gate 关闭并返回 404；前端视频 session-broker 请求在 404/405/501 时抛出 CreativeVideoUnsupportedError，而不是继续直接 provider fallback。",
+          "evidence": [
+            "../new-api/controller/creative.go:50-63",
+            "../opentu/packages/drawnix/src/services/media-api/video-api.ts:251-257",
+            ".trellis/spec/frontend/creative-async-suno-relay.md:32-42"
+          ],
+          "id": "VNI-004",
+          "impact": "当前代码不支持“视频 relay 关闭后前端仍泄漏到直接 provider 重试”的怀疑；但 UI 是否提前隐藏能力仍需补充核对。",
+          "recommendation": "在 bootstrap 或模型能力层显式暴露 video relay availability，可减少运行时 404 才发现 unsupported 的体验问题。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "视频 relay disabled 的运行时 unsupported 处理存在"
+        },
+        {
+          "confidence": 0.9,
+          "details": "Creative relay 全局使用 no-store、same-origin、nonce 和 forbidden field middleware；Suno/MJ submit guard 在服务端推导模型并拒绝浏览器提供 model/credential/routing material 的契约有对应实现入口。",
+          "evidence": [
+            "../new-api/router/web-router.go:89-99",
+            "../new-api/controller/creative.go:91-110",
+            "../new-api/controller/creative.go:124-149",
+            ".trellis/spec/backend/creative-backend-security-boundary.md:25-34",
+            ".trellis/spec/backend/creative-async-suno-relay.md:28-44"
+          ],
+          "id": "VNI-005",
+          "impact": "当前证据不支持“creative relay 直接信任浏览器模型/密钥路由字段”的怀疑；submit 入口有服务端派生与禁用字段检查。",
+          "recommendation": "继续用 header/query/json/form/multipart file-part 名称矩阵测试覆盖 forbidden aliases。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative relay submit 边界有同源/nonce/禁用字段入口保护"
+        }
+      ]
+    },
+    {
+      "area": "frontend implementation/security supplement",
+      "confidence": 0.86,
+      "evidenceFiles": [
+        "../opentu/packages/drawnix/src/services/creative-mode.ts",
+        "../opentu/packages/drawnix/src/services/creative-session-broker.ts",
+        "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts",
+        "../opentu/packages/drawnix/src/services/video-api-service.ts",
+        "../opentu/packages/drawnix/src/services/audio-api-service.ts",
+        "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts",
+        "../opentu/packages/drawnix/src/services/creative-document-assets.ts",
+        "../opentu/packages/drawnix/src/services/creative-document-sync.ts",
+        "../opentu/packages/drawnix/src/utils/virtual-media-url.ts",
+        "../opentu/apps/web/src/sw/creative-asset-pass-through.ts",
+        "../opentu/apps/web/src/sw/index.ts",
+        "../opentu/packages/drawnix/src/services/__tests__/audio-api-service.test.ts",
+        "../opentu/packages/drawnix/src/services/__tests__/video-api-service.session-broker.test.ts",
+        "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.test.ts",
+        "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.session-broker.test.ts",
+        "../opentu/packages/drawnix/src/services/creative-document-assets.test.ts",
+        "../opentu/apps/web/src/sw/creative-asset-pass-through.spec.ts"
+      ],
+      "findings": [
+        {
+          "confidence": 0.88,
+          "details": "`ProviderTransport.prepareRequest` 对 session-broker 先校验 `context.baseUrl === /creative/relay/v1`，但随后仍把 `request.baseUrlStrategy` 传给 `applyBaseUrlStrategy`。如果调用方传入 `trim-v1`，`applyBaseUrlStrategy` 会把已校验的 `/creative/relay/v1` 改成 `/creative/relay`，绕过“不可裁剪 /v1”的中心不变量。当前 video/audio 调用路径有显式避免策略裁剪，但 provider transport 作为边界仍允许误配置或新调用方破坏 canonical URL。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:23-25 `trim-v1` 会移除末尾 `/v1`",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:350-368 session-broker canonical base URL 校验只检查原始 `context.baseUrl`",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:449-453 校验后仍按 `request.baseUrlStrategy` 重新计算 URL",
+            "../opentu/packages/drawnix/src/services/video-api-service.ts:190-196 video session-broker 当前调用方避免传递裁剪策略"
+          ],
+          "id": "OPENTU-FE-AUDIT-001",
+          "impact": "中心传输层不变量不闭合；未来或误配置的 session-broker 请求可打到 `/creative/relay/...` 而不是 `/creative/relay/v1/...`，造成后端路由错配、unsupported/fallback 判断混乱或测试遗漏。",
+          "recommendation": "在 `ProviderTransport.prepareRequest` 中对 session-broker 强制 `baseUrlStrategy='preserve'`/忽略该字段，或在 `resolvedBaseUrl` 计算后再次断言等于 `/creative/relay/v1`；补充 `baseUrlStrategy:'trim-v1'` 的 session-broker 回归测试。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "session-broker baseUrlStrategy 可在校验后裁剪 `/creative/relay/v1`"
+        },
+        {
+          "confidence": 0.9,
+          "details": "provider transport 对 unsafe session-broker relay 请求会缺少 CSRF/nonce 时本地抛错，但 creative asset 上传与 document create/put/delete 直接展开 `getCreativeSessionAuthHeaders()`；该函数在 auth material 缺失时返回空对象，调用仍会发起同源 mutation。后端会拒绝缺 nonce，但前端未满足“fail-fast before fetch”的补充检查。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/creative-mode.ts:55-64 `getCreativeSessionAuthHeaders()` 缺 auth 时返回 `{}`",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:202-216 relay unsafe 请求已有本地 fail-fast 对照",
+            "../opentu/packages/drawnix/src/services/creative-document-assets.ts:797-803 asset upload POST 仅展开可能为空的 auth headers",
+            "../opentu/packages/drawnix/src/services/creative-document-sync.ts:595-605 document create POST 仅展开可能为空的 auth headers",
+            "../opentu/packages/drawnix/src/services/creative-document-sync.ts:644-652 document put PUT 仅展开可能为空的 auth headers",
+            "../opentu/packages/drawnix/src/services/creative-document-sync.ts:667-672 document delete DELETE 仅使用可能为空的 auth headers"
+          ],
+          "id": "OPENTU-FE-AUDIT-002",
+          "impact": "bootstrap/auth 丢失时仍会发出同源写请求，导致非 fail-fast 的 403/错误路径、重试/队列状态不清晰，并扩大未来误处理缺 nonce mutation 的风险。",
+          "recommendation": "新增 `requireCreativeSessionAuthHeaders()` 或 `getCreativeSessionAuthHeaders({ required: true })`，在 `/creative/api/assets` POST 与 `/creative/api/documents` POST/PUT/DELETE 前本地抛错；补充缺 csrf/nonce 时 fetcher 未被调用的测试。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "asset/document unsafe mutation 缺 CSRF/nonce 时未本地 fail-fast"
+        },
+        {
+          "confidence": 0.82,
+          "details": "video 与 MJ session-broker submit 在缺少稳定 idempotency source 时会抛错；audio 则在没有 local task id/idempotency source 时生成 `crypto.randomUUID()` 或 `Date.now()+Math.random()`。这保证了不含 prompt/credential，但不稳定：同一业务动作重试会产生不同 Idempotency-Key，可能造成重复提交/重复计费。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/video-api-service.ts:162-179 video 缺稳定 key 时抛错并只发送显式 `Idempotency-Key`",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:65-98 MJ 缺稳定 key 时抛错并只发送显式 `Idempotency-Key`",
+            "../opentu/packages/drawnix/src/services/audio-api-service.ts:164-176 audio 缺 localTaskId 时生成随机/时间型 `opentu-audio-*`",
+            "../opentu/packages/drawnix/src/services/audio-api-service.ts:1003-1010 audio submit 将 session-broker idempotency headers 送入 provider transport",
+            "../opentu/packages/drawnix/src/services/__tests__/audio-api-service.test.ts:1158-1198 现有测试覆盖嵌套稳定 key，但未从当前检索证据看到缺 key fail-fast"
+          ],
+          "id": "OPENTU-FE-AUDIT-003",
+          "impact": "任一 audio session-broker 调用路径若遗漏 local task id，网络重试、页面恢复或重复点击可能绕过后端 scoped idempotency，产生第二个 Suno submit。",
+          "recommendation": "对 session-broker Suno submit 要求 `params.idempotencyKey`/`params.taskId`/嵌套稳定 source；缺失时像 video/MJ 一样在 fetch 前抛错，或确保所有入口先创建并复用本地 task id。补充无 key 不调用 fetch 的测试。",
+          "severity": "medium",
+          "status": "likely",
+          "title": "audio session-broker 缺稳定来源时使用随机 Idempotency-Key"
+        }
+      ],
+      "nextActions": [
+        "修复 provider transport：session-broker 下忽略或拒绝 `trim-v1`，并加回归测试。",
+        "为 creative asset/document mutating API 添加必需 CSRF/nonce 本地校验。",
+        "收紧 audio session-broker idempotency：缺稳定 task source 时 fail-fast。",
+        "在可写/可执行环境中运行 targeted Vitest 与 tsconfig.spec typecheck。"
+      ],
+      "score": 0.72,
+      "status": "partial",
+      "summary": "只读审计发现 3 个当前前端实现层风险：provider transport 的 baseUrl 策略校验后可被裁剪、asset/document 写请求缺 nonce 时未 fail-fast、audio idempotency 在缺稳定来源时退化为随机 key。MJ/video/session-broker stripping、asset URL sanitizer、same-origin asset content URL 识别、SW pass-through 在当前代码与测试证据下基本满足要求。",
+      "verificationGaps": [
+        "未运行 Vitest/typecheck：当前要求只读且 shell 命令预算有限；本次为静态源码与现有测试审计。",
+        "未审计 new-api 后端实现：用户要求本轮只审计 Opentu frontend。",
+        "未读取历史报告、logs、archives、.codebuddy 或 prior assistant conclusions。"
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.9,
+          "details": "managed creative profile 与 transport canonical base URL 均使用 `/creative/relay/v1`；MJ adapter 在 session-broker 下不会把 `/v1` 裁掉。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/creative-mode.ts:3",
+            "../opentu/packages/drawnix/src/services/creative-session-broker.ts:300-305",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:350-368",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:42-50"
+          ],
+          "id": "OPENTU-FE-NI-001",
+          "impact": "降低 `/creative/relay` 与 `/creative/relay/v1` 路径漂移风险。",
+          "recommendation": "保留现有常量路径，并用上方 finding 关闭 baseUrlStrategy 后门。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "主 session-broker base URL 配置为 canonical `/creative/relay/v1`"
+        },
+        {
+          "confidence": 0.92,
+          "details": "session-broker transport 会移除 Authorization/API-key/provider/channel/group/baseUrl/model/selectedKey/notify/callback/url/proxy 等敏感 header/query，并对 unsafe relay 请求要求 CSRF+nonce；session-broker fetch 使用 same-origin credentials。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:102-180",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:202-216",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:243-327",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.ts:441-467",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.session-broker.test.ts:14-47",
+            "../opentu/packages/drawnix/src/services/provider-routing/provider-transport.session-broker.test.ts:275-335"
+          ],
+          "id": "OPENTU-FE-NI-002",
+          "impact": "浏览器侧 upstream 凭证和路由覆盖材料不会经 header/query 泄漏到 creative relay。",
+          "recommendation": "继续把所有 session-broker provider 调用集中走 provider transport。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "session-broker header/query credential stripping 已覆盖核心 relay 路径"
+        },
+        {
+          "confidence": 0.9,
+          "details": "video 与 MJ submit 都要求稳定 Idempotency-Key，unsupported 404/405/501 在读取原始响应体前转为 sanitized unsupported error；现有测试覆盖 no fallback/no raw body 泄漏。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/video-api-service.ts:162-179",
+            "../opentu/packages/drawnix/src/services/video-api-service.ts:452-466",
+            "../opentu/packages/drawnix/src/services/video-api-service.ts:534-541",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:65-98",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:138-147",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.ts:167-176",
+            "../opentu/packages/drawnix/src/services/__tests__/video-api-service.session-broker.test.ts:230-286",
+            "../opentu/packages/drawnix/src/services/model-adapters/mj-image-adapter.test.ts:150-229"
+          ],
+          "id": "OPENTU-FE-NI-003",
+          "impact": "MJ/video 不会因 unsupported backend 回退到直连 provider，也不会把含 secret 的 backend body 暴露给前端错误。",
+          "recommendation": "保持 unsupported status 在 `response.text()` 前处理。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "MJ/video stable idempotency 与 unsupported no-fallback 路径已实现"
+        },
+        {
+          "confidence": 0.88,
+          "details": "Suno session-broker submit body 对 notify/callback/webhook 做 allowlist/剥离；direct lyrics 兼容保留 notify_hook 的测试也存在。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/audio-api-service.ts:855-863",
+            "../opentu/packages/drawnix/src/services/audio-api-service.ts:1003-1010",
+            "../opentu/packages/drawnix/src/services/__tests__/audio-api-service.test.ts:664-708",
+            "../opentu/packages/drawnix/src/services/__tests__/audio-api-service.test.ts:1058-1153"
+          ],
+          "id": "OPENTU-FE-NI-004",
+          "impact": "Suno session-broker 不会把 browser-supplied callback/webhook 材料放入提交体。",
+          "recommendation": "新增缺稳定 idempotency source 的 fail-fast 测试，避免 NI 与 finding 003 混淆。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Suno session-broker notify/callback/webhook body stripping 已覆盖"
+        },
+        {
+          "confidence": 0.91,
+          "details": "asset prepare 会先拒绝 signed/object-storage/credential remote URL；只上传 data/blob/virtual media；上传返回 URL 必须规范化为 query-free same-origin `/creative/api/assets/:id/content`；CloudAdapter 上传只提交 file/mediaType，不提交 sourceUrl/provider fields。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/creative-document-assets.ts:211-238",
+            "../opentu/packages/drawnix/src/services/creative-document-assets.ts:240-278",
+            "../opentu/packages/drawnix/src/services/creative-document-assets.ts:593-662",
+            "../opentu/packages/drawnix/src/services/creative-document-assets.ts:781-823",
+            "../opentu/packages/drawnix/src/services/creative-document-assets.test.ts:86-105",
+            "../opentu/packages/drawnix/src/services/creative-document-assets.test.ts:213-229",
+            "../opentu/packages/drawnix/src/services/creative-document-assets.test.ts:317-350"
+          ],
+          "id": "OPENTU-FE-NI-005",
+          "impact": "云端 document snapshot 不会持久化 signed/bucket/source URL，上传 API 也不携带 provider credential metadata。",
+          "recommendation": "为 auth-missing fail-fast 单独补测试；不要放宽 content URL 正则。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "asset prepare/upload URL sanitizer 当前满足安全边界"
+        },
+        {
+          "confidence": 0.93,
+          "details": "`normalizeCreativeAssetContentUrl` 使用 runtime origin 解析 URL，拒绝跨源、protocol-relative、query/hash，并返回 canonical pathname；现有测试明确覆盖 same-origin absolute URL 可识别、evil/query/protocol-relative 被拒绝。",
+          "evidence": [
+            "../opentu/packages/drawnix/src/services/creative-document-assets.ts:211-238",
+            "../opentu/packages/drawnix/src/services/creative-document-assets.test.ts:288-305"
+          ],
+          "id": "OPENTU-FE-NI-006",
+          "impact": "同源 absolute asset content URL 可被识别并归一化，跨源或带签名参数的伪造 content URL 不会进入文档。",
+          "recommendation": "保留 query/hash 拒绝策略。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "same-origin asset content URL recognition 已实现"
+        },
+        {
+          "confidence": 0.92,
+          "details": "Service Worker 在 fetch 事件中对 same-origin `/creative/api/assets` 直接 `return`，位置早于 cache URL、asset-library 和后续缓存处理；pass-through helper 的测试覆盖 assets/content 与非 assets 路径。",
+          "evidence": [
+            "../opentu/apps/web/src/sw/creative-asset-pass-through.ts:1-8",
+            "../opentu/apps/web/src/sw/index.ts:4231-4251",
+            "../opentu/apps/web/src/sw/index.ts:4268-4335",
+            "../opentu/apps/web/src/sw/creative-asset-pass-through.spec.ts:5-25"
+          ],
+          "id": "OPENTU-FE-NI-007",
+          "impact": "私有 creative asset API/content 响应不会被 SW 静态/media/app-shell 缓存路径拦截或写入缓存。",
+          "recommendation": "保持 pass-through 判断位于所有 `respondWith` 缓存分支之前。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "SW 对 `/creative/api/assets` pass-through 已在缓存分支前执行"
+        }
+      ]
+    },
+    {
+      "area": "security abuse-boundary supplement",
+      "confidence": 0.72,
+      "evidenceFiles": [
+        ".trellis/spec/backend/creative-backend-security-boundary.md",
+        ".trellis/spec/backend/creative-async-mj-relay.md",
+        ".trellis/spec/frontend/creative-asset-sync.md",
+        "../new-api/main.go",
+        "../new-api/middleware/creative.go",
+        "../new-api/middleware/cors.go",
+        "../new-api/middleware/cache.go",
+        "../new-api/controller/creative.go",
+        "../new-api/controller/creative_asset.go",
+        "../new-api/controller/video_proxy.go",
+        "../new-api/controller/video_proxy_gemini.go",
+        "../new-api/service/http_client.go",
+        "../new-api/service/creative_asset.go",
+        "../new-api/common/url_validator.go"
+      ],
+      "findings": [
+        {
+          "confidence": 0.78,
+          "details": "MJ 浏览器 fetch DTO 对图片结果使用 owner-scoped proxy，但仍把任务数据中的 `videoUrl` 原样写入 `taskDTO.VideoUrl`。如果上游/轮询数据包含签名 URL、临时 provider URL 或带凭据的媒体 URL，浏览器会直接收到该 URL，绕过 `/creative/relay/v1/mj/image/:task_id` 的 owner scope、no-store、SSRF redirect 策略和响应头过滤。当前 active spec 明确要求 provider/private URLs 不出现在 public DTO。",
+          "evidence": [
+            ".trellis/spec/backend/creative-backend-security-boundary.md:32-34 要求 public Creative DTO 不泄漏 raw private result URLs，并要求 provider/private URLs 在日志/响应边界前脱敏。",
+            ".trellis/spec/backend/creative-async-mj-relay.md:30 要求 `Task.PrivateData.ResultURL` 中的上游 image URL 只通过 owner-scoped proxy 暴露。",
+            "../new-api/controller/creative.go:1103-1105 成功 MJ image 使用 `creativeMJImageProxyURL(...)`。",
+            "../new-api/controller/creative.go:1106-1107 随后把 `creativeMJTaskDataString(task, \"videoUrl\")` 直接赋给 `taskDTO.VideoUrl`。"
+          ],
+          "id": "SEC-ABUSE-001",
+          "impact": "拥有任务访问权的浏览器端可获得可复制/可外传的上游签名媒体 URL；一旦任务数据可被污染或日志/前端错误上报收集该 DTO，会扩大为上游资源未授权访问与 secret-bearing URL 泄漏。",
+          "recommendation": "MJ DTO 中删除 raw `VideoUrl`，或仅返回同源 owner-scoped proxy URL；对任何 provider URL 统一走服务端 SSRF/redirect 验证、响应头过滤和 `private, no-store`；增加 MJ fetch/image tests 覆盖 `videoUrl` 不泄漏。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "MJ fetch DTO 仍可能向浏览器暴露 raw provider `videoUrl`"
+        },
+        {
+          "confidence": 0.9,
+          "details": "全局 session cookie 明确设置 `Secure: false`。Creative 依赖浏览器 session-only boundary、CSRF/nonce 都绑定在同一个 session cookie 上；在 HTTPS/公网部署中非 Secure cookie 允许浏览器在明文 HTTP 请求中携带该 session，削弱会话边界。",
+          "evidence": [
+            "../new-api/main.go:185-193 初始化 `cookie.NewStore` 并设置 session options。",
+            "../new-api/main.go:187-191 显示 `HttpOnly: true`、`Secure: false`、`SameSite: http.SameSiteStrictMode`。"
+          ],
+          "id": "SEC-ABUSE-002",
+          "impact": "若实例同时可通过 HTTP 访问、被降级访问或位于不可信网络，攻击者可通过明文链路窃取 session cookie，从而绕过 Creative 的 session-only、nonce/CSRF 防线。",
+          "recommendation": "生产环境默认 `Secure: true`；仅本地开发允许显式关闭。若在反向代理后部署，增加可信 proxy/外部 scheme 配置并测试 HTTPS 下 Set-Cookie 包含 `Secure`。",
+          "severity": "medium",
+          "status": "confirmed",
+          "title": "Creative session 边界依赖的 session cookie 未启用 Secure"
+        },
+        {
+          "confidence": 0.68,
+          "details": "全局 CORS 同时配置 `AllowAllOrigins=true`、`AllowCredentials=true`、`AllowHeaders=*`。Creative unsafe routes 有 Origin/nonce 保护，SameSite=Strict 也降低了跨站 cookie 风险；但该组合对全站 API 仍是不安全默认，且容易与非 Creative header/token 认证端点形成跨站可读响应风险。",
+          "evidence": [
+            "../new-api/middleware/cors.go:9-15 创建 CORS config：`AllowAllOrigins = true`、`AllowCredentials = true`、`AllowHeaders = []string{\"*\"}`。",
+            "../new-api/middleware/creative.go:95-128 对 unsafe Creative 请求额外校验 Origin/Referer 与 CSRF/nonce，说明 Creative 本身已有补偿控制。"
+          ],
+          "id": "SEC-ABUSE-003",
+          "impact": "在浏览器/中间件实现反射 Origin 或未来改动 SameSite/认证方式时，恶意站点可能读取 credentialed API 响应；也会让 Creative 边界依赖额外 middleware 正确挂载。",
+          "recommendation": "把 credentialed CORS 改为明确 allowlist；Creative API/relay 建议只允许同源或不返回跨源 CORS；不要与 `AllowAllOrigins` 同时启用 credentials。",
+          "severity": "medium",
+          "status": "likely",
+          "title": "全局 CORS 为 wildcard + credentials 的高风险默认"
+        },
+        {
+          "confidence": 0.55,
+          "details": "视频/MJ proxy 在 SSRF validation 失败时把底层错误文本拼接到客户端错误中。若 validator 错误包含被阻断 URL、内部 host、端口、策略细节或 provider URL 片段，会形成错误信息泄漏。",
+          "evidence": [
+            "../new-api/controller/video_proxy.go:148-150 在 URL validation 失败时返回 `fmt.Sprintf(\"request blocked: %v\", err)`。",
+            "../new-api/controller/creative.go:657-658 MJ image proxy validation 失败时也返回 `request blocked: %v`。"
+          ],
+          "id": "SEC-ABUSE-004",
+          "impact": "攻击者或普通用户可通过错误响应观察内部 SSRF 策略、被阻断目标信息或部分 provider URL 细节；通常不是直接越权，但会辅助探测与 secret-bearing URL 泄漏链。",
+          "recommendation": "客户端返回固定错误码/泛化消息；服务端日志只记录脱敏后的 host/category，不记录完整 URL/query；为 blocked private/signed URL 增加回归测试。",
+          "severity": "low",
+          "status": "likely",
+          "title": "SSRF 拦截错误可能向客户端暴露过多细节"
+        }
+      ],
+      "nextActions": [
+        "优先修复 SEC-ABUSE-001：禁止 MJ DTO 返回 raw `videoUrl`，补 owner-scoped proxy/strip 测试。",
+        "将生产 session cookie 改为 Secure，并增加 HTTPS/反代场景测试。",
+        "把全局 CORS 收敛为 allowlist，Creative API/relay 保持同源策略。",
+        "补跑 targeted tests：Creative route/middleware、MJ/Suno forbidden fields、asset owner/no-store、HTTP redirect SSRF。"
+      ],
+      "score": 0.58,
+      "status": "partial",
+      "summary": "当前源码实现了多项 Creative abuse-boundary 控制，但仍发现 1 个高优先级 provider URL 泄漏点、1 个 session cookie hardening 缺陷、1 个 CORS 高风险默认和 1 个低危错误信息泄漏风险。未读取历史报告/日志/归档，未修改文件。",
+      "verificationGaps": [
+        "受 8 条 shell 命令限制，未完整展开所有 router 注册文件和 Opentu provider-routing/media-executor 源码；direct-provider fallback 禁止逻辑仍需 targeted source review 与测试确认。",
+        "未运行测试；本次为静态源码/规范审计。",
+        "未动态验证浏览器 CORS 实际响应头、Set-Cookie 在不同部署 scheme 下的行为、以及 SSRF validator 错误文本是否包含完整 URL/query。",
+        "未审阅 secrets 或运行环境配置，无法确认生产是否通过外层 HTTPS/HSTS/反代额外缓解 `Secure:false`。"
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.86,
+          "details": "Creative unsafe request 已有同源与 session nonce/CSRF 校验，且 expected origin 从 request scheme/TLS 与 Host 推导，没有信任裸 `X-Forwarded-*`。",
+          "evidence": [
+            "../new-api/middleware/creative.go:95-128 对非 GET/HEAD/OPTIONS 校验 Origin/Referer、CSRF 与 nonce。",
+            "../new-api/middleware/creative.go:247-269 使用 `Request.URL.Scheme`/TLS 与 `Request.Host` 计算 expected origin。"
+          ],
+          "id": "VNI-001",
+          "impact": "降低跨站 POST/PUT/DELETE 调用 Creative relay/API 的风险。",
+          "recommendation": "保留该边界，并增加 raw `X-Forwarded-*` spoof 回归测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative unsafe requests 具备同源 + nonce/CSRF 边界"
+        },
+        {
+          "confidence": 0.82,
+          "details": "Creative relay 入口存在 forbidden material 拦截，Suno/MJ submit 也有 route-specific guard，能在进入上游分发前拒绝浏览器提供的 credential/routing 字段。",
+          "evidence": [
+            "../new-api/controller/creative.go:481-501 `CreativeRejectForbiddenRelayFields` 拦截 header/query/body forbidden fields。",
+            "../new-api/controller/creative.go:99-107 Suno submit guard 拒绝 forbidden field。",
+            "../new-api/controller/creative.go:126-134 MJ submit guard 拒绝 forbidden field。"
+          ],
+          "id": "VNI-002",
+          "impact": "降低浏览器传入上游 API key、base URL、provider/channel/group/model override、notify/callback 等控制材料的风险。",
+          "recommendation": "继续用 alias table 覆盖 header/query/JSON/form/multipart file-part names，并补充 fuzz/表驱动测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative relay 已有 forbidden-material 前置拦截"
+        },
+        {
+          "confidence": 0.84,
+          "details": "Creative API/relay 与 asset/MJ proxy 路径已有 no-store 控制，避免私有任务/资产响应继承静态资源长缓存。",
+          "evidence": [
+            "../new-api/middleware/cache.go:21-24 对 `/creative/api/*` 与 `/creative/relay/*` 设置 `Cache-Control: private, no-store`。",
+            "../new-api/controller/creative_asset.go:272-280 asset JSON/content 响应设置 `private, no-store`、`Pragma: no-cache`、`nosniff`/`Vary: Cookie`。",
+            "../new-api/controller/creative.go:675-678 MJ image proxy 设置 `private, no-store`、`Pragma: no-cache`、`nosniff`。"
+          ],
+          "id": "VNI-003",
+          "impact": "降低私有 Creative 任务和资产被浏览器、Service Worker 或代理缓存的风险。",
+          "recommendation": "补 wrong-method/trailing-slash/unmatched route no-store 测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative 私有 API/内容响应已覆盖 no-store"
+        },
+        {
+          "confidence": 0.87,
+          "details": "服务端出站 HTTP client 的 redirect path 会重新执行 SSRF 校验，并在跨 host redirect 时剥离敏感 header；空 proxy fallback 也不会退回 unchecked `http.DefaultClient`。",
+          "evidence": [
+            "../new-api/service/http_client.go:25-35 `checkRedirect` 调用 `stripSensitiveRedirectHeaders` 并重新 `ValidateURLWithFetchSetting`。",
+            "../new-api/service/http_client.go:38-69 跨 host redirect 删除 Authorization、proxy authorization、cookie、api-key/api-secret/mj-secret 等敏感 headers。",
+            "../new-api/service/http_client.go:104-120 空 proxy path 使用 managed client `ensureHTTPClient()`。"
+          ],
+          "id": "VNI-004",
+          "impact": "降低 proxy/image/video fetch 在 redirect 后泄漏上游 key 或访问 private IP 的风险。",
+          "recommendation": "保留该 client 作为所有 Creative content fetch 的唯一出站路径。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "出站 redirect SSRF 与敏感 header stripping 已实现"
+        },
+        {
+          "confidence": 0.8,
+          "details": "Creative asset production storage 未静默降级到 DB：production rollout 下非 s3-compatible backend 会 fail closed；asset 读取服务使用 `userId + assetId` lookup。",
+          "evidence": [
+            ".trellis/spec/backend/creative-asset-sync.md:33-37 要求生产 S3 配置缺失时 fail closed，不能静默落 DB。",
+            "../new-api/service/creative_asset.go:203-211 production rollout 且 backend 不是 `s3-compatible` 时返回错误。",
+            "../new-api/service/creative_asset.go:357 通过 `model.GetCreativeAsset(userId, assetId)` 读取 owner-scoped asset。"
+          ],
+          "id": "VNI-005",
+          "impact": "降低对象存储配置错误导致资产进入 DB 或跨用户读取的风险。",
+          "recommendation": "继续补 controller-level 401/403/404、range、delete referenced asset 测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative asset 存储 fallback 与 owner scope 基线符合规范"
+        }
+      ]
+    },
+    {
+      "area": "backend implementation/security supplement",
+      "confidence": 0.72,
+      "evidenceFiles": [
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-backend-security-boundary.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-asset-sync.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-video-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-suno-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-mj-relay.md",
+        "/mnt/f/code/project/new2fly/.trellis/spec/backend/creative-async-task-billing-consistency.md",
+        "/mnt/f/code/project/new-api/router/web-router.go",
+        "/mnt/f/code/project/new-api/router/main.go",
+        "/mnt/f/code/project/new-api/middleware/cache.go",
+        "/mnt/f/code/project/new-api/middleware/creative.go",
+        "/mnt/f/code/project/new-api/controller/creative.go",
+        "/mnt/f/code/project/new-api/service/task_billing.go",
+        "/mnt/f/code/project/new-api/service/task_polling.go",
+        "/mnt/f/code/project/new-api/dto/midjourney.go"
+      ],
+      "findings": [
+        {
+          "confidence": 0.88,
+          "details": "Creative Video/Suno/MJ submit guards all delete the scoped idempotency row after `c.Next()` whenever the final response status is >=400. The active billing/idempotency contract says that once the provider has accepted a task, local task insert/idempotency/settle failure must keep the guard so retry cannot create a second upstream task. Current wrappers do not distinguish pre-provider rejection from post-provider/local-persistence failure, so an error after upstream acceptance can clear idempotency and permit duplicate upstream submission on retry.",
+          "evidence": [
+            ".trellis/spec/backend/creative-async-task-billing-consistency.md:28-37 requires submit success to be buffered until task insert, scoped idempotency completion, and durable submit billing settle; provider-accepted local failure must not delete the idempotency guard.",
+            ".trellis/spec/backend/creative-async-task-billing-consistency.md:41-43 says task insert/idempotency/settle failure after provider success must not flush success and must keep safe recovery/replay state.",
+            "controller/creative.go:71-84 `CreativeVideoSubmitIdempotency` deletes `DeleteCreativeVideoIdempotency(userID, requestID)` on any status >=400 after `c.Next()`.",
+            "controller/creative.go:91-120 `CreativeSunoSubmitGuard` deletes `DeleteCreativeVideoIdempotencyScoped(userID, scope, requestID)` on any status >=400 after `c.Next()`.",
+            "controller/creative.go:124-148 `CreativeMJSubmitImagineGuard` deletes `DeleteCreativeVideoIdempotencyScoped(userID, creativeMJSubmitScopeImagine, requestID)` on any status >=400 after `c.Next()`."
+          ],
+          "id": "NA-OA-001",
+          "impact": "高影响：用户重试可能创建第二个 provider 任务，造成双花/重复扣费/重复外部成本，并破坏任务状态与账务一致性。",
+          "recommendation": "为 RelayTask/submit path 暴露明确阶段标记，例如 `providerAccepted` / `localTaskPersisted`；只有在 provider 未接受前的校验、分发、上游提交失败才删除 idempotency。provider 已接受后的本地失败应保留或标记 pending/recoverable idempotency，并补充 video/Suno/MJ 的 upstream accepted + local failure 重试测试。",
+          "severity": "high",
+          "status": "confirmed",
+          "title": "Provider 已接受后的 submit 错误会无条件清理 Creative idempotency guard"
+        },
+        {
+          "confidence": 0.58,
+          "details": "Creative Suno fetch wrapper currently only sets the session-broker token and delegates to generic `RelayTaskFetch(c)`, unlike MJ fetch/image which in the visible current code explicitly loads by `user_id + task_id`, checks platform, and builds a Creative-specific response. If the generic fetch path returns generic task DTOs or accepts upstream IDs, this violates the Suno contract requiring owner-scoped local task fetch and sanitized public DTO. I could not verify `RelayTaskFetch` internals within the shell-command cap, so this is a likely risk rather than a confirmed exploit.",
+          "evidence": [
+            ".trellis/spec/backend/creative-async-suno-relay.md:31-33 requires fetch to load tasks by `user_id + task_id` and return non-leaky not-found for cross-user/missing tasks.",
+            "controller/creative.go:540-544 `CreativeRelaySunoFetch` delegates directly to `RelayTaskFetch(c)`.",
+            "controller/creative.go:554-572 `CreativeRelayMJFetch` explicitly calls `model.GetByTaskId(c.GetInt(\"id\"), taskID)` and checks `TaskPlatformMidjourney`, showing the safer Creative-specific pattern used for MJ."
+          ],
+          "id": "NA-OA-002",
+          "impact": "潜在跨用户/跨平台任务查询或 DTO 内部字段泄露风险，取决于 generic `RelayTaskFetch` 的当前行为。",
+          "recommendation": "把 Suno fetch 改为与 MJ 一样的 Creative 专用 owner-scoped local fetch，或证明并测试 `RelayTaskFetch` 已按 Creative/Suno 分支做 user_id+task_id、platform=suno、字段清洗和 ids 上限规范化。",
+          "severity": "medium",
+          "status": "likely",
+          "title": "Suno Creative fetch 未在 wrapper 中显式执行 owner-scope/DTO 清洗"
+        }
+      ],
+      "nextActions": [
+        "补一组 targeted tests：provider accepted 后本地 task insert/idempotency completion/submit_settle 失败时，不删除 idempotency，重试不得二次提交 upstream。",
+        "补 Suno fetch owner-scope/DTO 测试：same-user success、cross-user not found、非 Suno task not found、响应不含 user_id/channel_id/quota/raw private URL。",
+        "在下一轮允许更多读取时，专门复核 controller/creative_asset.go、model/creative_asset.go、service/creative_asset.go、service/http_client.go 的完整实现与对应测试输出。"
+      ],
+      "score": 0.68,
+      "status": "partial",
+      "summary": "已基于当前源码/测试文件索引和 active creative specs 做新鲜后端补充审计；未修改文件、未读 secrets，并控制在 8 条 shell 命令内。确认 1 个高危 idempotency 清理缺陷，另发现 1 个 Suno fetch owner-scope/DTO 的待确认风险。",
+      "verificationGaps": [
+        "未运行 Go 测试；受用户 shell 命令上限限制，本轮只做静态审计。",
+        "asset owner-scope/quota/storage/S3 redirect policy 的完整代码段因输出截断未能逐行引用，不能给出 confirmed 结论。",
+        "service/http_client.go 的 CheckRedirect、cross-host sensitive header stripping、http.DefaultClient fallback 行为未能逐行引用，不能给出 confirmed 结论。",
+        "middleware/creative.go 中 expected origin 是否完全不信任 raw X-Forwarded-* 未看到 helper 全体实现，只确认入口调用 origin/referer 校验。"
+      ],
+      "verifiedNonIssues": [
+        {
+          "confidence": 0.9,
+          "details": "`SetRouter` 在 `FRONTEND_BASE_URL` 非空时仍注册 Creative API/relay，并在 Creative API/relay NoRoute 分支设置 no-store 后返回本地 relay not found，不会重定向到外部 frontend。`SetWebRouter` 模式也在 web router 中注册 Creative routes。",
+          "evidence": [
+            "router/main.go:21-30 读取 `FRONTEND_BASE_URL` 后仍调用 `SetCreativeRouter(router)`。",
+            "router/main.go:36-45 对 `/creative/api` 和 `/creative/relay` NoRoute 设置 route tag、`setCreativeNoStoreHeaders(c)` 并 `controller.RelayNotFound(c)`。",
+            "router/web-router.go:182 调用 `SetCreativeRouter(router)`；router/web-router.go:188-192 对 Creative API/relay SPA fallback 直接 `RelayNotFound`。"
+          ],
+          "id": "VNI-001",
+          "impact": "降低 FRONTEND_BASE_URL 模式下 Creative API/relay 被外部 SPA 301/307 劫持的风险。",
+          "recommendation": "保留该分支，并用 router tests 覆盖 matched、unmatched、wrong-method、trailing-slash 的 no Location/no-store。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "FRONTEND_BASE_URL 不会接管 Creative API/relay"
+        },
+        {
+          "confidence": 0.88,
+          "details": "Creative API/relay 路由组和全局 cache middleware 都对 Creative API/relay 使用 `private, no-store`，避免继承静态 web 的长缓存。",
+          "evidence": [
+            "router/web-router.go:36-47 `creativeNoStore` 设置 `Cache-Control: private, no-store`、`Pragma: no-cache`、`Expires: 0`。",
+            "router/web-router.go:53-58 `/creative/api` group 使用 `creativeNoStore()`。",
+            "router/web-router.go:89-98 `/creative/relay/v1` group 使用 `creativeNoStore()`。",
+            "middleware/cache.go:19-27 对 `/creative/api` 与 `/creative/relay` 设置 `private, no-store`，其他 web path 才使用 `max-age=604800`。"
+          ],
+          "id": "VNI-002",
+          "impact": "Creative API/relay 错误响应和认证响应不应被浏览器或中间层长期缓存。",
+          "recommendation": "继续保持 route group 与 global cache 的双层 no-store；补充 NoRoute/NoMethod 测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative API/relay no-store 边界存在"
+        },
+        {
+          "confidence": 0.82,
+          "details": "Bootstrap 为 session 生成 CSRF 和 nonce；unsafe Creative requests 通过 `CreativeRequireNonce` 同时校验 origin/referer 与 CSRF/nonce，GET/HEAD/OPTIONS 不要求 nonce。",
+          "evidence": [
+            "middleware/creative.go:33-63 `EnsureCreativeSessionAuthMaterial` 生成并保存 `creative_csrf_token` 与 `creative_nonce`。",
+            "controller/creative.go:152-185 `CreativeBootstrap` 返回 `csrfToken` 和 `nonce`。",
+            "middleware/creative.go:95-130 `CreativeRequireNonce` 对 GET/HEAD/OPTIONS 放行，对 unsafe method 校验 origin 和常量时间 CSRF/nonce。"
+          ],
+          "id": "VNI-003",
+          "impact": "降低跨站 unsafe mutation 风险。",
+          "recommendation": "补充 raw forwarded-host spoof、missing nonce、invalid nonce、GET no-nonce 的单元测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Unsafe Creative mutation 具备 nonce/CSRF 校验"
+        },
+        {
+          "confidence": 0.76,
+          "details": "Creative relay 的通用 forbidden-field middleware 在 session broker/distribution 之前执行，先检查 header/query/body；Suno/MJ submit guard 再做路由专用检查并由服务端写入模型 override。",
+          "evidence": [
+            "router/web-router.go:89-99 `/creative/relay/v1` group 在 `CreativeRelaySessionBroker`/`Distribute` 前使用 `CreativeRequireSameOrigin`、`CreativeRequireNonce`、`CreativeRejectForbiddenRelayFields`。",
+            "controller/creative.go:481-509 `CreativeRejectForbiddenRelayFields` 在 `c.Next()` 前检查 header、query、unsafe body。",
+            "controller/creative.go:91-110 `CreativeSunoSubmitGuard` 先调用 Suno forbidden submit 检查，再设置 server-side model override。",
+            "controller/creative.go:124-138 `CreativeMJSubmitImagineGuard` 先调用 MJ forbidden submit 检查，再设置 `mj_imagine` override。"
+          ],
+          "id": "VNI-004",
+          "impact": "浏览器提供 upstream credential/routing authority 的请求应在分发前失败。",
+          "recommendation": "继续扩大 alias/table-driven 测试覆盖 header/query/JSON/form/multipart/file-part 名称。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Forbidden relay field 检查位于分发前"
+        },
+        {
+          "confidence": 0.87,
+          "details": "MJ fetch/list/image 当前可见实现按当前用户和本地 public task id 查询，并检查 Midjourney platform；MJ list 在 DB fan-out 前调用 task id list normalization。DTO 保留 `imageUrl` 字段，image route 在无成功结果 URL 时返回 not found，不回退到 video content URL。",
+          "evidence": [
+            "controller/creative.go:554-572 `CreativeRelayMJFetch` 使用 `model.GetByTaskId(c.GetInt(\"id\"), taskID)` 并检查 `TaskPlatformMidjourney`。",
+            "controller/creative.go:574-604 `CreativeRelayMJListByCondition` 将 `ids` 传入 `service.NormalizeCreativeTaskIDList` 后才 `model.GetByTaskIds(c.GetInt(\"id\"), taskIDs)`。",
+            "controller/creative.go:607-633 `CreativeRelayMJImage` 使用当前 user id 查询 task、检查 Midjourney platform/success，并在 `PrivateData.ResultURL` 与 task data `imageUrl` 都为空时返回 `image_not_found`。",
+            "dto/midjourney.go:47-60 `MidjourneyDto` 包含兼容字段 `imageUrl`。"
+          ],
+          "id": "VNI-005",
+          "impact": "降低 MJ 跨用户读取、非 MJ 任务混淆和 no-imageUrl fallback 到 video proxy 的风险。",
+          "recommendation": "保留 owner-scoped pattern，并补充 no imageUrl 不返回 `/v1/videos/...` 的回归测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "MJ owner-scope/list normalization/imageUrl 兼容路径基本成立"
+        },
+        {
+          "confidence": 0.84,
+          "details": "异步 polling 对 Creative idempotent task 使用 `PrivateData.UpstreamTaskID`，且缺少 submit-time selected key 时 fail closed；billing outbox processing 有原子 claim 步骤，降低并发重复结算/退款风险。",
+          "evidence": [
+            "service/task_polling.go:131-155 `collectPollingTaskBuckets` 通过 `pollingUpstreamTaskID` 收集 upstream ids；Creative idempotent task 使用 `PrivateData.UpstreamTaskID`，否则才 legacy fallback。",
+            "service/task_polling.go:227-245 `selectedPollingKeyForTask` 优先用 `PrivateData.Key`，Creative idempotent task 缺 key 返回错误，不使用 channel fallback。",
+            "service/task_polling.go:116-119 null upstream tasks 会进入 CAS failure/refund path。",
+            "service/task_billing.go:210-214 `ProcessTaskBillingOutbox` 先调用 `claimTaskBillingOutbox`。",
+            "service/task_billing.go:297-311 `claimTaskBillingOutbox` 通过状态条件把 pending/failed/stale-processing 原子更新为 processing。"
+          ],
+          "id": "VNI-006",
+          "impact": "降低 polling key drift、public task id 被当 upstream id、并发 double refund/settle 风险。",
+          "recommendation": "继续保留 Creative vs legacy 分支，并补齐并发 outbox/selected-key fail-closed 测试。",
+          "severity": "info",
+          "status": "confirmed",
+          "title": "Creative polling key-affinity 与 billing outbox CAS 基本成立"
+        }
+      ]
+    }
+  ]
+}

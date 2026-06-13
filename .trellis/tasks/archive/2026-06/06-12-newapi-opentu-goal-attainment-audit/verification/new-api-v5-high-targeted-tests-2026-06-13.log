@@ -1,0 +1,5 @@
+$ go test -count=1 ./controller -run 'TestShould(DeleteCreativeTaskIdempotency|RefundTaskSubmitBilling)'
+ok  	github.com/QuantumNous/new-api/controller	0.018s
+
+$ go test -count=1 ./service -run 'TestCreativeAsset(DeleteFailureKeepsMetadataRetryable|LifecycleOutboxDeletesOrphanS3Upload)'
+ok  	github.com/QuantumNous/new-api/service	0.034s
