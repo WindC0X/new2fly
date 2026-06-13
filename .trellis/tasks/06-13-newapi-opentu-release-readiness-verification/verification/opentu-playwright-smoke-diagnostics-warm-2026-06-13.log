@@ -1,0 +1,5 @@
+{"type":"console","level":"debug","text":"[vite] connecting..."}
+{"type":"console","level":"debug","text":"[vite] connected."}
+{"type":"console","level":"info","text":"%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold"}
+{"type":"console","level":"warning","text":"The database \"aitu-workspace\" can't be downgraded from version 9 to version 8."}
+{"type":"state","title":"Opentu - 我的画板1","htmlClass":"app-ready aitu-toolbar-dock-left","bootExists":false,"bootTitle":null,"bootTip":null,"bootProgress":null,"rootChildCount":1,"rootText":"灵感创意不再提示提示词宫格图智能拆分宫格图宫格图，风格统一PPT大纲生成PPT大纲用参考图片规划配图与页面提示词思维导图项目规划脑图快速生成结构化的思维导图，梳理项目计划图片#gpt2v自动, 1K, 自动1个100%新对话GPT-5.5","drawnixCount":1,"seoVisible":false}

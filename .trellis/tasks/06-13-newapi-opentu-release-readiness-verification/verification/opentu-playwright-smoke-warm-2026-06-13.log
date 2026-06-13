@@ -1,0 +1,28 @@
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+> @aitu/source@0.9.6 e2e:smoke /mnt/f/code/project/opentu
+> nx e2e web-e2e -- --project=smoke
+
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+> nx run web-e2e:e2e --project=smoke
+
+> playwright test --project=smoke
+
+
+[2mRunning [22m2[2m tests using [22m2[2m workers[22m
+
+  [32m✓[39m  [2m2 [22m[smoke] › src/smoke/smoke.spec.ts:12:7 › @smoke 核心功能验证 › 主画布：加载、工具栏、AI输入栏、视图导航[2m (6.7s)[22m
+  [32m✓[39m  [2m1 [22m[smoke] › src/smoke/smoke.spec.ts:116:7 › @smoke 核心功能验证 › 弹窗抽屉：设置、项目、工具箱[2m (9.5s)[22m
+
+[32m  2 passed[39m[2m (16.5s)[22m
+
+
+
+ NX   Successfully ran target e2e for project web-e2e
+
+

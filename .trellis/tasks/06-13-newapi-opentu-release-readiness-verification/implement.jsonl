@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Backend asset lifecycle and S3 cleanup contracts."}
+{"file":".trellis/spec/backend/creative-async-task-billing-consistency.md","reason":"Async task billing consistency contracts relevant to release gate."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Backend security boundary contracts."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"Frontend asset sync and hydrate sanitizer contracts."}
+{"file":".trellis/spec/frontend/creative-async-video-relay.md","reason":"Frontend video relay/session-broker contracts."}
+{"file":".trellis/spec/frontend/creative-async-suno-relay.md","reason":"Frontend Suno relay/session-broker contracts."}
+{"file":".trellis/spec/frontend/creative-async-mj-relay.md","reason":"Frontend MJ relay/session-broker contracts."}

@@ -1,0 +1,25 @@
+=== new2fly status ===
+?? .cache/
+?? .trellis/tasks/06-13-newapi-opentu-release-readiness-verification/
+=== new2fly log ===
+04fe0ba chore: record journal
+d3b48b8 chore(task): archive 06-12-newapi-opentu-goal-attainment-audit
+971e4ff chore(task): record creative remediation archives
+91bffcf docs(spec): record creative hardening contracts
+d025ec3 chore: record journal
+0598d18 chore(task): archive 06-11-newapi-opentu-deep-audit
+=== new-api status ===
+?? .codegraph/
+?? .codex-flow/
+=== new-api log ===
+ba920ee fix(creative): harden embedded relay and asset lifecycle
+9cf51ab feat(creative): add mj session relay
+29aa06b feat(creative): add suno session relay
+f7a428d feat(creative): add async video relay
+=== opentu status ===
+?? packages/drawnix/audio-test.pptx
+=== opentu log ===
+570af4be fix(drawnix): harden creative session broker flows
+e66cf287 feat(drawnix): route mj via creative session broker
+5780f19c feat(drawnix): route suno via creative session broker
+c08bf0c5 feat(drawnix): route video via creative session broker

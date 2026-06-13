@@ -1,0 +1,18 @@
+=== final status: new2fly ===
+ M .trellis/spec/backend/creative-backend-security-boundary.md
+ M .trellis/spec/frontend/index.md
+?? .cache/
+?? .trellis/spec/frontend/creative-embedded-release-artifact.md
+?? .trellis/tasks/06-13-newapi-opentu-release-readiness-verification/
+=== final status: new-api concise counts ===
+?? 92
+D 88
+M 72
+=== final status: new-api non-dist/tool untracked ===
+=== final status: opentu ===
+?? packages/drawnix/audio-test.pptx
+=== final source-only diff --check ===
+=== final artifact quick hash/count ===
+opentu files 223 treehash 6d92a9728a8a4871c084ad0d5558fc171e67e675aa935b51bbc76b83ca295f91 entryRefs ['/creative/assets/index-Bs1ESiJC.js', '/creative/assets/index-Bhsy9ZA3.css'] dotAssets 0
+new-api-root files 223 treehash 6d92a9728a8a4871c084ad0d5558fc171e67e675aa935b51bbc76b83ca295f91 entryRefs ['/creative/assets/index-Bs1ESiJC.js', '/creative/assets/index-Bhsy9ZA3.css'] dotAssets 0
+new-api-router files 223 treehash 6d92a9728a8a4871c084ad0d5558fc171e67e675aa935b51bbc76b83ca295f91 entryRefs ['/creative/assets/index-Bs1ESiJC.js', '/creative/assets/index-Bhsy9ZA3.css'] dotAssets 0

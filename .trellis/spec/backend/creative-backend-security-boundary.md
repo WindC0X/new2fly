@@ -33,6 +33,7 @@
 - Public Creative fetch DTOs must be route-specific and owner-scoped. They must not leak generic task internals such as `user_id`, `channel_id`, `quota`, raw private result URLs, upstream ids, or selected keys.
 - Outbound proxy/content clients must preserve SSRF redirect validation and strip sensitive headers on cross-host redirects. Fallbacks must not silently downgrade to unchecked `http.DefaultClient`.
 - Provider/private URLs and provider response bodies must be redacted/truncated before application logs. Stored task data may keep sanitized status payloads, but logs must not print signed URLs, base64 payloads, API keys, selected keys, cookies, or bearer material.
+- Embedded Opentu release artifacts are produced by the frontend contract in `../frontend/creative-embedded-release-artifact.md`: use `VITE_BASE_URL=/creative/`, sync the same `dist/apps/web/` bytes into both `new-api` Creative dist trees, and keep `/creative/assets/*` entry refs intact.
 
 ### 4. Validation & Error Matrix
 
@@ -57,6 +58,7 @@
 ### 6. Tests Required
 
 - Router tests for `FRONTEND_BASE_URL` mode covering matched Creative API/relay, missing paths, wrong methods, and trailing-slash variants: assert no frontend `Location` and no-store.
+- Embedded artifact tests must assert `web/creative/dist` and `router/web/creative/dist` match each other and that `index.html` references entry JS/CSS under `/creative/assets/`.
 - Middleware/controller origin tests proving untrusted `X-Forwarded-*` does not change expected Creative origin.
 - Controller relay tests for forbidden aliases across header/query/JSON/form/multipart value keys and multipart file part names, while preserving documented top-level `model` where allowed.
 - Relay/channel tests for sensitive header skipping in wildcard passthrough, `pass_headers`, and `{client_header:*}` placeholders.

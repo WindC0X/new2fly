@@ -1,0 +1,17 @@
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+> nx run drawnix:typecheck
+
+> tsc -p tsconfig.lib.json --noEmit
+
+
+
+
+ NX   Successfully ran target typecheck for project drawnix
+
+

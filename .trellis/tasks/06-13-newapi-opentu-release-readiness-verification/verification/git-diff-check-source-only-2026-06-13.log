@@ -1,0 +1,13 @@
+=== concise statuses ===
+[new2fly]
+?? .cache/
+?? .trellis/tasks/06-13-newapi-opentu-release-readiness-verification/
+[new-api porcelain counts]
+?? 92
+D 88
+M 72
+[new-api untracked non-dist/tool]
+[opentu]
+ M apps/web/public/version.json
+?? packages/drawnix/audio-test.pptx
+=== source-only diff --check ===

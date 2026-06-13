@@ -1,0 +1,3 @@
+{"type":"console","level":"debug","text":"[vite] connecting..."}
+{"type":"console","level":"debug","text":"[vite] connected."}
+{"type":"state","title":"Opentu 开图 | AI 图片生成、流程图、思维导图与画布工作区","htmlClass":"","bootExists":true,"bootTitle":"正在唤起工作台","bootTip":"首次打开或网络较慢时会多等一会，正在努力准备中...","bootProgress":"82%","rootChildCount":0,"rootText":"","drawnixCount":0,"seoVisible":true,"hasBootController":true,"hasStartMainEntry":true,"scripts":["[inline]","http://localhost:7200/@vite/client","[inline]","http://localhost:7200/cdn-config.js","[inline]","http://localhost:7200/index.html?html-proxy&index=0.js","[inline]"]}

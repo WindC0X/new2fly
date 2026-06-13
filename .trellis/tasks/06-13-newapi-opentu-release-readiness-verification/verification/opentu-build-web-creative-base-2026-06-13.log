@@ -1,0 +1,888 @@
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+> @aitu/source@0.9.6 build:web /mnt/f/code/project/opentu
+> node scripts/update-version.js && nx build web
+
+🚀 Updating app to version 0.9.6
+✅ Version file created: 0.9.6 (保留 1 条更新日志)
+✅ HTML updated with version 0.9.6
+✅ changelog.json has entry for 0.9.6
+🎉 Version update completed: 0.9.6
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[Vite] Loaded version from version.json: 0.9.6
+
+> nx run web:build
+
+> nx run web:typecheck
+
+(node:542923) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+[2m> [22m[2mnx run[22m web:typecheck
+
+[2m> [22mtsc -p tsconfig.app.json --noEmit
+
+
+
+
+[0m[7m[1m[32m NX [39m[22m[27m[0m  [32mSuccessfully ran target typecheck for project web[39m
+
+
+> nx run web:build-app
+
+(node:543277) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+[2m> [22m[2mnx run[22m web:build-app
+
+[2m> [22mvite build
+
+[Vite] Loaded version from version.json: 0.9.6
+vite v6.4.1 building for production...
+(node:543300) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+transforming...
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+4 │ @import 'tailwindcss';
+  │         ^^^^^^^^^^^^^
+  ╵
+    src/styles.scss 4:9  root stylesheet
+
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import './../../../../node_modules/@plait/draw/styles/styles.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/styles/index.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+2 │ @import './../../../../node_modules/@plait/mind/styles/styles.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/styles/index.scss 2:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+3 │ @import 'tailwindcss';
+  │         ^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/styles/index.scss 3:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+4 │ @import './tdesign-theme.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/styles/index.scss 4:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+5 │ @import './theme.scss';
+  │         ^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/styles/index.scss 5:9  root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use string.unquote instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+126 │   themeFilter: unquote($theme-filter);
+    │                ^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 126:16  @import
+    ../../packages/drawnix/src/styles/theme.scss 1:9                @import
+    ../../packages/drawnix/src/styles/index.scss 5:9                root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use string.unquote instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+127 │   rightSidebarWidth: unquote($right-sidebar-width);
+    │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 127:22  @import
+    ../../packages/drawnix/src/styles/theme.scss 1:9                @import
+    ../../packages/drawnix/src/styles/index.scss 5:9                root stylesheet
+
+WARNING: 11 repetitive deprecation warnings omitted.
+Run in verbose mode to see all warnings.
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+2 │ @import './size-input.scss';
+  │         ^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.scss 2:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+350 │ @import './canvas-audio-player-volume';
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/components/audio-node-element/canvas-audio-player.scss 350:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+460 │ @import './canvas-audio-player-playlist';
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/components/audio-node-element/canvas-audio-player.scss 460:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+462 │ @import './canvas-audio-player-mobile';
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/components/audio-node-element/canvas-audio-player.scss 462:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+7 │ @import '../../styles/common-variables';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/chat-drawer/chat-drawer.scss 7:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+8 │ @import '../../styles/z-index';
+  │         ^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/chat-drawer/chat-drawer.scss 8:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import "../styles/variables.module.scss";
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/tool-icon.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+7 │ @import '../../styles/z-index';
+  │         ^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/view-navigation/view-navigation.scss 7:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import "./open-color";
+  │         ^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 1:9  @import
+    ../../packages/drawnix/src/components/tool-icon.scss 1:9     root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use string.unquote instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+126 │   themeFilter: unquote($theme-filter);
+    │                ^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 126:16  @import
+    ../../packages/drawnix/src/components/tool-icon.scss 1:9        root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use string.unquote instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+127 │   rightSidebarWidth: unquote($right-sidebar-width);
+    │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 127:22  @import
+    ../../packages/drawnix/src/components/tool-icon.scss 1:9        root stylesheet
+
+DEPRECATION WARNING [slash-div]: Using / for division outside of calc() is deprecated and will be removed in Dart Sass 2.0.0.
+
+Recommendation: math.div($ucp-slider-height, 2) or calc($ucp-slider-height / 2)
+
+More info and automated migrator: https://sass-lang.com/d/slash-div
+
+   ╷
+77 │   border-radius: $ucp-slider-height / 2;
+   │                  ^^^^^^^^^^^^^^^^^^^^^^
+   ╵
+    ../../packages/drawnix/src/components/unified-color-picker/unified-color-picker.scss 77:18  root stylesheet
+
+DEPRECATION WARNING [slash-div]: Using / for division outside of calc() is deprecated and will be removed in Dart Sass 2.0.0.
+
+Recommendation: math.div($ucp-slider-height, 2) or calc($ucp-slider-height / 2)
+
+More info and automated migrator: https://sass-lang.com/d/slash-div
+
+    ╷
+116 │   border-radius: $ucp-slider-height / 2;
+    │                  ^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/components/unified-color-picker/unified-color-picker.scss 116:18  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+6 │ @import '../../../styles/z-index';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/toolbar/popup-toolbar/text-property-panel.scss 6:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/z-index';
+  │         ^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/auto-complete-shape-picker/auto-complete-shape-picker.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import "../../styles/variables.module.scss";
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/ttd-dialog/ttd-dialog.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/ttd-dialog/ai-image-generation.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import "./open-color";
+  │         ^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 1:9           @import
+    ../../packages/drawnix/src/components/ttd-dialog/ttd-dialog.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use string.unquote instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+126 │   themeFilter: unquote($theme-filter);
+    │                ^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 126:16        @import
+    ../../packages/drawnix/src/components/ttd-dialog/ttd-dialog.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use string.unquote instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+127 │   rightSidebarWidth: unquote($right-sidebar-width);
+    │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 127:22        @import
+    ../../packages/drawnix/src/components/ttd-dialog/ttd-dialog.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use color.adjust instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+   ╷
+96 │         background: lighten($brand-orange, 5%);
+   │                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   ╵
+    ../../packages/drawnix/src/components/shared/media-preview/ViewerToolbar.scss 96:21  root stylesheet
+
+DEPRECATION WARNING [color-functions]: lighten() is deprecated. Suggestions:
+
+color.scale($color, $lightness: 10.2409638554%)
+color.adjust($color, $lightness: 5%)
+
+More info: https://sass-lang.com/d/color-functions
+
+   ╷
+96 │         background: lighten($brand-orange, 5%);
+   │                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   ╵
+    ../../packages/drawnix/src/components/shared/media-preview/ViewerToolbar.scss 96:21  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/dialog/dialog.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+9 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/task-queue/task-queue.scss 9:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+   ╷
+10 │ @import '../../styles/_common-variables.scss';
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   ╵
+    ../../packages/drawnix/src/components/task-queue/task-queue.scss 10:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+8 │ @import '../../styles/_common-variables.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/toolbox-drawer/toolbox-drawer.scss 8:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+8 │ @import '../../styles/_common-variables.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/project-drawer/project-drawer.scss 8:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+9 │ @import '../../styles/z-index';
+  │         ^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/project-drawer/project-drawer.scss 9:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+8 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/ai-input-bar/ai-input-bar.scss 8:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/command-palette/command-palette.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/canvas-search/canvas-search.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+6 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/media-library/MediaLibraryModal.scss 6:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+7 │ @import '../../styles/common-variables';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/performance-panel/performance-panel.scss 7:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import "../../styles/variables.module.scss";
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/menu/menu.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/common-variables';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/version-update/version-update-prompt.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import "./open-color";
+  │         ^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 1:9  @import
+    ../../packages/drawnix/src/components/menu/menu.scss 1:9     root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use string.unquote instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+126 │   themeFilter: unquote($theme-filter);
+    │                ^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 126:16  @import
+    ../../packages/drawnix/src/components/menu/menu.scss 1:9        root stylesheet
+
+DEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use string.unquote instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+127 │   rightSidebarWidth: unquote($right-sidebar-width);
+    │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ╵
+    ../../packages/drawnix/src/styles/variables.module.scss 127:22  @import
+    ../../packages/drawnix/src/components/menu/menu.scss 1:9        root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+6 │ @import '../../styles/common-variables';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/ai-input-bar/parameters-dropdown.scss 6:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+6 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/shared/prompt-list-panel.scss 6:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/common-variables';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/chat-drawer/user-message-bubble.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/common-variables';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/chat-drawer/workflow-message-bubble.scss 1:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+4 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/winbox/winbox-custom.scss 4:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+7 │ @import '../../styles/_common-variables.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/side-drawer/side-drawer.scss 7:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+8 │ @import '../../styles/z-index.scss';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/side-drawer/side-drawer.scss 8:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+7 │ @import '../../styles/common-variables';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/inspiration-board/inspiration-board.scss 7:9  root stylesheet
+
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+1 │ @import '../../styles/common-variables';
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    ../../packages/drawnix/src/components/knowledge-base/knowledge-base-extraction.scss 1:9  root stylesheet
+
+✓ 7952 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/crypto-service.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/data-serializer.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-router.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/task-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/tool-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/workflow-sync-service.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/media-sync-service.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryGrid.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryGrid.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/contexts/AssetContext.tsx but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryGrid.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskQueuePanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-sync-service.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/media-sync-service.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-manager.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sharded-media-sync-adapter.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sharded-media-sync-adapter.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/media-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-index.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/node_modules/.pnpm/@plait+core@0.84.0_immer@10.2.0_is-hotkey@0.2.0_rxjs@7.8.2/node_modules/@plait/core/fesm2022/plait-core.mjs is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/knowledge-base/KnowledgeBaseContent.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/knowledge-base/KnowledgeBaseContent.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/knowledge-base/KnowledgeBaseContent.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx but also statically imported by /mnt/f/code/project/opentu/apps/web/src/app/app.tsx, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait+common@0.84.0/node_modules/@plait/common/fesm2022/plait-common.mjs, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait+draw@0.84.0/node_modules/@plait/draw/fesm2022/plait-draw.mjs, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait+mind@0.84.0/node_modules/@plait/mind/fesm2022/plait-mind.mjs, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait+text-plugins@0.84.0/node_modules/@plait/text-plugins/fesm2022/plait-text-plugins.mjs, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/helpers.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/transformToDrawnixElement.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/types/flowchart.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/types/graphImage.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/types/sequence.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/parser/class.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/parser/sequence.js, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/AIInputBar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/CountDropdown.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/GenerationTypeDropdown.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/ModelDropdown.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/ParametersDropdown.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/SkillDropdown.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/arrow-picker.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/audio-node-element/audio-node.component.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/audio-node-element/audio-node.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/auto-complete-shape-picker/auto-complete-shape-picker.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/canvas-search/canvas-search.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/card-element/card.component.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/card-element/card.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/chat-drawer/ChatDrawer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/command-palette/command-registry.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/feedback-button/feedback-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/frame-element/frame.component.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/frame-element/frame.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/gradient-editor/GradientEditor.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/image-generation-anchor/image-generation-anchor.component.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/image-generation-anchor/image-generation-anchor.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/image-generation-anchor/image-generation-anchor.transforms.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/minimap/Minimap.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/multi-selection-handles/multi-selection-handles.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/AddFrameDialog.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/FramePanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/FrameSlideshow.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/LayerPanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shape-picker.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/tool-element/tool.component.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/tool-element/tool.transforms.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/app-toolbar/app-menu-items.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/app-toolbar/app-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/creation-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/freehand-panel/freehand-panel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/more-tools-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/pen-settings-toolbar/pen-settings-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/pencil-settings-toolbar/eraser-settings-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/pencil-settings-toolbar/pencil-settings-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/alignment-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/boolean-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/corner-radius-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/distribute-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/fill-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/font-color-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/font-size-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/image-3d-transform-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/layer-control-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/link-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/prompt-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/size-input.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/stroke-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/text-property-panel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/quick-creation-toolbar/quick-creation-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/toolbar-shared.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/unified-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolWinBoxManager.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolboxDrawer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/markdown-to-drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/mermaid-to-drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/shared/insertion-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/ttd-dialog.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/view-navigation/ViewNavigation.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/constants/color.ts, /mnt/f/code/project/opentu/packages/drawnix/src/data/audio-node-transforms.ts, /mnt/f/code/project/opentu/packages/drawnix/src/data/image.ts, /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useImageGenerationAnchorSync.ts, /mnt/f/code/project/opentu/packages/drawnix/src/keys.ts, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/ppt-generation.ts, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/shared/insert-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/components/image.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/freehand-settings.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/freehand.component.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/freehand.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/smoother.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/type.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/with-freehand-create.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/with-freehand-erase.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/with-freehand-fragment.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/with-freehand-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/with-laser-pointer.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/hand-mode.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/pen-settings.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/pen.component.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/pen.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/type.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/with-pen-create.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/with-pen-fragment.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/with-pen-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-arrow-line-auto-complete-extend.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-audio-node-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-audio-node.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-card-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-card.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-default-fill.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-flowchart-shortcut.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-frame-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-frame.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-gradient-fill.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-hotkey.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-image-3d-transform.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-image-generation-anchor.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-image.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-lasso-selection.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-multi-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-pencil.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-text-link.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-text-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-tool-focus.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-tool-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-tool.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-video.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-workzone.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/workzone-transforms.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/ppt/mindmap-to-ppt.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/ppt/ppt-export-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/ppt/ppt-frame-layout.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/sw-capabilities/handler.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/video-recovery-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/alignment.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/boolean.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/distribute.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/frame-aware.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/precise-erase.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/property.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/text-effects.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/ai-mask-brush.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/asset-cleanup.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/canvas-insertion-layout.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/card-actions.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/color.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/common.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/fit-frame.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/frame-duplicate.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/frame-insertion-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/frame-preview-snapshot.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/frame-title-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-3d-transform.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-generation-anchor-placement.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-generation-anchor-view-model.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-splitter.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/ppt-media-fit.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/resize-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/selection-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/video-frame.ts, /mnt/f/code/project/opentu/packages/react-board/src/board.tsx, /mnt/f/code/project/opentu/packages/react-board/src/hooks/use-board-event.ts, /mnt/f/code/project/opentu/packages/react-board/src/hooks/use-plugin-event.tsx, /mnt/f/code/project/opentu/packages/react-board/src/plugins/with-pinch-zoom-plugin.ts, /mnt/f/code/project/opentu/packages/react-board/src/utils/viewport.ts, /mnt/f/code/project/opentu/packages/react-board/src/wrapper.tsx, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/node_modules/.pnpm/@plait+draw@0.84.0/node_modules/@plait/draw/fesm2022/plait-draw.mjs is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/data/video.ts but also statically imported by /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/helpers.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/transformToDrawnixElement.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/types/class.js, /mnt/f/code/project/opentu/node_modules/.pnpm/@plait-board+mermaid-to-drawnix@0.0.7/node_modules/@plait-board/mermaid-to-drawnix/dist/converter/types/flowchart.js, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/AIInputBar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/arrow-picker.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/auto-complete-shape-picker/auto-complete-shape-picker.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/command-palette/command-registry.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/LayerPanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shape-picker.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/app-toolbar/app-menu-items.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/creation-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/more-tools-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/prompt-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/size-input.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/text-to-speech-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/quick-creation-toolbar/quick-creation-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/ttd-dialog-output.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/data/image.ts, /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/usePencilCursor.ts, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/canvas-insertion.ts, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/svg-tool.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/freehand.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/with-freehand-erase.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/freehand/with-freehand.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/pen/with-pen.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-arrow-line-auto-complete-extend.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-default-fill.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-flowchart-shortcut.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-hotkey.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-image-3d-transform.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-multi-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-text-paste.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-text-resize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/canvas-insertion.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/media-collector.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/photo-wall/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/ppt/ppt-export-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/sw-capabilities/handler.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/boolean.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/precise-erase.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/property.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/ai-mask-brush.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/asset-cleanup.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/card-actions.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/frame-insertion-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-3d-transform.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-splitter.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/ppt-media-fit.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/property.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/selection-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/video-frame.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/utils/src/index.ts is dynamically imported by /mnt/f/code/project/opentu/apps/web/src/main.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/AIInputBar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/comic-creator/export-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/shared/media-preview/UnifiedMediaViewer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/image-generation.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/blob-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/workflow-generation-utils.ts but also statically imported by /mnt/f/code/project/opentu/apps/web/src/crash-logger.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/MarkdownEditor/asset-embed-plugin/view.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/MarkdownEditor/image-block-plugin/view.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/fill-panel/ImageFillPanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryInspector.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/menu/common.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/model-benchmark/ModelBenchmarkWorkbench.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/retry-image.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shape-picker.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shared/AudioCover.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shared/media-preview/MediaViewport.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shared/media-preview/ThumbnailQueue.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shared/media-preview/UnifiedMediaViewer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/DialogTaskList.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskQueuePanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/tool-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/freehand-panel/freehand-panel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/fill-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/stroke-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/shared/ImageUpload.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/shared/MultiImageUpload.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/shared/ReferenceImageUpload.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/unified-color-picker/PresetColors.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/constants/color.ts, /mnt/f/code/project/opentu/packages/drawnix/src/contexts/GitHubSyncContext.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/data/audio.ts, /mnt/f/code/project/opentu/packages/drawnix/src/data/image.ts, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useThumbnailUrl.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/async-image-api-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/backup-restore/backup-crypto.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-audio-playback-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/character-api-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/data-serializer.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-manager.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-router.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/sync-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/task-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/workflow-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/long-video-chain-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/image-api.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/llm-api-logger.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/task-storage-writer.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/default-adapters.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/gpt-image-adapter.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/seedream-adapter.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/photo-wall/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/task-storage-reader.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/video-reference-image-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/workflow-engine/workflow-factory.ts, /mnt/f/code/project/opentu/packages/drawnix/src/transforms/property.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/asset-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/crypto-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/download-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/logged-calls.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/gemini-api/services.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-split-core.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-splitter.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/photo-wall-splitter.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/posthog-analytics.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/selection-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/storyboard-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/task-utils.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/sw-channel/client.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/workzone-element/WorkZoneContent.tsx but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useThumbnailUrl.ts, /mnt/f/code/project/opentu/packages/drawnix/src/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/runtime.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryGrid.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shared/media-preview/UnifiedMediaViewer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/data/image.ts, /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/services/async-image-api-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/video-api.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/video-binding-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/video-merge-webcodecs.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/asset-cleanup.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-splitter.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/selection-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/selection-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/workflow-generation-utils.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/comic-creator/ComicCreator.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/music-analyzer/audio-source-cache.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/music-analyzer/storage.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/retry-image.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskQueuePanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/video-analyzer/pages/AnalyzePage.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/video-analyzer/video-source-cache.ts, /mnt/f/code/project/opentu/packages/drawnix/src/contexts/AssetContext.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/data/embedded-media.ts, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAssetSize.ts, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useMediaCache.ts, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useUnifiedCache.ts, /mnt/f/code/project/opentu/packages/drawnix/src/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-image.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/services/asset-storage-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/backup-restore/backup-export-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/backup-restore/backup-import-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/character-asset-metadata-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-assets.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/generation-api-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/local-export-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/media-collector.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/media-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/shard-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-executor.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-utils.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/happyhorse-adapter.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/photo-wall/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/video-api-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/video-recovery-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/ai-mask-brush.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/video-frame-cache.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/knowledge-base-service.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/utils/card-actions.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/card-actions.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/AIInputBar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/SkillDropdown.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/knowledge-base/KBNoteEditor.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/knowledge-base/KnowledgeBaseContent.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/shared/KnowledgeNoteContextSelector.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAllTracksPlaybackSources.ts, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/knowledge-base-tool.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/backup-restore/backup-import-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/generation-context-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/github-sync/knowledge-base-sync-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/kb-import-export-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/kb-search-engine.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/prompt-optimization-service.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/image-generation.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/services/ppt/mindmap-to-ppt.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/sw-capabilities/handler.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/comic-creator/ComicCreator.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/FramePanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/creative-photo-wall-tool.ts, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/photo-wall-tool.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/components/image.tsx, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/utils/frame-insertion-utils.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/data/image.ts, /mnt/f/code/project/opentu/packages/drawnix/src/data/video.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/FramePanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/canvas-insertion.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/components/image.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/canvas-insertion.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/media-quick-insert.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/ppt/mindmap-to-ppt.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/ppt/index.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/FramePanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/project-drawer/FrameSlideshow.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/font-size-button.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/ppt-generation.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/components/image.tsx, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/data/image.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useWorkflowSubmission.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryGrid.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/DialogTaskList.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskQueuePanel.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/creation-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/quick-creation-toolbar/quick-creation-toolbar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/video-analyzer/VideoAnalyzer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/mcp/tools/canvas-insertion.ts, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-image.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/plugins/with-tool.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/canvas-insertion.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/media-quick-insert.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/sw-capabilities/handler.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/image.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/constants/built-in-tools.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/AIInputBar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/PromptHistoryPopover.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/tool-element/tool.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolItem.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolList.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolWinBoxManager.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolboxDrawer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/services/model-benchmark-launcher.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/tool-window-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/toolbox-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/utils/tool-test-helper.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/services/tool-window-service.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/AIInputBar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/PromptHistoryPopover.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/audio-node-element/CanvasAudioPlayer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/mv-creator/pages/AnalyzePage.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/tool-element/tool.generator.ts, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/minimized-tools-bar/MinimizedToolsBar.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolWinBoxManager.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolboxDrawer.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/services/model-benchmark-launcher.ts, /mnt/f/code/project/opentu/packages/drawnix/src/services/tool-launch-service.ts, /mnt/f/code/project/opentu/packages/drawnix/src/tools/tools/music-player/MusicPlayerTool.tsx, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTabSync.ts is dynamically imported by /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useWorkspace.ts but also statically imported by /mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx, /mnt/f/code/project/opentu/packages/drawnix/src/index.ts, /mnt/f/code/project/opentu/packages/drawnix/src/runtime.ts, dynamic import will not move module into another chunk.
+
+computing gzip size...
+../../dist/apps/web/assets/KaTeX_Size3-Regular-CTq5MqoE.woff                  4.42 kB
+../../dist/apps/web/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2                 4.93 kB
+../../dist/apps/web/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2                 5.21 kB
+../../dist/apps/web/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2                 5.47 kB
+../../dist/apps/web/assets/KaTeX_Size4-Regular-BF-4gkZK.woff                  5.98 kB
+../../dist/apps/web/assets/KaTeX_Size2-Regular-oD1tc_U0.woff                  6.19 kB
+../../dist/apps/web/assets/KaTeX_Size1-Regular-C195tn64.woff                  6.50 kB
+../../dist/apps/web/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2           6.91 kB
+../../dist/apps/web/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2              6.91 kB
+../../dist/apps/web/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf                   7.59 kB
+../../dist/apps/web/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff            7.66 kB
+../../dist/apps/web/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff               7.72 kB
+../../dist/apps/web/assets/KaTeX_Script-Regular-D3wIWfF6.woff2                9.64 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2            10.34 kB
+../../dist/apps/web/assets/KaTeX_Size4-Regular-DWFBv043.ttf                  10.36 kB
+../../dist/apps/web/assets/KaTeX_Script-Regular-D5yQViql.woff                10.59 kB
+../../dist/apps/web/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2              11.32 kB
+../../dist/apps/web/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2                 11.35 kB
+../../dist/apps/web/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf                  11.51 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2             12.03 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2               12.22 kB
+../../dist/apps/web/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf                  12.23 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff             12.32 kB
+../../dist/apps/web/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf            12.34 kB
+../../dist/apps/web/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf               12.37 kB
+../../dist/apps/web/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff               13.21 kB
+../../dist/apps/web/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff                  13.30 kB
+../../dist/apps/web/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2           13.57 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff              14.11 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff                14.41 kB
+../../dist/apps/web/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff            16.03 kB
+../../dist/apps/web/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2              16.40 kB
+../../dist/apps/web/assets/KaTeX_Math-Italic-t53AETM-.woff2                  16.44 kB
+../../dist/apps/web/assets/KaTeX_Script-Regular-C5JkGWo-.ttf                 16.65 kB
+../../dist/apps/web/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2              16.78 kB
+../../dist/apps/web/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2                  16.99 kB
+../../dist/apps/web/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff               18.67 kB
+../../dist/apps/web/assets/KaTeX_Math-Italic-DA0__PXp.woff                   18.75 kB
+../../dist/apps/web/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff               19.41 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf              19.44 kB
+../../dist/apps/web/assets/KaTeX_Fraktur-Regular-CB_wures.ttf                19.57 kB
+../../dist/apps/web/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf                   19.58 kB
+../../dist/apps/web/assets/KaTeX_Main-Italic-BMLOBm91.woff                   19.68 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf               22.36 kB
+../../dist/apps/web/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf                 24.50 kB
+../../dist/apps/web/assets/KaTeX_Main-Bold-Cx986IdX.woff2                    25.32 kB
+../../dist/apps/web/assets/KaTeX_Main-Regular-B22Nviop.woff2                 26.27 kB
+../../dist/apps/web/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf             27.56 kB
+../../dist/apps/web/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2                  28.08 kB
+../../dist/apps/web/assets/KaTeX_Main-Bold-Jm3AIy58.woff                     29.91 kB
+../../dist/apps/web/assets/KaTeX_Main-Regular-Dr94JaBh.woff                  30.77 kB
+../../dist/apps/web/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf                31.20 kB
+../../dist/apps/web/assets/KaTeX_Math-Italic-flOr_0UB.ttf                    31.31 kB
+../../dist/apps/web/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf                32.97 kB
+../../dist/apps/web/assets/KaTeX_AMS-Regular-DMm9YOAa.woff                   33.52 kB
+../../dist/apps/web/assets/KaTeX_Main-Italic-3WenGoN9.ttf                    33.58 kB
+../../dist/apps/web/assets/KaTeX_Main-Bold-waoOVXN0.ttf                      51.34 kB
+../../dist/apps/web/assets/KaTeX_Main-Regular-ypZvNtVU.ttf                   53.58 kB
+../../dist/apps/web/index.html                                               53.96 kB │ gzip:  13.38 kB
+../../dist/apps/web/assets/KaTeX_AMS-Regular-DRggAlZN.ttf                    63.63 kB
+../../dist/apps/web/assets/ttd-dialog-submit-shortcut-DyioEoKX.css            0.11 kB │ gzip:   0.11 kB
+../../dist/apps/web/assets/MVCreator-CDzLxh5R.css                             4.81 kB │ gzip:   1.35 kB
+../../dist/apps/web/assets/MediaLibrarySidebar-CNCXXhfY.css                   5.30 kB │ gzip:   1.30 kB
+../../dist/apps/web/assets/ParametersDropdown-BE58BbHs.css                    6.51 kB │ gzip:   1.39 kB
+../../dist/apps/web/assets/media-viewer-DoEpBmJL.css                          7.39 kB │ gzip:   2.41 kB
+../../dist/apps/web/assets/character-Bo9jcTNu.css                             7.43 kB │ gzip:   1.53 kB
+../../dist/apps/web/assets/MusicAnalyzer-DHa6anV5.css                        10.54 kB │ gzip:   2.20 kB
+../../dist/apps/web/assets/PromptHistoryTool-BH7hq916.css                    12.63 kB │ gzip:   2.36 kB
+../../dist/apps/web/assets/index-Bhsy9ZA3.css                                12.88 kB │ gzip:   3.47 kB
+../../dist/apps/web/assets/CanvasAudioPlayer-QLXKZ5KP.css                    16.18 kB │ gzip:   3.14 kB
+../../dist/apps/web/assets/ComicCreator-DjAR34b-.css                         17.92 kB │ gzip:   3.36 kB
+../../dist/apps/web/assets/batch-image-generation-DgBXF-sY.css               19.55 kB │ gzip:   3.54 kB
+../../dist/apps/web/assets/ResizableDivider-ClzYJk-6.css                     21.91 kB │ gzip:   3.90 kB
+../../dist/apps/web/assets/useCharacters-DRBoWvvj.css                        26.91 kB │ gzip:   5.32 kB
+../../dist/apps/web/assets/VideoAnalyzer-DvF56ngj.css                        27.47 kB │ gzip:   4.92 kB
+../../dist/apps/web/assets/ModelBenchmarkWorkbench-CC2lNbTT.css              27.61 kB │ gzip:   4.74 kB
+../../dist/apps/web/assets/KnowledgeBaseContent-CsR955E7.css                 44.19 kB │ gzip:   6.66 kB
+../../dist/apps/web/assets/settings-dialog-Dcm1G4kx.css                      46.91 kB │ gzip:   6.68 kB
+../../dist/apps/web/assets/DeferredAIInputBar-CVXfAbVO.css                   50.34 kB │ gzip:   7.09 kB
+../../dist/apps/web/assets/ttd-dialog-DaiCKXiC.css                           51.16 kB │ gzip:   7.34 kB
+../../dist/apps/web/assets/editor-engines-C8LHZ47f.css                       78.30 kB │ gzip:  13.99 kB
+../../dist/apps/web/assets/ai-chat-BB-1jJe1.css                             117.45 kB │ gzip:  19.54 kB
+../../dist/apps/web/assets/tool-windows-CegtMid1.css                        131.06 kB │ gzip:  19.72 kB
+../../dist/apps/web/assets/startup-app-DxC2basr.css                         439.37 kB │ gzip:  59.44 kB
+../../dist/apps/web/assets/mj-params-M-7csAp7.js                              0.24 kB │ gzip:   0.19 kB
+../../dist/apps/web/assets/__vite-browser-external-UePf-KSV.js                0.29 kB │ gzip:   0.22 kB
+../../dist/apps/web/assets/index-Bs1ESiJC.js                                  0.46 kB │ gzip:   0.32 kB
+../../dist/apps/web/assets/VideoAnalyzer-DyACAKDC.js                          0.58 kB │ gzip:   0.42 kB
+../../dist/apps/web/assets/model-benchmark-launcher-X_7Rq7De.js               0.81 kB │ gzip:   0.58 kB
+../../dist/apps/web/assets/useMediaViewer-DajLB9CY.js                         0.85 kB │ gzip:   0.51 kB
+../../dist/apps/web/assets/video-recovery-service-tKsQk37X.js                 0.91 kB │ gzip:   0.55 kB
+../../dist/apps/web/assets/index-B1KG1Lb9.js                                  1.69 kB │ gzip:   0.85 kB
+../../dist/apps/web/assets/skill-dsl-parser-Czi2F_GD.js                       1.71 kB │ gzip:   0.93 kB
+../../dist/apps/web/assets/startup-runtime-Di8qk2Fd.js                        1.75 kB │ gzip:   0.95 kB
+../../dist/apps/web/assets/ttd-dialog-submit-shortcut-Ddc4HDYx.js             2.35 kB │ gzip:   1.04 kB
+../../dist/apps/web/assets/task-sync-DKqHOOT3.js                              3.36 kB │ gzip:   1.47 kB
+../../dist/apps/web/assets/mermaid-to-drawnix-2nCDdteh.js                     3.69 kB │ gzip:   1.58 kB
+../../dist/apps/web/assets/DrawnixDeferredFeatures-u56nYwZh.js                3.73 kB │ gzip:   1.16 kB
+../../dist/apps/web/assets/index-CeYgN43e.js                                  4.34 kB │ gzip:   1.18 kB
+../../dist/apps/web/assets/markdown-to-drawnix-BDsTbaRO.js                    4.78 kB │ gzip:   2.77 kB
+../../dist/apps/web/assets/prompt-utils-NhRgZHnB.js                           4.87 kB │ gzip:   1.73 kB
+../../dist/apps/web/assets/ParametersDropdown-DSiH0zo9.js                     5.35 kB │ gzip:   2.19 kB
+../../dist/apps/web/assets/web-vitals-DcvjKPr-.js                             6.29 kB │ gzip:   2.55 kB
+../../dist/apps/web/assets/ai-generation-preferences-service-M8tN8ABD.js      6.99 kB │ gzip:   2.25 kB
+../../dist/apps/web/assets/photo-wall-splitter-CCI6G8AC.js                    7.73 kB │ gzip:   3.22 kB
+../../dist/apps/web/assets/ResizableDivider-Cvp0-CRW.js                       7.94 kB │ gzip:   3.07 kB
+../../dist/apps/web/assets/index-UUEg4h4g.js                                  9.00 kB │ gzip:   3.10 kB
+../../dist/apps/web/assets/workflow-generation-utils-QdrSh_dH.js             10.96 kB │ gzip:   5.06 kB
+../../dist/apps/web/assets/winbox.bundle.min-CoRPjCs5.js                     15.53 kB │ gzip:   5.91 kB
+../../dist/apps/web/assets/CanvasAudioPlayer-FAzvYmlk.js                     18.32 kB │ gzip:   6.00 kB
+../../dist/apps/web/assets/PromptHistoryTool-Xaym9lO8.js                     23.81 kB │ gzip:   7.51 kB
+../../dist/apps/web/assets/TaskQueuePanel-BLAoI_R9.js                        26.37 kB │ gzip:   8.83 kB
+../../dist/apps/web/assets/useWorkflowSubmission-BLiv44-9.js                 27.12 kB │ gzip:   8.94 kB
+../../dist/apps/web/assets/index-D4V2ytu7.js                                 28.33 kB │ gzip:   9.92 kB
+../../dist/apps/web/assets/ModelBenchmarkWorkbench-CuW1ckvd.js               28.84 kB │ gzip:   9.32 kB
+../../dist/apps/web/assets/useCharacters-DBfjEPis.js                         31.21 kB │ gzip:  10.16 kB
+../../dist/apps/web/assets/workflow-submission-service-Il_BYAeM.js           33.62 kB │ gzip:   9.16 kB
+../../dist/apps/web/assets/media-viewer-xSaTD7_w.js                          38.91 kB │ gzip:  12.24 kB
+../../dist/apps/web/assets/MusicAnalyzer-DqbAhZ7A.js                         40.43 kB │ gzip:  12.20 kB
+../../dist/apps/web/assets/batch-image-generation-DFnFOd1O.js                46.14 kB │ gzip:  15.29 kB
+../../dist/apps/web/assets/settings-dialog-CwPKuxG5.js                       57.57 kB │ gzip:  16.19 kB
+../../dist/apps/web/assets/ttd-dialog-Cdjh4Arw.js                            67.38 kB │ gzip:  22.19 kB
+../../dist/apps/web/assets/VideoAnalyzer-C8XXFlXU.js                         75.56 kB │ gzip:  23.54 kB
+../../dist/apps/web/assets/ComicCreator-DHS_4W_8.js                          79.17 kB │ gzip:  27.63 kB
+../../dist/apps/web/assets/MVCreator-DSWMdvQc.js                             79.41 kB │ gzip:  26.13 kB
+../../dist/apps/web/assets/KnowledgeBaseContent-CuZ-Nh9K.js                  85.60 kB │ gzip:  26.29 kB
+../../dist/apps/web/assets/DeferredAIInputBar-BiIzpc7L.js                    94.27 kB │ gzip:  32.00 kB
+../../dist/apps/web/assets/clipper-D1ZIDHd9.js                               99.82 kB │ gzip:  26.03 kB
+../../dist/apps/web/assets/index.es-CrKm56kW.js                             158.18 kB │ gzip:  52.98 kB
+../../dist/apps/web/assets/html2canvas.esm-QH1iLAAe.js                      202.38 kB │ gzip:  48.04 kB
+../../dist/apps/web/assets/ai-chat-DpNLVCe3.js                              311.07 kB │ gzip: 102.37 kB
+../../dist/apps/web/assets/jspdf.es.min-DK35Elyb.js                         390.58 kB │ gzip: 128.79 kB
+../../dist/apps/web/assets/external-skills-BcV6ATYi.js                      583.88 kB │ gzip: 170.52 kB
+../../dist/apps/web/assets/tool-windows-iA_5tfIc.js                         587.13 kB │ gzip: 173.31 kB
+../../dist/apps/web/assets/office-data-Bramlb8p.js                          804.35 kB │ gzip: 269.67 kB
+../../dist/apps/web/assets/editor-engines-DbU3ry-0.js                     2,607.90 kB │ gzip: 863.77 kB
+../../dist/apps/web/assets/startup-app-Ds-Vv2aP.js                        3,031.80 kB │ gzip: 911.81 kB
+../../dist/apps/web/assets/diagram-engines-DnOt2n0D.js                    3,156.97 kB │ gzip: 948.04 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3m 25s
+[EntryAssets] Rewrote 6 entry asset tag(s) to prefer CDN
+[ManifestAssets] Rewrote 3 manifest asset url(s) to prefer CDN
+[Precache] Generated manifest with 7 files
+[IdlePrefetch] Generated idle-prefetch-manifest.json
+
+
+
+[0m[7m[1m[32m NX [39m[22m[27m[0m  [32mSuccessfully ran target build-app for project web[39m
+
+
+> nx run web:build-sw
+
+(node:544397) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+[2m> [22m[2mnx run[22m web:build-sw
+
+[2m> [22mvite build -c vite.sw.config.ts
+
+[Vite SW] Loaded version from version.json: 0.9.6
+vite v6.4.1 building for production...
+(node:544420) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+transforming...
+✓ 55 modules transformed.
+rendering chunks...
+computing gzip size...
+../../dist/apps/web/sw.js  164.95 kB │ gzip: 43.20 kB
+✓ built in 5.25s
+
+
+
+[0m[7m[1m[32m NX [39m[22m[27m[0m  [32mSuccessfully ran target build-sw for project web[39m
+
+
+
+
+
+ NX   Successfully ran target build for project web
+
+

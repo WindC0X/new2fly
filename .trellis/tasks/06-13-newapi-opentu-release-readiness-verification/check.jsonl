@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Check backend asset lifecycle release readiness."}
+{"file":".trellis/spec/backend/creative-async-task-billing-consistency.md","reason":"Check async billing release readiness."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Check security boundary release readiness."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"Check frontend asset sync release readiness."}
+{"file":".trellis/spec/frontend/creative-async-video-relay.md","reason":"Check video relay release readiness."}
+{"file":".trellis/spec/frontend/creative-async-suno-relay.md","reason":"Check Suno relay release readiness."}
+{"file":".trellis/spec/frontend/creative-async-mj-relay.md","reason":"Check MJ relay release readiness."}

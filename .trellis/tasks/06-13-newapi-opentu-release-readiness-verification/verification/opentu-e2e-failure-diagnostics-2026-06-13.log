@@ -1,0 +1,166 @@
+--- port 7200 status ---
+no listener on 7200
+--- locating test-results ---
+/mnt/f/code/project/opentu/apps/web-e2e/test-results/.last-run.json
+/mnt/f/code/project/opentu/apps/web-e2e/test-results/results.json
+/mnt/f/code/project/opentu/apps/web-e2e/test-results/smoke-smoke--smoke-核心功能验证-主画布：加载、工具栏、AI输入栏、视图导航-smoke/error-context.md
+/mnt/f/code/project/opentu/apps/web-e2e/test-results/smoke-smoke--smoke-核心功能验证-主画布：加载、工具栏、AI输入栏、视图导航-smoke/test-failed-1.png
+/mnt/f/code/project/opentu/apps/web-e2e/test-results/smoke-smoke--smoke-核心功能验证-主画布：加载、工具栏、AI输入栏、视图导航-smoke/video.webm
+/mnt/f/code/project/opentu/apps/web-e2e/test-results/smoke-smoke--smoke-核心功能验证-弹窗抽屉：设置、项目、工具箱-smoke/error-context.md
+/mnt/f/code/project/opentu/apps/web-e2e/test-results/smoke-smoke--smoke-核心功能验证-弹窗抽屉：设置、项目、工具箱-smoke/test-failed-1.png
+/mnt/f/code/project/opentu/apps/web-e2e/test-results/smoke-smoke--smoke-核心功能验证-弹窗抽屉：设置、项目、工具箱-smoke/video.webm
+--- results summary ---
+status None
+duration None
+--- error contexts ---
+FILE /mnt/f/code/project/opentu/apps/web-e2e/test-results/smoke-smoke--smoke-核心功能验证-主画布：加载、工具栏、AI输入栏、视图导航-smoke/error-context.md
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - status "应用正在加载" [ref=e2]:
+    - generic [ref=e3]:
+      - link "打开 OpenTu.ai 官网" [ref=e4] [cursor=pointer]:
+        - /url: https://opentu.ai/
+        - text: OpenTu.ai
+      - paragraph [ref=e5]: 正在唤起工作台
+      - paragraph [ref=e6]: 首次打开或网络较慢时会多等一会，正在努力准备中...
+      - progressbar [ref=e7]:
+        - generic [ref=e10]: 82%
+      - generic [ref=e11]: 数据存储在浏览器本地，可通过菜单中的“备份/恢复”对重要数据进行管理。
+  - main [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - heading "把 AI 图片生成、流程图、思维导图放进同一块画布" [level=1] [ref=e15]
+        - paragraph [ref=e16]: Opentu（开图）是一个面向创作与整理场景的 AI 应用平台。你可以在浏览器里直接生成图片、搭建流程图、整理思维导图，并把素材、知识与任务推进放在同一个工作区里完成。
+        - paragraph [ref=e17]: 相比把提示词、素材库、知识卡片和任务列表拆散在多个工具里，Opentu 更适合需要边生成、边编辑、边整理的人。首页即工作台，打开就能开始产出。
+        - list [ref=e18]:
+          - listitem [ref=e19]: AI 图片生成
+          - listitem [ref=e20]: 流程图
+          - listitem [ref=e21]: 思维导图
+          - listitem [ref=e22]: 画布工作区
+          - listitem [ref=e23]: 素材管理
+      - complementary [ref=e24]:
+        - heading "从这些入口开始" [level=2] [ref=e25]
+        - paragraph [ref=e26]: 如果你想先了解产品能力，可以查看 OpenTu 介绍页；如果已经准备创作，直接进入工作台即可。
+        - list [ref=e27]:
+          - listitem [ref=e28]:
+            - link "OpenTu 介绍页：了解 AI 画布、作品流和开源项目" [ref=e29] [cursor=pointer]:
+              - /url: /home.html
+          - listitem [ref=e30]:
+            - link "用户手册：查看完整功能与操作路径" [ref=e31] [cursor=pointer]:
+              - /url: /user-manual/index.html
+    - generic [ref=e32]:
+      - heading "为什么适合搜索用户" [level=2] [ref=e33]
+      - generic [ref=e34]:
+        - article [ref=e35]:
+          - heading "不是单点工具" [level=3] [ref=e36]
+          - paragraph [ref=e37]: Opentu 把生成、编辑、整理和交付放在一起，适合需要持续推进任务，而不是只做一次性生成的人。
+        - article [ref=e38]:
+          - heading "图文结构兼容" [level=3] [ref=e39]
+          - paragraph [ref=e40]: 既能做 AI 图片生成，也能用流程图和思维导图承接方案、脑图、产品结构和知识整理。
+        - article [ref=e41]:
+          - heading "更少切换" [level=3] [ref=e42]
+          - paragraph [ref=e43]: 素材、知识、任务和画布相互打通，减少从聊天窗口、白板、网盘和文档来回跳转的摩擦。
+    - generic [ref=e44]:
+      - heading "常见使用场景" [level=2] [ref=e45]
+      - paragraph [ref=e46]: 适合做营销海报、社媒配图、灵感整理、产品方案梳理、业务流程图、项目脑图，以及需要边生成边归档的工作流。
+      - paragraph [ref=e47]:
+        - link "AI 图片生成指南" [ref=e48] [cursor=pointer]:
+          - /url: /user-manual/ai-generation-image-generation.html
+        - link "AI 视频生成指南" [ref=e49] [cursor=pointer]:
+          - /url: /user-manual/ai-generation-video-generation.html
+        - link "流程图指南" [ref=e50] [cursor=pointer]:
+          - /url: /user-manual/drawing-flowchart.html
+        - link "思维导图指南" [ref=e51] [cursor=pointer]:
+          - /url: /user-manual/drawing-mindmap.html
+        - link "版本日志" [ref=e52] [cursor=pointer]:
+          - /url: /versions.html
+    - generic [ref=e53]:
+      - heading "常见问题" [level=2] [ref=e54]
+      - list [ref=e55]:
+        - listitem [ref=e56]:
+          - heading "Opentu 是什么？" [level=3] [ref=e57]
+          - paragraph [ref=e58]: 它是一个以画布工作区为核心的 AI 应用平台，支持 AI 图片生成、流程图、思维导图、素材管理与任务推进。
+        - listitem [ref=e59]:
+          - heading "Opentu 适合谁？" [level=3] [ref=e60]
+          - paragraph [ref=e61]: 适合需要把创意生成、结构整理和任务交付放在一起的人，比如内容创作者、产品经理、运营、设计和独立开发者。
+        - listitem [ref=e62]:
+          - heading "Opentu 支持哪些图示能力？" [level=3] [ref=e63]
+          - paragraph [ref=e64]: 支持流程图、思维导图、文本、形状、自由绘制，也支持通过自然语言或 Mermaid 语法快速生成结构化图示。
+```FILE /mnt/f/code/project/opentu/apps/web-e2e/test-results/smoke-smoke--smoke-核心功能验证-弹窗抽屉：设置、项目、工具箱-smoke/error-context.md
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - status "应用正在加载" [ref=e2]:
+    - generic [ref=e3]:
+      - link "打开 OpenTu.ai 官网" [ref=e4] [cursor=pointer]:
+        - /url: https://opentu.ai/
+        - text: OpenTu.ai
+      - paragraph [ref=e5]: 正在唤起工作台
+      - paragraph [ref=e6]: 首次打开或网络较慢时会多等一会，正在努力准备中...
+      - progressbar [ref=e7]:
+        - generic [ref=e10]: 82%
+      - generic [ref=e11]: 数据存储在浏览器本地，可通过菜单中的“备份/恢复”对重要数据进行管理。
+  - main [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - heading "把 AI 图片生成、流程图、思维导图放进同一块画布" [level=1] [ref=e15]
+        - paragraph [ref=e16]: Opentu（开图）是一个面向创作与整理场景的 AI 应用平台。你可以在浏览器里直接生成图片、搭建流程图、整理思维导图，并把素材、知识与任务推进放在同一个工作区里完成。
+        - paragraph [ref=e17]: 相比把提示词、素材库、知识卡片和任务列表拆散在多个工具里，Opentu 更适合需要边生成、边编辑、边整理的人。首页即工作台，打开就能开始产出。
+        - list [ref=e18]:
+          - listitem [ref=e19]: AI 图片生成
+          - listitem [ref=e20]: 流程图
+          - listitem [ref=e21]: 思维导图
+          - listitem [ref=e22]: 画布工作区
+          - listitem [ref=e23]: 素材管理
+      - complementary [ref=e24]:
+        - heading "从这些入口开始" [level=2] [ref=e25]
+        - paragraph [ref=e26]: 如果你想先了解产品能力，可以查看 OpenTu 介绍页；如果已经准备创作，直接进入工作台即可。
+        - list [ref=e27]:
+          - listitem [ref=e28]:
+            - link "OpenTu 介绍页：了解 AI 画布、作品流和开源项目" [ref=e29] [cursor=pointer]:
+              - /url: /home.html
+          - listitem [ref=e30]:
+            - link "用户手册：查看完整功能与操作路径" [ref=e31] [cursor=pointer]:
+              - /url: /user-manual/index.html
+    - generic [ref=e32]:
+      - heading "为什么适合搜索用户" [level=2] [ref=e33]
+      - generic [ref=e34]:
+        - article [ref=e35]:
+          - heading "不是单点工具" [level=3] [ref=e36]
+          - paragraph [ref=e37]: Opentu 把生成、编辑、整理和交付放在一起，适合需要持续推进任务，而不是只做一次性生成的人。
+        - article [ref=e38]:
+          - heading "图文结构兼容" [level=3] [ref=e39]
+          - paragraph [ref=e40]: 既能做 AI 图片生成，也能用流程图和思维导图承接方案、脑图、产品结构和知识整理。
+        - article [ref=e41]:
+          - heading "更少切换" [level=3] [ref=e42]
+          - paragraph [ref=e43]: 素材、知识、任务和画布相互打通，减少从聊天窗口、白板、网盘和文档来回跳转的摩擦。
+    - generic [ref=e44]:
+      - heading "常见使用场景" [level=2] [ref=e45]
+      - paragraph [ref=e46]: 适合做营销海报、社媒配图、灵感整理、产品方案梳理、业务流程图、项目脑图，以及需要边生成边归档的工作流。
+      - paragraph [ref=e47]:
+        - link "AI 图片生成指南" [ref=e48] [cursor=pointer]:
+          - /url: /user-manual/ai-generation-image-generation.html
+        - link "AI 视频生成指南" [ref=e49] [cursor=pointer]:
+          - /url: /user-manual/ai-generation-video-generation.html
+        - link "流程图指南" [ref=e50] [cursor=pointer]:
+          - /url: /user-manual/drawing-flowchart.html
+        - link "思维导图指南" [ref=e51] [cursor=pointer]:
+          - /url: /user-manual/drawing-mindmap.html
+        - link "版本日志" [ref=e52] [cursor=pointer]:
+          - /url: /versions.html
+    - generic [ref=e53]:
+      - heading "常见问题" [level=2] [ref=e54]
+      - list [ref=e55]:
+        - listitem [ref=e56]:
+          - heading "Opentu 是什么？" [level=3] [ref=e57]
+          - paragraph [ref=e58]: 它是一个以画布工作区为核心的 AI 应用平台，支持 AI 图片生成、流程图、思维导图、素材管理与任务推进。
+        - listitem [ref=e59]:
+          - heading "Opentu 适合谁？" [level=3] [ref=e60]
+          - paragraph [ref=e61]: 适合需要把创意生成、结构整理和任务交付放在一起的人，比如内容创作者、产品经理、运营、设计和独立开发者。
+        - listitem [ref=e62]:
+          - heading "Opentu 支持哪些图示能力？" [level=3] [ref=e63]
+          - paragraph [ref=e64]: 支持流程图、思维导图、文本、形状、自由绘制，也支持通过自然语言或 Mermaid 语法快速生成结构化图示。
+```

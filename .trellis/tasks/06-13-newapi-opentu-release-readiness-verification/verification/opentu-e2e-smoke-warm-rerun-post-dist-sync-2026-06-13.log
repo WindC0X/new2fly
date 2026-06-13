@@ -1,0 +1,239 @@
+--- first failure context files ---
+find: warning: you have specified the global option -maxdepth after the argument -path, but global options are not positional, i.e., -maxdepth affects tests specified before it as well as those specified after it.  Please specify global options before other arguments.
+find: ‘test-results’: No such file or directory
+--- warm rerun pnpm e2e:smoke ---
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+> @aitu/source@0.9.6 e2e:smoke /mnt/f/code/project/opentu
+> nx e2e web-e2e -- --project=smoke
+
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+ WARN  Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+
+> nx run web-e2e:e2e --project=smoke
+
+> playwright test --project=smoke
+
+[2m[WebServer] [22m(node:549559) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[2m[WebServer] [22m[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[2m[WebServer] [22m(node:549688) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[2m[WebServer] [22m[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[2m[WebServer] [22m(node:549910) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[2m[WebServer] [22m[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[2m[WebServer] [22m(node:549909) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[2m[WebServer] [22m[43m[30m WARN [39m[49m Issue while reading "/mnt/f/code/project/opentu/.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+[2m[WebServer] [22m(node:549937) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:549932) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22mBrowserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+[2m[WebServer] [22m  npx update-browserslist-db@latest
+[2m[WebServer] [22m  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+[2mRunning [22m2[2m tests using [22m2[2m workers[22m
+
+[2m[WebServer] [22mDEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m  ╷
+[2m[WebServer] [22m4 │ @import 'tailwindcss';
+[2m[WebServer] [22m  │         ^^^^^^^^^^^^^
+[2m[WebServer] [22m  ╵
+[2m[WebServer] [22m    src/styles.scss 4:9  root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m  ╷
+[2m[WebServer] [22m1 │ @import './../../../../node_modules/@plait/draw/styles/styles.scss';
+[2m[WebServer] [22m  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2m[WebServer] [22m  ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/index.scss 1:9  root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m  ╷
+[2m[WebServer] [22m2 │ @import './../../../../node_modules/@plait/mind/styles/styles.scss';
+[2m[WebServer] [22m  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2m[WebServer] [22m  ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/index.scss 2:9  root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m  ╷
+[2m[WebServer] [22m3 │ @import 'tailwindcss';
+[2m[WebServer] [22m  │         ^^^^^^^^^^^^^
+[2m[WebServer] [22m  ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/index.scss 3:9  root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m  ╷
+[2m[WebServer] [22m4 │ @import './tdesign-theme.scss';
+[2m[WebServer] [22m  │         ^^^^^^^^^^^^^^^^^^^^^^
+[2m[WebServer] [22m  ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/index.scss 4:9  root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m  ╷
+[2m[WebServer] [22m5 │ @import './theme.scss';
+[2m[WebServer] [22m  │         ^^^^^^^^^^^^^^
+[2m[WebServer] [22m  ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/index.scss 5:9  root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m  ╷
+[2m[WebServer] [22m1 │ @import '../../../styles/z-index.scss';
+[2m[WebServer] [22m  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2m[WebServer] [22m  ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.scss 1:9  root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m  ╷
+[2m[WebServer] [22m2 │ @import './size-input.scss';
+[2m[WebServer] [22m  │         ^^^^^^^^^^^^^^^^^^^
+[2m[WebServer] [22m  ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/components/toolbar/popup-toolbar/popup-toolbar.scss 2:9  root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22mUse string.unquote instead.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m    ╷
+[2m[WebServer] [22m126 │   themeFilter: unquote($theme-filter);
+[2m[WebServer] [22m    │                ^^^^^^^^^^^^^^^^^^^^^^
+[2m[WebServer] [22m    ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/variables.module.scss 126:16  @import
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/theme.scss 1:9                @import
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/index.scss 5:9                root stylesheet
+[2m[WebServer] [22m
+[2m[WebServer] [22mDEPRECATION WARNING [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+[2m[WebServer] [22mUse string.unquote instead.
+[2m[WebServer] [22m
+[2m[WebServer] [22mMore info and automated migrator: https://sass-lang.com/d/import
+[2m[WebServer] [22m
+[2m[WebServer] [22m    ╷
+[2m[WebServer] [22m127 │   rightSidebarWidth: unquote($right-sidebar-width);
+[2m[WebServer] [22m    │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2m[WebServer] [22m    ╵
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/variables.module.scss 127:22  @import
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/theme.scss 1:9                @import
+[2m[WebServer] [22m    ../../packages/drawnix/src/styles/index.scss 5:9                root stylesheet
+[2m[WebServer] [22m
+  [31m✘[39m  [2m2 [22m[31m[smoke] › src/smoke/smoke.spec.ts:116:7 › @smoke 核心功能验证 › 弹窗抽屉：设置、项目、工具箱[39m[2m (12.5s)[22m
+[2m[WebServer] [22mWARNING: 11 repetitive deprecation warnings omitted.
+[2m[WebServer] [22mRun in verbose mode to see all warnings.
+[2m[WebServer] [22m
+  [31m✘[39m  [2m1 [22m[31m[smoke] › src/smoke/smoke.spec.ts:12:7 › @smoke 核心功能验证 › 主画布：加载、工具栏、AI输入栏、视图导航[39m[2m (12.6s)[22m
+
+
+[31m  1) [smoke] › src/smoke/smoke.spec.ts:12:7 › @smoke 核心功能验证 › 主画布：加载、工具栏、AI输入栏、视图导航 [2m────────────────[22m[39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.drawnix')
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for locator('.drawnix')[22m
+
+
+      16 |     await expect(page).toHaveTitle(/Opentu/);
+      17 |     const drawnix = page.locator('.drawnix');
+    > 18 |     await expect(drawnix).toBeVisible({ timeout: 10000 });
+         |                           ^
+      19 |     await page.waitForTimeout(2000);
+      20 |     
+      21 |     // 2. 验证工具栏存在（必须通过）
+    [2m    at /mnt/f/code/project/opentu/apps/web-e2e/src/smoke/smoke.spec.ts:18:27[22m
+
+[2m    attachment #1: [1mscreenshot[2m (image/png) [2m──────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/smoke-smoke--smoke-核心功能验证-主画布：加载、工具栏、AI输入栏、视图导航-smoke/test-failed-1.png[22m
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[2m    attachment #2: [1mvideo[2m (video/webm) [2m──────────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/smoke-smoke--smoke-核心功能验证-主画布：加载、工具栏、AI输入栏、视图导航-smoke/video.webm[22m
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[2m    Error Context: test-results/smoke-smoke--smoke-核心功能验证-主画布：加载、工具栏、AI输入栏、视图导航-smoke/error-context.md[22m
+
+[31m  2) [smoke] › src/smoke/smoke.spec.ts:116:7 › @smoke 核心功能验证 › 弹窗抽屉：设置、项目、工具箱 [2m──────────────────────[22m[39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.drawnix')
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for locator('.drawnix')[22m
+
+
+      117 |     await page.goto('/');
+      118 |     const drawnix = page.locator('.drawnix');
+    > 119 |     await expect(drawnix).toBeVisible({ timeout: 10000 });
+          |                           ^
+      120 |     await page.waitForTimeout(1500);
+      121 |     
+      122 |     // === 项目抽屉 ===
+    [2m    at /mnt/f/code/project/opentu/apps/web-e2e/src/smoke/smoke.spec.ts:119:27[22m
+
+[2m    attachment #1: [1mscreenshot[2m (image/png) [2m──────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/smoke-smoke--smoke-核心功能验证-弹窗抽屉：设置、项目、工具箱-smoke/test-failed-1.png[22m
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[2m    attachment #2: [1mvideo[2m (video/webm) [2m──────────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/smoke-smoke--smoke-核心功能验证-弹窗抽屉：设置、项目、工具箱-smoke/video.webm[22m
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[2m    Error Context: test-results/smoke-smoke--smoke-核心功能验证-弹窗抽屉：设置、项目、工具箱-smoke/error-context.md[22m
+
+[31m  2 failed[39m
+[31m    [smoke] › src/smoke/smoke.spec.ts:12:7 › @smoke 核心功能验证 › 主画布：加载、工具栏、AI输入栏、视图导航 [2m─────────────────[22m[39m
+[31m    [smoke] › src/smoke/smoke.spec.ts:116:7 › @smoke 核心功能验证 › 弹窗抽屉：设置、项目、工具箱 [2m───────────────────────[22m[39m
+Warning: command "playwright test --project=smoke" exited with non-zero status code
+
+
+ NX   Running target e2e for project web-e2e failed
+
+Failed tasks:
+
+- web-e2e:e2e
+
+Hint: run the command with --verbose for more details.
+
+ ELIFECYCLE  Command failed with exit code 1.

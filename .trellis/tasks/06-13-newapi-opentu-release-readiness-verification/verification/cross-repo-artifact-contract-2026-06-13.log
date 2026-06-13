@@ -1,0 +1,41 @@
+=== opentu dist/apps/web required artifacts ===
+-rwxrwxrwx 1 windc0x windc0x  29K Jun 13 08:37 /mnt/f/code/project/opentu/dist/apps/web/idle-prefetch-manifest.json
+-rwxrwxrwx 1 windc0x windc0x  55K Jun 13 08:37 /mnt/f/code/project/opentu/dist/apps/web/index.html
+-rwxrwxrwx 1 windc0x windc0x 162K Jun 13 08:38 /mnt/f/code/project/opentu/dist/apps/web/sw.js
+-rwxrwxrwx 1 windc0x windc0x  176 Jun 13 08:37 /mnt/f/code/project/opentu/dist/apps/web/version.json
+=== opentu dist version ===
+{
+  "version": "0.9.6",
+  "buildTime": "2026-06-13T00:31:47.580Z",
+  "gitCommit": "unknown",
+  "changelog": [
+    "为绘图工具添加键盘快捷键调整大小功能"
+  ]
+}\n=== new-api embedded creative required artifacts ===
+-rwxrwxrwx 1 windc0x windc0x  54K Jun 10 01:59 /mnt/f/code/project/new-api/router/web/creative/dist/index.html
+-rwxrwxrwx 1 windc0x windc0x 162K Jun 10 01:59 /mnt/f/code/project/new-api/router/web/creative/dist/sw.js
+-rwxrwxrwx 1 windc0x windc0x  176 Jun 10 01:59 /mnt/f/code/project/new-api/router/web/creative/dist/version.json
+=== new-api embedded creative version ===
+{
+  "version": "0.9.6",
+  "buildTime": "2026-06-09T17:28:42.660Z",
+  "gitCommit": "unknown",
+  "changelog": [
+    "为绘图工具添加键盘快捷键调整大小功能"
+  ]
+}\n=== new-api route tests for creative static ===
+/mnt/f/code/project/new-api/router/web_router_test.go:34://go:embed web/creative/dist
+/mnt/f/code/project/new-api/router/web_router_test.go:37://go:embed web/creative/dist/index.html
+/mnt/f/code/project/new-api/router/web_router_test.go:239:		{path: "/creative/sw.js", wantMimePart: "javascript"},
+/mnt/f/code/project/new-api/router/web_router_test.go:240:		{path: "/creative/version.json", wantMimePart: "json"},
+/mnt/f/code/project/new-api/router/web_router_test.go:291:	versionBytes, err := testCreativeBuildFS.ReadFile("web/creative/dist/version.json")
+/mnt/f/code/project/new-api/router/web_router_test.go:298:		"/creative/version.json",
+/mnt/f/code/project/new-api/router/web_router_test.go:316:	indexBytes, err := testCreativeBuildFS.ReadFile("web/creative/dist/index.html")
+/mnt/f/code/project/new-api/router/web_router_test.go:322:	_, err = testCreativeBuildFS.ReadFile("web/creative/dist/sw.js")
+/mnt/f/code/project/new-api/router/web_router_test.go:324:	_, err = testCreativeBuildFS.ReadFile("web/creative/dist/version.json")
+/mnt/f/code/project/new-api/router/web_router_test.go:327:	require.NoError(t, fs.WalkDir(testCreativeBuildFS, "web/creative/dist", func(path string, d fs.DirEntry, err error) error {
+/mnt/f/code/project/new-api/router/web_router_test.go:424:	indexBytes, err := testCreativeBuildFS.ReadFile("web/creative/dist/index.html")
+/mnt/f/code/project/new-api/router/web-router.go:166:	creativeFS := common.EmbedFolder(assets.CreativeBuildFS, "web/creative/dist")
+/mnt/f/code/project/new-api/router/web-router.go:206:		// Serve real files (hashed JS/CSS, sw.js, manifest, precache manifests)
+/mnt/f/code/project/new-api/router/web-router.go:270:	file, err := creativeFS.Open("/version.json")
+/mnt/f/code/project/new-api/router/web-router.go:314:	case "/creative/", "/creative/index.html", "/creative/sw.js", "/creative/version.json":

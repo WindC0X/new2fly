@@ -1,0 +1,9 @@
+=== new2fly ===
+?? .cache/
+?? .trellis/tasks/06-13-newapi-opentu-release-readiness-verification/
+=== new-api ===
+?? .codegraph/
+?? .codex-flow/
+=== opentu ===
+ M apps/web/public/version.json
+?? packages/drawnix/audio-test.pptx
