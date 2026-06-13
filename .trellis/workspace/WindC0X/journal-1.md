@@ -672,3 +672,37 @@ Built local new-api Docker image with embedded OpenTU artifact, ran disposable c
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: Local staging deployment
+
+**Date**: 2026-06-13
+**Task**: Local staging deployment
+**Branch**: `master`
+
+### Summary
+
+Created persistent localhost Docker Compose staging for embedded OpenTU/new-api, generated ignored local env secret, built staging-current image, verified smoke and route/header checks, updated spec, and archived deployment report.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `013ef2f` | (see git log) |
+| `49a133e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
