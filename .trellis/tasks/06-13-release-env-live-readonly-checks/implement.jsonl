@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded Creative artifact, local staging, route/cache, sourcemap, and no-secrets smoke contract."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Creative API/relay routing, no-store cache, redirect, and fail-closed boundary expectations."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Asset storage/S3 rollout boundaries; local staging must not touch production S3 or expose provider internals."}
+{"file":".trellis/tasks/archive/2026-06/06-13-remote-backed-newapi-opentu-rc-verification/check.md","reason":"Baseline RC verification evidence, candidate commits, and sanitized embedded smoke command history."}
+{"file":".trellis/tasks/archive/2026-06/06-13-release-env-readiness-checks/check.md","reason":"Tier A static readiness findings that define remaining live/local staging checks."}

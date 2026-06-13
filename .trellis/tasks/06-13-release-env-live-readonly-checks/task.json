@@ -1,0 +1,28 @@
+{
+  "id": "release-env-live-readonly-checks",
+  "name": "release-env-live-readonly-checks",
+  "title": "Local/intranet staging deploy and live route checks",
+  "description": "Create a temporary local/intranet new-api staging instance for embedded OpenTU and run redacted GET/HEAD route/cache/boundary checks.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "local-staging-readonly",
+  "package": "new-api/opentu",
+  "priority": "P2",
+  "creator": "WindC0X",
+  "assignee": "WindC0X",
+  "createdAt": "2026-06-13",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_target": "local_sanitized_staging"
+  }
+}

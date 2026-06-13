@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check route/static/cache and embedded smoke evidence against the release artifact contract."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Check API/relay no-store, non-SPA, no external redirect, and security boundary behavior."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Check that production S3/storage surfaces remain not-run and local staging does not imply S3 readiness."}
+{"file":".trellis/tasks/archive/2026-06/06-13-remote-backed-newapi-opentu-rc-verification/check.md","reason":"Compare local staging results with prior RC gate and smoke evidence."}
+{"file":".trellis/tasks/archive/2026-06/06-13-release-env-readiness-checks/check.md","reason":"Ensure Tier A remaining items are resolved or explicitly recorded as production-only not-run."}
