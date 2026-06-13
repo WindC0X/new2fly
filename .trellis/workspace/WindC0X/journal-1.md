@@ -502,3 +502,37 @@ Created dedicated OpenTU branch newapi-embed-release-gate at release smoke commi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: Push new-api and new2fly release gate branches
+
+**Date**: 2026-06-13
+**Task**: Push new-api and new2fly release gate branches
+**Branch**: `master`
+
+### Summary
+
+Pushed new-api feat/creative-embed to WindC0X/new-api and pushed new2fly master to WindC0X/new2fly using host-side Git credentials; recorded the remote branch evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c9f318c` | (see git log) |
+| `0924f3f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
