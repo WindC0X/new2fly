@@ -37,6 +37,9 @@
 - Artifact targets in `new-api`:
   - `new-api/web/creative/dist/`
   - `new-api/router/web/creative/dist/`
+- Docker/container packaging:
+  - `new-api/Dockerfile` rebuilds the default/classic frontends but does not build OpenTU; it copies the prebuilt Creative artifact with `COPY ./web/creative/dist ./web/creative/dist`
+  - `.dockerignore` may exclude default/classic generated dist paths, but must not exclude `web/creative/dist` for embedded Creative image builds
 - Backend route contract:
   - `new-api` serves the SPA under `/creative/`.
   - `new-api` serves hashed chunks under `/creative/assets/*`; missing `/creative/assets/*` paths are static 404s, not SPA fallback.
@@ -63,6 +66,7 @@
 - Local/intranet staging is an allowed intermediate gate when no real target exists, but the report must keep production-only surfaces as `not-run`: public route/CDN/DNS, production env presence, S3-compatible asset storage, provider/payment/channel health, publish credentials, Docker/NPM publish, deploy/upload/SSH, production `FRONTEND_BASE_URL` mode, and final sourcemap policy.
 - Redacted local route checks should record method, path, status, selected headers (`content-type`, `cache-control`, `location`, `x-content-type-options` when present), and classification only. Do not record response bodies, cookies, auth headers, query secrets, provider credentials, or generated-task payloads.
 - The embedded `new-api` Docker path depends on prebuilt `web/creative/dist`; the Dockerfile does not build OpenTU. CI/release orchestration must run the artifact identity gate before image build/push.
+- Local Docker/container staging parity is a separate intermediate gate from local `go run` staging: build a local-only image from the candidate checkout, run it with temporary data/log paths and no production env, then run the same embedded smoke and redacted route/header table. Do not use the repository's default `docker-compose.yml` with published `calciumion/new-api:latest` or default Postgres/Redis passwords as proof of the local candidate image.
 - Keep standalone OpenTU npm/CDN/hybrid release policy separate from embedded `new-api` policy. Hybrid scripts may exclude `.map` files while the embedded artifact gate can allow `sw.js.map`; production must make one explicit sourcemap decision per release path.
 
 ### 4. Validation & Error Matrix
@@ -80,12 +84,15 @@
 - Release check uses `pnpm run release:dry`, `npm:publish:dry`, `deploy:upload`, or SSH/rsync/scp scripts as a supposedly no-network/no-mutation gate -> fail process hygiene; use static syntax/packlist inspection or an explicitly authorized live release dry run instead.
 - Local staging route checks pass and the report claims production/CDN/S3/provider/payment readiness -> fail process hygiene; local staging can only close the local route/static/API boundary.
 - A `GET`/`HEAD`-only route table is used to claim mutating relay/provider behavior -> fail evidence quality unless the claim is backed by an explicit authorized check or existing smoke/log evidence that did not call providers.
+- Docker image built from a checkout whose `web/creative/dist` was not first verified against OpenTU dist -> fail packaging readiness; the image will embed whatever stale files are present in `web/creative/dist`.
+- Container staging uses `docker-compose.yml` defaults or a pulled `latest` image and then claims candidate parity -> fail evidence quality; it proves the compose/published image path, not the local candidate Dockerfile packaging.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: run `VITE_BASE_URL=/creative/ pnpm build:web`, `rsync -a --delete dist/apps/web/` to both `new-api` targets, verify all three artifact trees have identical relative hashes, then run `go test -count=1 .` and selected `new-api` package tests. The repeatable local command is `python3 scripts/creative_release_gate.py build-sync-check --run-new-api-tests` from `new2fly`.
 - Good RC verification: live-check the three candidate refs, run the source/artifact/Go gate, run OpenTU typecheck and `NX_SKIP_NX_CACHE=true pnpm e2e:smoke`, then run `--embedded-smoke-url` against a sanitized temporary local `new-api` SQLite server.
 - Good local staging when no target exists: start short-lived `new-api` with `env -i`, temporary SQLite, `GIN_MODE=release`, disabled upstream update jobs, run `python3 scripts/creative_release_gate.py check --embedded-smoke-url http://localhost:<port>/creative/`, collect a redacted `GET`/`HEAD` route/header table, stop the process, and report production-only surfaces as `not-run`.
+- Good local container parity: run `python3 scripts/creative_release_gate.py check --source-diff-check`, build a local-only image from `/mnt/f/code/project/new-api`, run it with local port binding, temporary `/data` and logs, no `SQL_DSN`/`REDIS_CONN_STRING`/provider/payment/CDN/S3 env, disabled upstream update jobs, then run `--embedded-smoke-url http://localhost:<port>/creative/` and a redacted route/header table before stopping the container.
 - Good release-env readiness: run a redacted env presence-only script, then read-only HTTP checks proving `/creative/` app-shell/static paths stay on the intended host while API/relay paths remain no-store and non-SPA.
 - Base: source-only `git diff --check` passes while generated dist has known whitespace; the release gate documents the generated-artifact exception.
 - Bad: copy a default `base='./'` Opentu build into `new-api`, producing `./assets/...` entry refs that do not satisfy the embedded `/creative/assets/*` route contract.
@@ -101,6 +108,7 @@
 - Release hygiene: run source-only diff checks and separately classify generated dist policy findings such as whitespace or sourcemaps. `scripts/creative_release_gate.py --source-diff-check` documents this split and `--sourcemap-policy forbid` turns maps into an explicit failure when release policy requires it.
 - No-secrets hygiene: for RC checks, assert the temporary server uses local SQLite, no Redis, no `.env`/`.env.local`, sanitized `env -i`, and disabled upstream-model update task before executing embedded smoke.
 - Local staging HTTP check: on the temporary localhost/intranet base URL, assert app-shell, static asset, missing asset, API, relay, service worker, and version metadata status/content-type/cache/location headers without sending provider/payment-generating requests; archive the result as local staging only.
+- Container staging HTTP check: on the temporary local container base URL, assert the same app-shell/static/API/relay matrix and additionally record the local image tag/id, Dockerfile Creative dist copy evidence, sanitized runtime env shape, and cleanup state.
 - Release-environment HTTP check: on the authorized target base URL, assert app-shell, static asset, missing asset, API, relay, service worker, and version metadata status/content-type/cache/location headers without sending provider/payment-generating requests.
 - Publish-path check: before Docker/NPM/standalone deployment, assert artifact identity, selected sourcemap policy, credential presence by name only, and whether the chosen script is allowed to perform network or mutation.
 

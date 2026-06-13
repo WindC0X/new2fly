@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check Docker packaging, local staging, route/static/cache evidence against release artifact contract."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Check API/relay no-store, non-SPA, no external redirect, and fail-closed behavior."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Check production S3/storage surfaces remain not-run and no secrets/storage internals are claimed."}
+{"file":".trellis/tasks/archive/2026-06/06-13-release-env-live-readonly-checks/check.md","reason":"Compare container staging results to prior local go-run staging results."}
+{"file":".trellis/tasks/archive/2026-06/06-13-remote-backed-newapi-opentu-rc-verification/check.md","reason":"Compare container staging results to prior RC gate and smoke evidence."}

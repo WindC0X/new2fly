@@ -1,0 +1,6 @@
+# Cleanup evidence
+timestamp_utc=2026-06-13T15:04:44+00:00
+container_running=false
+container_exists=false
+tmpdir_exists=false
+port_39083_listening=false
