@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/archive/2026-06/06-11-newapi-opentu-deep-audit/audit-report.md", "reason": "Primary audit evidence and findings list."}
+{"file": ".trellis/workspace/WindC0X/creative-embed-audit-2026-06-11.md", "reason": "Claude Code audit and supplemental findings."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend Creative spec index."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend Creative spec index."}
+{"file": ".trellis/spec/backend/creative-asset-sync.md", "reason": "Backend asset quota/delete/storage/ref contract."}
+{"file": ".trellis/spec/frontend/creative-asset-sync.md", "reason": "Frontend asset contract for metadata and refs when backend shape changes."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-opentu-new-api/prd.md", "reason": "Original PRD metadata/tombstone/quota requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-opentu-new-api/product-decisions.md", "reason": "Original product decisions, including byte-quota conflict."}

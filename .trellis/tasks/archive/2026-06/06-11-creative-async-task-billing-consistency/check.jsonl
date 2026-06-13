@@ -1,0 +1,9 @@
+{"file": ".trellis/tasks/archive/2026-06/06-11-newapi-opentu-deep-audit/audit-report.md", "reason": "Primary audit evidence and findings list."}
+{"file": ".trellis/workspace/WindC0X/creative-embed-audit-2026-06-11.md", "reason": "Claude Code audit and supplemental findings."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend Creative spec index."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend Creative spec index."}
+{"file": ".trellis/spec/backend/creative-async-video-relay.md", "reason": "Video async task idempotency, billing, CAS, and key-affinity contract."}
+{"file": ".trellis/spec/backend/creative-async-suno-relay.md", "reason": "Suno async task idempotency, billing, CAS, and key-affinity contract."}
+{"file": ".trellis/spec/backend/creative-async-mj-relay.md", "reason": "MJ async task idempotency, billing, CAS, and key-affinity contract."}
+{"file": ".trellis/spec/backend/creative-backend-security-boundary.md", "reason": "Shared Creative route/DTO/denylist/proxy boundary applies to async billing fixes."}
+{"file": ".trellis/spec/backend/creative-async-task-billing-consistency.md", "reason": "Durable async task billing outbox, submit safe-flush, terminal CAS/refund, null-upstream, and key-affinity contract."}

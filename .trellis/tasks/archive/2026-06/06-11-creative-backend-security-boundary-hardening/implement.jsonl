@@ -1,0 +1,9 @@
+{"file": ".trellis/tasks/archive/2026-06/06-11-newapi-opentu-deep-audit/audit-report.md", "reason": "Primary audit evidence and findings list."}
+{"file": ".trellis/workspace/WindC0X/creative-embed-audit-2026-06-11.md", "reason": "Claude Code audit and supplemental findings."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend Creative spec index."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend Creative spec index."}
+{"file": ".trellis/spec/backend/creative-async-suno-relay.md", "reason": "Backend Suno relay security/privacy contract."}
+{"file": ".trellis/spec/backend/creative-async-mj-relay.md", "reason": "Backend MJ relay security/privacy contract."}
+{"file": ".trellis/spec/backend/creative-async-video-relay.md", "reason": "Backend Creative route/middleware/security contract."}
+{"file": ".trellis/spec/backend/creative-asset-sync.md", "reason": "Creative API owner-scoped/no-cache/no-secret contract."}
+{"file": ".trellis/spec/backend/creative-backend-security-boundary.md", "reason": "Shared Creative backend route/cache/origin/denylist/DTO/proxy contract added by this task."}

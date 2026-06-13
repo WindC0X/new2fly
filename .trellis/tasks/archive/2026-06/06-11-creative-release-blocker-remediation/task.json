@@ -1,0 +1,31 @@
+{
+  "id": "creative-release-blocker-remediation",
+  "name": "creative-release-blocker-remediation",
+  "title": "Creative Release Blocker Remediation",
+  "description": "Plan and coordinate release-blocking remediation for new-api/opentu Creative integration audit findings; use dynamic workflows for selected verification/check stages.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "WindC0X",
+  "assignee": "WindC0X",
+  "createdAt": "2026-06-11",
+  "completedAt": "2026-06-12",
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "06-11-creative-async-task-billing-consistency",
+    "06-11-creative-backend-security-boundary-hardening",
+    "06-11-creative-frontend-session-broker-asset-sync-hardening",
+    "06-11-creative-asset-quota-delete-lifecycle-hardening"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/archive/2026-06/06-11-newapi-opentu-deep-audit/audit-report.md", "reason": "Primary audit evidence and findings list."}
+{"file": ".trellis/workspace/WindC0X/creative-embed-audit-2026-06-11.md", "reason": "Claude Code audit and supplemental findings."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend Creative spec index."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend Creative spec index."}
+{"file": ".trellis/spec/frontend/creative-async-suno-relay.md", "reason": "Frontend Suno session-broker no-leak contract."}
+{"file": ".trellis/spec/frontend/creative-async-video-relay.md", "reason": "Frontend video session-broker unsupported/no-fallback contract."}
+{"file": ".trellis/spec/frontend/creative-async-mj-relay.md", "reason": "Frontend MJ session-broker stripping contract."}
+{"file": ".trellis/spec/frontend/creative-asset-sync.md", "reason": "Frontend asset prepare/hydrate/sanitizer contract."}
