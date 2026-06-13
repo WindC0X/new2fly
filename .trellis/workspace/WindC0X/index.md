@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 19
-- **Last Active**: 2026-06-13
+- **Total Sessions**: 20
+- **Last Active**: 2026-06-14
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~708 | Active |
+| `journal-1.md` | ~772 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 20 | 2026-06-14 | Staging Creative UI/model list fix | `206c0e3` | `master` |
 | 19 | 2026-06-13 | Local staging deployment | `013ef2f`, `49a133e` | `master` |
 | 18 | 2026-06-13 | Container staging parity checks | `18e59d7`, `84ef4f6` | `master` |
 | 17 | 2026-06-13 | Local staging live route checks | `533d62f`, `2f39fba` | `master` |

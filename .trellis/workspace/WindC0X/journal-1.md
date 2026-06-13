@@ -706,3 +706,67 @@ Created persistent localhost Docker Compose staging for embedded OpenTU/new-api,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: Staging Creative UI/model list fix
+
+**Date**: 2026-06-14
+**Task**: Staging Creative UI/model list fix
+**Branch**: `master`
+
+### Summary
+
+Fixed embedded Creative staging 429/static availability, return button overlap, and managed New API Creative model catalog behavior; rebuilt and verified local staging.
+
+### Main Changes
+
+## Cross-repo commits
+
+- opentu `feat/creative-embed`: `dc252529 fix(creative): use managed embedded model catalog`
+- new-api `feat/creative-embed`: `932ffbf fix(creative): bypass web rate limit for embedded assets`
+- new2fly `master`: `206c0e3 docs(creative): record staging ui model list fix`
+
+## Summary
+
+Fixed persistent local staging issues for embedded OpenTU under `new-api` `/creative/`:
+
+- Root-caused perceived crash to `GlobalWebRateLimit` returning `429` for Creative/static app-shell and chunk requests while the container remained healthy.
+- Added safe global-web-rate-limit bypass for Creative/static `GET`/`HEAD` routes while preserving API/relay limits and no-store errors.
+- Moved the embedded `回到控制台` button away from the left toolbar overlay.
+- Restricted embedded provider/model UI to the managed `new-api-creative` session-broker catalog and added unavailable-profile fallback for bootstrap/auth failures.
+- Rebuilt/synced Creative dist, rebuilt local staging image, restarted `newapi-opentu-staging-new-api` on `127.0.0.1:39084`, and verified container health.
+
+## Verification
+
+- `pnpm vitest run src/services/creative-session-broker.test.ts src/utils/runtime-model-discovery.creative-embedded.test.ts src/components/ai-input-bar/ModelDropdown.test.tsx src/components/model-benchmark/ModelBenchmarkWorkbench.test.tsx --config vitest.config.ts` — 4 files / 22 tests passed.
+- `pnpm nx run drawnix:typecheck` — passed.
+- `pnpm nx run web:typecheck` — passed.
+- `go test ./middleware` — passed.
+- `python3 scripts/creative_release_gate.py build-sync-check --run-new-api-tests` — passed build, dist sync, selected Go tests, and `go build ./...`.
+- `docker build --pull=false --progress=plain -t new-api-creative-embed:staging-current /mnt/f/code/project/new-api` — image `sha256:bcc6c621efec7df2134e505e88c74405fbd55e0fb7c0a0cdbbc203c8221a0f97`.
+- `python3 scripts/creative_release_gate.py check --embedded-smoke-url http://localhost:39084/creative/ --drawnix-ready-timeout-ms 60000` — embedded smoke 1 passed.
+- `python3 scripts/creative_release_gate.py check --source-diff-check` — artifact contract and source diff checks passed.
+
+## Notes
+
+- Dynamic workflow was used as partial read-only post-fix review; journal exists at `.codex-flow/journal/staging-ui-model-list-postfix-reaudit.jsonl`, but authoritative closure evidence is the manual verification above.
+- No production/provider/payment/S3 checks; no generation task was created.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `206c0e3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
