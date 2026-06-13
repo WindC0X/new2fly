@@ -638,3 +638,37 @@ Built a sanitized local new-api staging instance for embedded OpenTU, ran artifa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Container staging parity checks
+
+**Date**: 2026-06-13
+**Task**: Container staging parity checks
+**Branch**: `master`
+
+### Summary
+
+Built local new-api Docker image with embedded OpenTU artifact, ran disposable container staging, embedded smoke, redacted route/header checks, dynamic workflow review, updated spec, and archived the report.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `18e59d7` | (see git log) |
+| `84ef4f6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
