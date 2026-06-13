@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
+- **Total Sessions**: 12
 - **Last Active**: 2026-06-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~436 | Active |
+| `journal-1.md` | ~471 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-06-13 | New API / OpenTU release gate hardening | `39e0fe23`, `c9f318c`, `01aad17` | `master` |
 | 11 | 2026-06-13 | New API / OpenTU release readiness verification | `adc3e10`, `1ba38cd` | `master` |
 | 10 | 2026-06-13 | New API / OpenTU goal attainment audit closure | `ba920ee`, `570af4be`, `91bffcf`, `971e4ff` | `master` |
 | 9 | 2026-06-11 | New API Opentu Deep Audit | `c3dd71d` | `master` |

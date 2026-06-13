@@ -434,3 +434,38 @@ Rebuilt OpenTU with /creative/ base, synced new-api embedded Creative dist, ran 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: New API / OpenTU release gate hardening
+
+**Date**: 2026-06-13
+**Task**: New API / OpenTU release gate hardening
+**Branch**: `master`
+
+### Summary
+
+Hardened OpenTU cold smoke and embedded /creative smoke, added repeatable Creative artifact release gate, strengthened new-api embedded static boundaries, ran local checks and dynamic workflow final review.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `39e0fe23` | (see git log) |
+| `c9f318c` | (see git log) |
+| `01aad17` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
