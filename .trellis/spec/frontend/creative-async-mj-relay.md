@@ -40,7 +40,7 @@
 - `authType === "session-broker"` and empty `apiKey` -> allowed; provider transport adds creative CSRF/nonce and same-origin credentials.
 - Session-broker absolute request path or non-canonical base URL -> reject in provider transport.
 - Session-broker credential/routing/model query or headers -> strip before fetch.
-- Session-broker MJ submit without local task id -> generate opaque `opentu-image-*` idempotency key; never include prompt text or credentials in the key.
+- Session-broker MJ submit without a stable local task id/idempotency key -> fail before fetch; never generate a random key and never derive a key from prompt text or credentials.
 - Session-broker `404/405/501` submit/fetch -> sanitized unsupported MJ backend error; no direct fallback request.
 - MJ fetch failure status from backend -> throw sanitized task failure reason, not upstream secrets.
 
@@ -52,7 +52,7 @@
 
 ### 6. Tests Required
 
-- MJ adapter tests for session-broker empty-key submit/fetch success, canonical submit/fetch paths, stable `Idempotency-Key`, `onSubmitted`, direct empty-key fail-fast, and sanitized unsupported-backend errors.
+- MJ adapter tests for session-broker empty API-key submit/fetch success, canonical submit/fetch paths, stable `Idempotency-Key`, missing-idempotency-key fail-fast before fetch, `onSubmitted`, direct empty API-key fail-fast, and sanitized unsupported-backend / non-unsupported relay errors.
 - Provider transport tests proving `/mj` session-broker paths strip model/provider/baseUrl/channel/group/API-key/notifyHook material and reject non-canonical base URLs.
 - Generation API / media executor tests proving `opentu-image-<taskId>` propagates from local task id into MJ adapter requests.
 - Existing image-routing integration tests continue to route MJ models to the dedicated MJ adapter.

@@ -32,7 +32,8 @@
 ### 3. Contracts
 
 - Route boundary:
-  - supported submit/fetch/list/image routes must run through creative session bridge, user auth, same-origin, nonce, forbidden relay-field rejection, session broker, and distribution where upstream/model selection is needed.
+  - supported submit/fetch/list/image routes must run through creative session bridge, user auth, same-origin, forbidden relay-field rejection, session broker, and distribution where upstream/model selection is needed.
+  - unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) must also validate bootstrap CSRF/nonce material; owner-scoped `GET` fetch/image routes remain session + same-origin protected without nonce.
   - unsupported action routes must still require browser-session creative auth and return a terminal unsupported error without legacy fallback or upstream distribution.
 - Browser requests must not provide upstream `Authorization`, API keys, base URL, provider, group/channel, selected key, owner/user id override, `model`, or `notifyHook`.
 - Backend derives `mj_imagine` internally before creative session-broker group/model availability and channel selection.
@@ -47,15 +48,15 @@
 ### 4. Validation & Error Matrix
 
 - Missing browser session/API-token-only auth -> `401/403` before upstream relay.
-- Missing/invalid nonce -> `403` before upstream relay.
+- Missing/invalid nonce on unsafe requests -> `403` before upstream relay.
 - Forbidden header/query/body/form/multipart credential or routing material -> `400` before upstream relay.
 - Browser-supplied submit `model` or `notifyHook` -> `400` before upstream relay.
 - Missing submit idempotency key -> `400`.
 - Same idempotency key + different payload hash -> `409`.
 - Same idempotency key + same payload hash + completed task record -> replay public MJ task id without second charge.
 - Unsupported creative MJ action -> sanitized unsupported error; no legacy fallback.
-- Upstream submit failure -> refund pre-consume once and delete scoped idempotency record.
-- Local persistence/idempotency completion failure after upstream success -> generic `RelayTask` error path refunds pre-consume and deletes scoped idempotency record.
+- Upstream submit failure before the provider accepts a task -> refund pre-consume once and delete the scoped idempotency record so the caller may retry.
+- Local persistence, scoped-idempotency completion, or submit-settle failure after upstream success/acceptance -> do not delete the scoped idempotency guard merely to permit retry; preserve local task/idempotency knowledge, leave a durable billing-recovery path when possible, and fail closed rather than allowing a second upstream MJ submit.
 - Missing/cross-user fetch or image proxy -> non-leaky not-found style error.
 - Image proxy on non-success/no-result task -> error; do not expose upstream/private state.
 - Terminal failure/success poll -> only CAS winner mutates billing; CAS losers skip refund/settle.

@@ -18,8 +18,14 @@
 - Hydration:
   - input: remote document snapshot.
   - output: deep-copied local board where cloud refs are cached and replaced with local `unifiedCacheService` URLs.
+- Virtual local media:
+  - treat any `/__aitu_generated__/...` media path as a local upload candidate, not only `/__aitu_generated__/audio/...`.
 - Service worker:
   - `/creative/api/assets/*` must pass through before static/media/app-shell caches.
+- Hybrid/CDN deployment:
+  - HTML documents, `sw.js`, runtime config, release metadata (`manifest.json`, `version.json`, precache/idle manifests), `/creative/api/*`, and `/creative/relay/v1/*` stay origin-first on the `new-api` same-origin server.
+  - The npm/CDN static package may carry inert public metadata copies for fallback/install use, but runtime URLs must not rewrite those metadata documents to CDN-first.
+  - Only hashed public static chunks (`assets/*.js`, `assets/*.css`, fonts/icons/logo/favicon) may be CDN-rewritten.
 
 ### 3. Contracts
 
@@ -29,6 +35,8 @@
 - Outbound prepare is pure:
   - live board, queued snapshot, and conflict-pending snapshot remain local.
   - only the request payload sent to new-api is rewritten to cloud refs.
+- URL discovery must include scalar fields `posterUrl` and `cover`, array fields `posters`, `covers`, and `clips`, and nested clip objects (`url`, `posterUrl`, `cover`, `imageUrl`, `videoUrl`, etc.).
+- Hydration/cold-start import must run the unsafe URL sanitizer before any no-cloud-ref early return and before `documentToBoard` / `upsertBoardFromCloud`.
 - `assetSyncEnabled=false` is fail-closed:
   - local-only/signed media keeps document sync pending/sanitized.
   - do not save broken cloud documents.
@@ -38,25 +46,29 @@
 - Local media URL with asset sync enabled -> resolve Blob, upload, rewrite outbound copy.
 - Local media URL with asset sync disabled -> pending/recoverable sanitized status; no document mutation.
 - Signed/credentialed remote URL -> reject or upload via safe anonymous fetch; never persist the original URL.
+- Missing remote document during cold start with only signed/object-storage URLs and no `/creative/api/assets/*/content` refs -> record sanitized `creative_asset_unsafe_url`; do not upsert the board.
 - Hydration 401/404/network/MIME/size/quota failure -> do not save unresolved refs; record sanitized status.
 - 409 document conflict after asset upload -> keep local board and pending snapshot unchanged.
 - Service worker request to `/creative/api/assets/*` -> pass through; no static/media/app-shell cache write.
+- Hybrid CDN build -> no CDN rewrite for `/creative/api/*`, `/creative/relay/v1/*`, `sw.js`, `init.json`, or runtime config.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: `/__aitu_cache__/image/a.png` uploads to new-api and outbound payload contains `/creative/api/assets/asset_x/content`; local board still contains `/__aitu_cache__/image/a.png`.
+- Good: `/__aitu_cache__/image/a.png`, `/__aitu_generated__/images/a.png`, and `/__aitu_generated__/videos/a.mp4` upload to new-api and outbound payload contains `/creative/api/assets/asset_x/content`; local board still contains local URLs.
 - Base: remote document with `/creative/api/assets/asset_x/content` hydrates into a content-addressed local cache URL before local save/import.
-- Bad: mutating the live board to cloud URLs, logging signed URLs, sending `Authorization` or provider keys to `/creative/api/assets`, or caching private asset responses in the service worker.
+- Bad: mutating the live board to cloud URLs, skipping hydrate/sanitizer because a remote snapshot has no cloud refs, logging signed URLs, sending `Authorization` or provider keys to `/creative/api/assets`, or caching private asset responses in the service worker.
 
 ### 6. Tests Required
 
 - Pure outbound rewrite tests for:
-  - `data:`, `blob:`, `/__aitu_cache__/`, `/asset-library/`, `/__aitu_generated__/audio/`.
-  - nested fields: `url`, `urls[]`, `imageUrl`, `videoUrl`, `audioUrl`, `poster`, `src`, thumbnails, covers, clips.
+  - `data:`, `blob:`, `/__aitu_cache__/`, `/asset-library/`, and generated `/__aitu_generated__/audio|images|videos|clips/...`.
+  - nested fields: `url`, `urls[]`, `imageUrl`, `videoUrl`, `audioUrl`, `poster`, `posterUrl`, `posters[]`, `src`, thumbnails, `cover`, `coverUrl`, `covers[]`, clip object fields, and `clips[]` string arrays.
 - Sanitizer tests proving signed URLs, bucket URLs, object keys, provider credentials, and raw source URLs do not persist.
+- Cold-start/import tests proving signed remote documents with no cloud refs do not call `upsertBoardFromCloud` and report sanitized asset-sync errors.
 - Conflict tests proving asset upload success does not override 409 document freeze.
 - Hydration tests for successful cache rewrite and safe failures.
 - Service worker pass-through tests for image/audio/video/fetch destinations.
+- Deployment docs/checks document Creative same-origin exceptions for SW/runtime config and API/relay paths.
 - Typecheck/build checks for changed packages when feasible.
 
 ### 7. Wrong vs Correct
