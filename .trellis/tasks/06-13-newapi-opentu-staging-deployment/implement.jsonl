@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded Creative staging, Docker packaging, route/cache, and no-secrets deployment contract."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Creative API/relay route no-store, redirect, and fail-closed boundary expectations."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Production S3/asset storage boundaries that must remain not-run in local staging."}
+{"file":".trellis/tasks/archive/2026-06/06-13-newapi-opentu-container-staging-parity/check.md","reason":"Baseline local Docker parity evidence and route/header expectations."}
+{"file":".trellis/tasks/archive/2026-06/06-13-release-env-live-readonly-checks/check.md","reason":"Prior go-run local staging evidence and redaction contract."}

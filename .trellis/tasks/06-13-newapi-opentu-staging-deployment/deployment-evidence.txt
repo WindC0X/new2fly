@@ -1,0 +1,31 @@
+# Compose ps
+NAME                            IMAGE                                    COMMAND                  SERVICE   CREATED                  STATUS                                     PORTS
+newapi-opentu-staging-new-api   new-api-creative-embed:staging-current   "/new-api --log-dir …"   new-api   Less than a second ago   Up Less than a second (health: starting)   127.0.0.1:39084->3000/tcp
+
+# Container log tail (sanitized)
+[SYS] 2026/06/13 - 23:17:41 | initializing token encoders 
+[SYS] 2026/06/13 - 23:17:41 | token encoders initialized 
+[SYS] 2026/06/13 - 23:17:41 | SQL_DSN not set, using SQLite as database 
+[SYS] 2026/06/13 - 23:17:41 | database migration started 
+
+2026/06/13 23:17:42 [31;1m/build/model/setup.go:11 [35;1mrecord not found
+[0m[33m[0.227ms] [34;1m[rows:0][0m SELECT * FROM `setups` ORDER BY `setups`.`id` LIMIT 1
+
+2026/06/13 23:17:42 [31;1m/build/model/user.go:1066 [35;1mrecord not found
+[0m[33m[0.223ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE role = 100 AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+[SYS] 2026/06/13 - 23:17:42 | system is not initialized and no root user exists 
+[SYS] 2026/06/13 - 23:17:42 | REDIS_CONN_STRING not set, Redis is not enabled 
+[SYS] 2026/06/13 - 23:17:42 | i18n initialized with languages: zh-CN, zh-TW, en 
+[SYS] 2026/06/13 - 23:17:42 | Loaded 0 custom OAuth providers 
+[SYS] 2026/06/13 - 23:17:42 | New API  started 
+[SYS] 2026/06/13 - 23:17:42 | upstream model update task disabled by CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED 
+[SYS] 2026/06/13 - 23:17:42 | 正在更新数据看板数据... 
+[SYS] 2026/06/13 - 23:17:42 | 保存数据看板数据成功，共保存0条数据 
+[INFO] 2026/06/13 - 23:17:42 | SYSTEM | codex credential auto-refresh task started: tick=10m0s threshold=24h0m0s 
+[INFO] 2026/06/13 - 23:17:42 | SYSTEM | subscription quota reset task started: tick=1m0s 
+
+  [32mNew API [0m  ready in 1428 ms
+
+  ➜  [1mNetwork:[0m http://172.27.0.2:3000/
+
+[GIN] 2026/06/13 - 23:17:43 | api | 202606131517435397835198268d9d6VoEbypGi | 200 |     318.396µs |      172.27.0.1 |     GET /api/status

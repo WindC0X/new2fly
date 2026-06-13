@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check local staging deployment against embedded artifact and Docker staging contracts."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Check API/relay no-store, non-SPA, no external redirect, and fail-closed behavior."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Ensure S3/storage/provider surfaces remain not-run and not overclaimed."}
+{"file":".trellis/tasks/archive/2026-06/06-13-newapi-opentu-container-staging-parity/check.md","reason":"Compare persistent staging deployment results to disposable container parity."}
+{"file":".trellis/tasks/archive/2026-06/06-13-release-env-live-readonly-checks/check.md","reason":"Compare persistent staging deployment route behavior to prior go-run staging."}

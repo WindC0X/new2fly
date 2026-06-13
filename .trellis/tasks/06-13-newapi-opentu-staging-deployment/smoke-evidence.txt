@@ -1,0 +1,31 @@
+[check] opentu embedded index refs: 2 /creative/assets entries
+[check] new-api:web embedded index refs: 2 /creative/assets entries
+[check] new-api:router embedded index refs: 2 /creative/assets entries
+[check] opentu file count: 223 (/mnt/f/code/project/opentu/dist/apps/web)
+[check] new-api:web matches opentu: 223 files
+[check] new-api:router matches opentu: 223 files
+[policy] sourcemap-policy=allow; generated maps present: 1
+[ok] Creative embedded artifact contract holds
+[run] (/mnt/f/code/project/opentu) pnpm e2e:creative-embedded
+
+> @aitu/source@0.9.6 e2e:creative-embedded /mnt/f/code/project/opentu
+> nx e2e web-e2e -- --project=creative-embedded
+
+
+> nx run web-e2e:e2e --project=creative-embedded
+
+> playwright test --project=creative-embedded
+
+
+[2mRunning [22m1[2m test using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m1 [22m[creative-embedded] › src/embedded/creative-embedded.spec.ts:19:7 › @creative-embedded new-api /creative/ smoke › serves app shell and keeps API/relay paths out of SPA fallback[2m (1.2s)[22m
+
+[32m  1 passed[39m[2m (21.8s)[22m
+
+
+
+ NX   Successfully ran target e2e for project web-e2e
+
+
+[done] no-secrets Creative release gate completed

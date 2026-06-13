@@ -1,0 +1,28 @@
+{
+  "id": "newapi-opentu-staging-deployment",
+  "name": "newapi-opentu-staging-deployment",
+  "title": "New-api/OpenTU local staging deployment",
+  "description": "Create a persistent local Docker Compose staging deployment for embedded OpenTU/new-api and verify it without production services or image push.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "local-staging-deploy",
+  "package": "new-api/opentu",
+  "priority": "P2",
+  "creator": "WindC0X",
+  "assignee": "WindC0X",
+  "createdAt": "2026-06-13",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_target": "persistent_local_docker_compose_staging"
+  }
+}
