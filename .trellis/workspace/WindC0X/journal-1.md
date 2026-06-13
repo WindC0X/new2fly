@@ -604,3 +604,37 @@ Completed Tier A static/offline release-environment readiness checks for embedde
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Local staging live route checks
+
+**Date**: 2026-06-13
+**Task**: Local staging live route checks
+**Branch**: `master`
+
+### Summary
+
+Built a sanitized local new-api staging instance for embedded OpenTU, ran artifact gate, embedded smoke, GET/HEAD route/header checks, dynamic workflow review, and archived the local-staging report.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `533d62f` | (see git log) |
+| `2f39fba` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
