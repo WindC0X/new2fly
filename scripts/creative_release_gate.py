@@ -1,0 +1,279 @@
+#!/usr/bin/env python3
+"""Local no-secrets release gate for the embedded OpenTU Creative artifact.
+
+Default sibling layout:
+  new2fly/   (this orchestration repo)
+  opentu/    (frontend source + dist/apps/web)
+  new-api/   (embedded web/creative/dist copies)
+
+Generated artifact policy:
+  - For source whitespace, run source-only git diff checks outside generated dist.
+  - For generated Creative dist, the gate checks byte identity across the OpenTU
+    dist and both new-api embedded copies. Do not hand-edit only one generated
+    copy to appease whitespace tooling.
+  - Sourcemaps are policy controlled. The default is to allow generated maps;
+    pass --sourcemap-policy forbid if the release forbids production maps.
+
+This script does not read secrets and does not call provider/payment/CDN or
+production endpoints. Build/test commands are local process commands only.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import os
+import re
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable
+
+CREATIVE_BASE = "/creative/"
+ENTRY_REF_PATTERN = re.compile(r"[\"'](?P<ref>/creative/assets/[^\"']+\.(?:js|css))(?:\?[^\"']*)?[\"']")
+BAD_RELATIVE_ENTRY_PATTERN = re.compile(r"[\"']\.\/assets\/[^\"']+\.(?:js|css)(?:\?[^\"']*)?[\"']")
+
+
+@dataclass(frozen=True)
+class Layout:
+    opentu: Path
+    new_api: Path
+
+    @property
+    def source_dist(self) -> Path:
+        return self.opentu / "dist" / "apps" / "web"
+
+    @property
+    def root_dist(self) -> Path:
+        return self.new_api / "web" / "creative" / "dist"
+
+    @property
+    def router_dist(self) -> Path:
+        return self.new_api / "router" / "web" / "creative" / "dist"
+
+    @property
+    def all_dists(self) -> list[tuple[str, Path]]:
+        return [
+            ("opentu", self.source_dist),
+            ("new-api:web", self.root_dist),
+            ("new-api:router", self.router_dist),
+        ]
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def default_layout() -> Layout:
+    parent = repo_root().parent
+    return Layout(opentu=parent / "opentu", new_api=parent / "new-api")
+
+
+def run(cmd: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> None:
+    printable = " ".join(cmd)
+    print(f"[run] ({cwd}) {printable}", flush=True)
+    subprocess.run(cmd, cwd=str(cwd), env=env, check=True)
+
+
+def require_dir(path: Path, label: str) -> None:
+    if not path.is_dir():
+        raise SystemExit(f"{label} not found or not a directory: {path}")
+
+
+def build_opentu(layout: Layout) -> None:
+    require_dir(layout.opentu, "opentu repo")
+    env = os.environ.copy()
+    env["VITE_BASE_URL"] = CREATIVE_BASE
+    run(["pnpm", "build:web"], cwd=layout.opentu, env=env)
+
+
+def sync_dist(layout: Layout) -> None:
+    require_dir(layout.source_dist, "opentu dist")
+    for label, target in [("new-api:web", layout.root_dist), ("new-api:router", layout.router_dist)]:
+        print(f"[sync] {layout.source_dist} -> {target} ({label})", flush=True)
+        if target.exists():
+            shutil.rmtree(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(layout.source_dist, target, symlinks=False)
+
+
+def iter_files(root: Path) -> Iterable[Path]:
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            yield path
+
+
+def tree_hashes(root: Path) -> dict[str, str]:
+    require_dir(root, "dist tree")
+    hashes: dict[str, str] = {}
+    for path in iter_files(root):
+        rel = path.relative_to(root).as_posix()
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        hashes[rel] = digest
+    return hashes
+
+
+def check_identity(layout: Layout) -> None:
+    trees = [(label, path, tree_hashes(path)) for label, path in layout.all_dists]
+    baseline_label, baseline_path, baseline = trees[0]
+    print(f"[check] {baseline_label} file count: {len(baseline)} ({baseline_path})")
+    for label, path, candidate in trees[1:]:
+        if set(candidate) != set(baseline):
+            missing = sorted(set(baseline) - set(candidate))[:20]
+            extra = sorted(set(candidate) - set(baseline))[:20]
+            raise SystemExit(
+                f"dist file list mismatch for {label} ({path})\n"
+                f"  missing(first20)={missing}\n  extra(first20)={extra}"
+            )
+        mismatched = sorted(rel for rel, digest in baseline.items() if candidate[rel] != digest)
+        if mismatched:
+            raise SystemExit(
+                f"dist hash mismatch for {label} ({path}); first mismatches: {mismatched[:20]}"
+            )
+        print(f"[check] {label} matches {baseline_label}: {len(candidate)} files")
+
+
+def check_index_contract(layout: Layout) -> None:
+    for label, dist in layout.all_dists:
+        index = dist / "index.html"
+        if not index.is_file():
+            raise SystemExit(f"{label} index.html missing: {index}")
+        body = index.read_text(encoding="utf-8")
+        refs = [m.group("ref") for m in ENTRY_REF_PATTERN.finditer(body)]
+        if not refs:
+            raise SystemExit(f"{label} index.html does not reference /creative/assets/*.js|css entries")
+        if BAD_RELATIVE_ENTRY_PATTERN.search(body):
+            raise SystemExit(f"{label} index.html contains ./assets entry refs; rebuild with VITE_BASE_URL=/creative/")
+        has_js = any(ref.split("?", 1)[0].endswith(".js") for ref in refs)
+        has_css = any(ref.split("?", 1)[0].endswith(".css") for ref in refs)
+        if not has_js or not has_css:
+            raise SystemExit(f"{label} index.html must reference at least one JS and one CSS entry under /creative/assets/")
+        print(f"[check] {label} embedded index refs: {len(refs)} /creative/assets entries")
+
+
+def check_sourcemaps(layout: Layout, policy: str) -> None:
+    maps = sorted(path.relative_to(layout.source_dist).as_posix() for path in layout.source_dist.rglob("*.map"))
+    if maps and policy == "forbid":
+        raise SystemExit(f"sourcemap policy forbids generated maps; found first entries: {maps[:20]}")
+    if maps:
+        print(f"[policy] sourcemap-policy=allow; generated maps present: {len(maps)}")
+    else:
+        print("[policy] no generated sourcemaps found")
+
+
+def run_new_api_tests(layout: Layout) -> None:
+    require_dir(layout.new_api, "new-api repo")
+    run(["go", "test", "-count=1", "."], cwd=layout.new_api)
+    run(
+        ["go", "test", "-count=1", "./router", "./middleware", "./controller", "./model", "./service", "./relay/..."],
+        cwd=layout.new_api,
+    )
+    run(["go", "build", "./..."], cwd=layout.new_api)
+
+
+def run_embedded_smoke(layout: Layout, base_url: str, timeout_ms: int | None) -> None:
+    require_dir(layout.opentu, "opentu repo")
+    env = os.environ.copy()
+    env["CREATIVE_EMBEDDED_BASE_URL"] = base_url
+    # The embedded smoke depends on its target URL; do not let Nx replay a
+    # previous skipped/no-env result.
+    env["NX_SKIP_NX_CACHE"] = "true"
+    if timeout_ms is not None:
+        env["DRAWNIX_READY_TIMEOUT_MS"] = str(timeout_ms)
+    run(["pnpm", "e2e:creative-embedded"], cwd=layout.opentu, env=env)
+
+
+def source_diff_check(layout: Layout) -> None:
+    # Git pathspec exclusions intentionally omit generated dist trees. This keeps
+    # whitespace policy focused on source while artifact policy is enforced by
+    # check_identity(). Include this orchestration repo too because it owns the
+    # release-gate script and Trellis policy docs.
+    root = repo_root()
+    if (root / ".git").is_dir():
+        run(["git", "diff", "--check", "--", ":!.codex-flow/**", ":!.cache/**"], cwd=root)
+    if (layout.opentu / ".git").is_dir():
+        run(["git", "diff", "--check", "--", ":!dist/**"], cwd=layout.opentu)
+    if (layout.new_api / ".git").is_dir():
+        run(
+            [
+                "git",
+                "diff",
+                "--check",
+                "--",
+                ":!web/creative/dist/**",
+                ":!router/web/creative/dist/**",
+            ],
+            cwd=layout.new_api,
+        )
+
+
+def check_all(layout: Layout, sourcemap_policy: str) -> None:
+    for label, path in layout.all_dists:
+        require_dir(path, f"{label} dist")
+    check_index_contract(layout)
+    check_identity(layout)
+    check_sourcemaps(layout, sourcemap_policy)
+    print("[ok] Creative embedded artifact contract holds")
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    defaults = default_layout()
+    parser = argparse.ArgumentParser(
+        description="Build/sync/check the local OpenTU -> new-api embedded Creative artifact contract.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["check", "sync", "build-sync-check"],
+        default="check",
+        help="Action to perform. check is read-only; sync copies current dist; build-sync-check builds then syncs then checks.",
+    )
+    parser.add_argument("--opentu", type=Path, default=defaults.opentu, help="Path to the opentu repository")
+    parser.add_argument("--new-api", type=Path, default=defaults.new_api, help="Path to the new-api repository")
+    parser.add_argument(
+        "--sourcemap-policy",
+        choices=["allow", "forbid"],
+        default="allow",
+        help="Whether generated *.map files are allowed in the embedded artifact.",
+    )
+    parser.add_argument("--run-new-api-tests", action="store_true", help="Run selected new-api Go tests/build after artifact checks")
+    parser.add_argument("--source-diff-check", action="store_true", help="Run source-only git diff --check in opentu and new-api")
+    parser.add_argument(
+        "--embedded-smoke-url",
+        help="Optional local new-api Creative base URL (for example http://localhost:3000/creative/) for pnpm e2e:creative-embedded",
+    )
+    parser.add_argument(
+        "--drawnix-ready-timeout-ms",
+        type=int,
+        help="Optional DRAWNIX_READY_TIMEOUT_MS override passed to Playwright smoke commands",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    layout = Layout(opentu=args.opentu.resolve(), new_api=args.new_api.resolve())
+
+    if args.action == "build-sync-check":
+        build_opentu(layout)
+        sync_dist(layout)
+    elif args.action == "sync":
+        sync_dist(layout)
+
+    check_all(layout, args.sourcemap_policy)
+
+    if args.source_diff_check:
+        source_diff_check(layout)
+    if args.run_new_api_tests:
+        run_new_api_tests(layout)
+    if args.embedded_smoke_url:
+        run_embedded_smoke(layout, args.embedded_smoke_url, args.drawnix_ready_timeout_ms)
+
+    print("[done] no-secrets Creative release gate completed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
