@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check artifact identity, embedded base, generated artifact policy, and browser smoke acceptance criteria."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"Check service worker/API pass-through expectations for embedded Creative smoke."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Check /creative/api and /creative/relay fail-closed/static-boundary requirements."}
+{"file":".trellis/spec/guides/index.md","reason":"Shared cross-layer and reuse quality triggers for final review."}
+{"file":".trellis/tasks/archive/2026-06/06-13-newapi-opentu-release-readiness-verification/release-readiness-report-2026-06-13.md","reason":"Compare final state against previously unresolved release gates."}
