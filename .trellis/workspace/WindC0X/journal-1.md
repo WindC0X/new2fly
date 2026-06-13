@@ -469,3 +469,36 @@ Hardened OpenTU cold smoke and embedded /creative smoke, added repeatable Creati
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: Push OpenTU new-api embed branch
+
+**Date**: 2026-06-13
+**Task**: Push OpenTU new-api embed branch
+**Branch**: `master`
+
+### Summary
+
+Created dedicated OpenTU branch newapi-embed-release-gate at release smoke commit and pushed it to writable fork WindC0X/opentu using host-side Git credentials; archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `39e0fe23` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
