@@ -22,6 +22,8 @@ Output commits matched local `git rev-parse HEAD` for all three repos.
 
 Note: OpenTU is currently checked out on local branch `feat/creative-embed`, but its HEAD matches both the intended live remote commit and the local `newapi-embed-release-gate` ref.
 
+Post-verification bookkeeping note: `new2fly:master` is expected to advance after this report is archived and journal/spec notes are recorded. The executable gate revision verified above is `e40508f1d13f6356bfb0f5dd2c8b30d4456f829d`; later commits from this task are limited to `.trellis` task, journal, and spec documentation and do not change `scripts/creative_release_gate.py` or release executable code.
+
 ## Verification commands and results
 
 ### 1. Artifact/source/new-api release gate
