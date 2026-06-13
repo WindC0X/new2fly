@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded Creative artifact, RC gate, sourcemap, and no-secrets smoke contract."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Creative backend route/cache/origin boundary relevant to release routing checks."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Creative asset storage/S3/database rollout contract relevant to release env checks."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Release readiness spans frontend artifact, backend routes, storage, and ops layers."}
+{"file":".trellis/tasks/archive/2026-06/06-13-remote-backed-newapi-opentu-rc-verification/check.md","reason":"Previous RC verification evidence and remaining release-environment-only surfaces."}

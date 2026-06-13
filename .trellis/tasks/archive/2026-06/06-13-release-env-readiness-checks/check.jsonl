@@ -1,0 +1,6 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Quality gate for embedded Creative artifact and RC verification requirements."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Quality gate for Creative route/API/relay boundary and cache behavior."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Quality gate for Creative asset storage rollout and S3 safety."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Backend quality review conventions."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend quality review conventions."}
+{"file":".trellis/tasks/archive/2026-06/06-13-remote-backed-newapi-opentu-rc-verification/check.md","reason":"Baseline verification evidence to avoid duplicating prior checks."}
