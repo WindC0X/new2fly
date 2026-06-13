@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 14
+- **Total Sessions**: 15
 - **Last Active**: 2026-06-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~538 | Active |
+| `journal-1.md` | ~573 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 15 | 2026-06-13 | Remote-backed new-api OpenTU RC verification | opentu:`39e0fe23`, new-api:`c9f318c`, new2fly:`824ad93` | `master` |
 | 14 | 2026-06-13 | Push new-api and new2fly release gate branches | `c9f318c`, `0924f3f` | `master` |
 | 13 | 2026-06-13 | Push OpenTU new-api embed branch | `39e0fe23` | `master` |
 | 12 | 2026-06-13 | New API / OpenTU release gate hardening | `39e0fe23`, `c9f318c`, `01aad17` | `master` |

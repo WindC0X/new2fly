@@ -536,3 +536,38 @@ Pushed new-api feat/creative-embed to WindC0X/new-api and pushed new2fly master 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: Remote-backed new-api OpenTU RC verification
+
+**Date**: 2026-06-13
+**Task**: Remote-backed new-api OpenTU RC verification
+**Branch**: `master`
+
+### Summary
+
+Verified live remote-backed OpenTU/new-api/new2fly release candidate with artifact identity gate, new-api Go tests/build, OpenTU typecheck+cold smoke, sanitized local embedded /creative smoke, dynamic-workflow sidecar review, and recorded no-secrets RC verification spec guidance.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `opentu:39e0fe23` | (see git log) |
+| `new-api:c9f318c` | (see git log) |
+| `new2fly:824ad93` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
