@@ -316,3 +316,87 @@ Ran dynamic workflow audit for new2fly Creative integration across new-api and o
 ### Next Steps
 
 - None - task complete
+
+## 2026-06-11 — Creative backend security boundary hardening
+
+- Implemented first child task fixes in `../new-api` for H1/H5/H9/M6/H10/M1 and proxy redirect hardening.
+- Used TDD: added failing router/controller/middleware/service regression tests, verified red, then implemented fixes.
+- Used dynamic workflow during check phase:
+  - `.codex-flow/generated/creative-backend-security-boundary-check.workflow.ts` found route fail-closed gaps, Suno DTO sanitization, bare notify, cookie-like redirect stripping, and MJ image fallback concerns.
+  - `.codex-flow/generated/creative-backend-security-boundary-recheck.workflow.ts` confirmed Suno/denylist and HTTP-client fixes; route recheck found trailing-slash redirect gap, now fixed with tests/handlers.
+- Fresh verification passed:
+  - `go test ./router ./middleware ./controller ./relay/common ./relay/constant ./service -run 'Creative|Suno|MJ|Midjourney|Router|SetWebRouter|Forwarded|Forbidden|Cache|Proxy|Notify|Owner|HTTPClient|Redirect' -count=1`
+  - `go test ./router ./middleware ./controller ./service -count=1`
+  - `go test ./relay -count=1`
+- Broader `go test ./relay/... -count=1` still has unrelated pre-existing failures in `relay/channel/claude` and `relay/helper`.
+
+## 2026-06-12 — Creative release blocker remediation closure
+
+- Completed and archived child task `06-11-creative-asset-quota-delete-lifecycle-hardening` with no auto-commit.
+- Implemented backend asset lifecycle fixes in `../new-api`:
+  - transactional `CreativeAssetQuota` reservation rows for upload count/byte quota;
+  - `pending_delete` retry lifecycle for failed object deletion;
+  - document create/update/delete `WithAssetRefs` transaction helpers.
+- Updated `.trellis/spec/backend/creative-asset-sync.md` to record quota rows, pending-delete semantics, document/ref transaction rules, and MVP metadata/rate-limit reconciliation.
+- Ran dynamic workflow attempts for asset lifecycle checks:
+  - `creative-asset-lifecycle-check.workflow.ts` timed out in `codex-flow`/`codex-sdk` before producing findings.
+  - `creative-asset-lifecycle-fast-check.workflow.ts` also timed out with `input_tokens=0` in the journal.
+  - Did not count these timed-out workflows as pass evidence; used deterministic tests/manual review instead.
+- Final validation passed:
+  - Backend parent target: `go test ./middleware ./router ./model ./service ./relay/constant ./relay/common ./relay/channel/task/mj ./controller -run 'Creative|Suno|MJ|Midjourney|Task|Asset|Billing|Idempotency|Relay|Router|Nonce|Cache|Proxy|Forwarded' -count=1`.
+  - Broader backend touched packages: `go test ./router ./middleware ./controller ./service ./model ./relay ./relay/common ./relay/constant -count=1`.
+  - Frontend parent target: `pnpm exec vitest run ... --no-file-parallelism --maxWorkers=1 --minWorkers=1` passed 6 files / 50 tests.
+  - Frontend typecheck: `pnpm exec tsc -p packages/drawnix/tsconfig.spec.json --noEmit` passed.
+- Archived parent task `06-11-creative-release-blocker-remediation` with no auto-commit. Remaining active Trellis task is unrelated `00-bootstrap-guidelines`.
+
+## 2026-06-13 — true-final v8 goal-attainment closure
+
+- Completed v5 HIGH remediation loop:
+  - new-api async submit accepted-after-upstream local failure: submit-settle enqueue failure now fail-closes before buffered success flush; accepted+not-persisted refund/idempotency cleanup helper tests pass.
+  - new-api Creative Asset S3 lifecycle: added durable lifecycle outbox for S3 upload cleanup and pending-delete retry sweeper; migration and polling loop include the new lifecycle work.
+- Verification passed:
+  - new-api targeted HIGH tests and `go test -count=1 ./router ./middleware ./controller ./model ./service ./relay/...`.
+  - opentu `pnpm nx run drawnix:typecheck`, targeted creative Vitest suite (10 files / 137 tests), and diff check.
+  - new2fly diff check.
+- Dynamic workflows:
+  - Focused recheck v2: `.codex-flow/journal/newapi-opentu-v5-high-focused-recheck-2026-06-13-v2.jsonl`, `blockerCount=0`.
+  - Fresh final v6/v7 had timeout/null branches and are trace-only.
+  - Final effective evidence-pack terminal pass v8: `.codex-flow/journal/newapi-opentu-true-final-goal-attainment-2026-06-13-v8-evidence-pack.jsonl`, `overallStatus=mostly_met`, `attainmentScore=0.84`, `highBlockers=[]`.
+- Final report written: `.trellis/tasks/06-12-newapi-opentu-goal-attainment-audit/true-final-goal-attainment-2026-06-13.md`.
+- Remaining non-HIGH gaps: browser E2E smoke, production env/S3 readiness, cross-repo creative dist pipeline, release freeze/commit review, theoretical S3 orphan crash window after upload before cleanup enqueue.
+
+
+## Session 10: New API / OpenTU goal attainment audit closure
+
+**Date**: 2026-06-13
+**Task**: New API / OpenTU goal attainment audit closure
+**Branch**: `master`
+
+### Summary
+
+Closed Creative Embed HIGH findings, ran dynamic final goal-attainment audit, recorded mostly_met verdict and release-readiness gaps.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ba920ee` | (see git log) |
+| `570af4be` | (see git log) |
+| `91bffcf` | (see git log) |
+| `971e4ff` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
