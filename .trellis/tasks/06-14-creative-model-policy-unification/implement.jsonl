@@ -1,0 +1,7 @@
+{"file":".trellis/tasks/06-14-creative-model-policy-unification/prd.md","reason":"Product goal, ownership contract, acceptance criteria, and admin policy decision for implementation."}
+{"file":".trellis/tasks/06-14-creative-model-policy-unification/design.md","reason":"Technical design for backend policy storage/API, OpenTU resolver, admin UI, compatibility, and rollback."}
+{"file":".trellis/tasks/06-14-creative-model-policy-unification/implement.md","reason":"Ordered implementation plan, dependencies, verification strategy, and sub-agent split."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Backend Creative API/relay security boundary; model policy must not leak routing/provider authority."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded OpenTU release/model-provider contract and artifact sync requirements."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Frontend state/persistence guidance for reconciling stale model selections safely."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-repo new-api/OpenTU data-flow reasoning required for model policy unification."}

@@ -1,0 +1,9 @@
+{"file":".trellis/tasks/06-14-creative-model-policy-unification/prd.md","reason":"Check final behavior against user-visible requirements and acceptance criteria."}
+{"file":".trellis/tasks/06-14-creative-model-policy-unification/design.md","reason":"Check implementation matches intended contracts, data flow, security boundaries, and rollback behavior."}
+{"file":".trellis/tasks/06-14-creative-model-policy-unification/implement.md","reason":"Check all planned work packages, dependencies, and dynamic workflow verification were completed."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Verify backend changes preserve Creative session/relay security and no-leak requirements."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Verify embedded UI, managed profile, model catalog, and dist artifact requirements."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Verify OpenTU/new-api frontend types and safe parsing around model policy."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Verify persisted selections, bootstrap state, and stale model reconciliation behavior."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Verify resolver/service reuse avoids scattered static fallback patches."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify end-to-end new-api channel ability -> Creative API -> OpenTU selector/generation flow."}

@@ -24,7 +24,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Creative Async Video Relay](./creative-async-video-relay.md) | Opentu session-broker async video paths, idempotency, no-fallback, and credential-stripping contract | Active |
 | [Creative Async Suno Relay](./creative-async-suno-relay.md) | Opentu session-broker Suno paths, empty-key handling, idempotency propagation, unsupported no-fallback, and credential-stripping contract | Active |
 | [Creative Async MJ Relay](./creative-async-mj-relay.md) | Opentu session-broker MJ paths, stable image idempotency, no-fallback unsupported handling, and credential-stripping contract | Active |
-| [Creative Embedded Release Artifact](./creative-embedded-release-artifact.md) | Opentu `/creative/` production build, cross-repo dist sync, generated-artifact release gates, and embedded smoke readiness contract | Active |
+| [Creative Embedded Release Artifact](./creative-embedded-release-artifact.md) | Opentu `/creative/` production build, dist sync, embedded smoke, and managed model policy/fail-closed contract | Active |
 
 ---
 

@@ -92,3 +92,91 @@ Suno fetch -> platform==suno + owner scope + route-specific sanitized DTO
 Redirect -> strip sensitive/cookie-like headers and validate target with SSRF policy
 Expected origin -> use request host unless a trusted-proxy gate says otherwise
 ```
+
+## Scenario: Creative model policy and embedded model catalog contract
+
+### 1. Scope / Trigger
+
+- Trigger: changing `new-api` Creative model availability, bootstrap payloads, model preferences, admin settings, or any code that influences what embedded OpenTU can select under `/creative/`.
+- This is a cross-layer/security boundary: `new-api` owns channels, abilities, groups, routing, and default/recommended policy; embedded OpenTU receives only safe logical model IDs and must not receive raw channel or provider authority.
+- Applies to `controller/creative.go`, `controller/creative_model_policy.go`, `service/creative_model_policy.go`, `model/option.go`, `controller/option.go`, admin settings UI, and `/creative/api/models` consumers.
+
+### 2. Signatures
+
+- Stored option key:
+  - `service.CreativeModelPolicyOptionKey == "creative.model_policy"`
+  - default stored value in `model/option.go`: `{"version":1}`
+- Policy types:
+  - `CreativeModelPolicy{version, global, groups}`
+  - `CreativeModelPolicyRule{defaults, recommended}`
+  - allowed modalities: `text`, `agent`, `image`, `video`, `audio`
+- Public session endpoints:
+  - `GET /creative/api/models` returns the current user's logical model catalog; model IDs are deduped by `service.GetUserCreativeModelPool(user.Group)` / ability data.
+  - `GET /creative/api/bootstrap` returns existing auth/session data plus `modelPolicy` and `modelPolicyVersion`.
+- Admin endpoints:
+  - `GET /api/creative/model-policy` returns `CreativeModelPolicyAdminState`.
+  - `PUT /api/creative/model-policy` accepts either a policy object or `{ "policy": <object> }` / `{ "value": <object> }`, normalizes, persists, and returns the refreshed admin state.
+- Service helpers:
+  - `NormalizeCreativeModelPolicyJSON(raw string)`
+  - `NormalizeCreativeModelPolicyValue(value any)`
+  - `BuildEffectiveCreativeModelPolicy(policy, group, availableModels)`
+  - `BuildCreativeModelPolicyAdminState(policy)`
+  - `CleanCreativeModelPolicy(policy, poolsByGroup)`
+
+### 3. Contracts
+
+- `creative.model_policy` is safe policy metadata, not a provider/channel configuration blob.
+- The only accepted top-level policy fields are `version`, `global`, and `groups`; nested rules only accept `defaults` and `recommended` maps keyed by allowed modality.
+- Model IDs are strings, trimmed, deduplicated in list order, and filtered against the current effective model pool before bootstrap returns them as defaults/recommended entries.
+- Group policy selection uses the logged-in user's primary `User.Group` for override rules; availability still comes from `service.GetUserCreativeModelPool(user.Group)`, including the project's usable-group union behavior.
+- Bootstrap `modelPolicy` is already effective for the current browser session. OpenTU may use `stale` diagnostics for display/debugging only; stale entries are never executable defaults.
+- `modelPolicyVersion` must be derived from the effective filtered policy, not from raw stored JSON alone.
+- Generic `/api/option` updates must reject or bypass direct mutation of `creative.model_policy`; use the dedicated admin endpoint so validation, unsafe-key checks, model-pool diagnostics, and normalized JSON are always applied.
+- Policy payloads must reject unsafe key material and routing/control fields at any depth, including API keys/secrets, base/upstream/provider/channel/group overrides, owner/user overrides, and notify/callback/webhook variants.
+- Admin UI may expose an expert JSON editor, but save/read flows go through `/api/creative/model-policy` and show model-pool/stale diagnostics based on channel abilities.
+
+### 4. Validation & Error Matrix
+
+- Empty option / empty request body policy -> normalized `{"version":1}`; effective bootstrap policy has no defaults/recommended and no static fallback authority.
+- Unsupported `version` -> `400` from `PUT /api/creative/model-policy`.
+- Unknown top-level or nested non-policy fields -> dropped if harmless; forbidden security/control keys -> `400`.
+- Default model not in the current user's available pool -> omitted from effective `defaults` and recorded under `stale.defaults`.
+- Recommended list entries not in the current user's pool -> omitted from effective `recommended` and recorded under `stale.recommended`; valid entries preserve order and dedupe.
+- Group override exists for user's group -> override values win for that modality, then are filtered; other modalities may continue to use global policy.
+- Multiple enabled channels expose the same logical model -> `/creative/api/models` returns one logical model; backend routing still selects the concrete channel during relay.
+- Direct generic option update for `creative.model_policy` -> rejected or ignored with a controlled error; policy must not be stored unnormalized.
+- Admin state with stale saved IDs -> returns diagnostics and `cleanedPolicyJSON` suitable for one-click cleanup, without granting stale IDs to the browser session.
+
+### 5. Good/Base/Bad Cases
+
+- Good: admin saves `{"version":1,"global":{"defaults":{"image":"gpt-image-1"}}}` through `PUT /api/creative/model-policy`; a default-group user whose enabled abilities include `gpt-image-1` receives bootstrap `modelPolicy.defaults.image == "gpt-image-1"`.
+- Base: a VIP override sets `text: "vip-gpt"`; default users continue to get the global text default, while VIP users get `vip-gpt` only if it is in their effective pool.
+- Bad: `creative.model_policy` is edited through `/api/option` with `{ "channelId": 12, "baseURL": "...", "apiKey": "..." }` and later appears in bootstrap or OpenTU settings.
+- Bad: stored global recommended contains `removed-video-model`; bootstrap includes it in `recommended.video` even though `/creative/api/models` no longer lists it.
+
+### 6. Tests Required
+
+- Service tests for empty policy, trim/dedupe, version validation, modality validation, group override merge, stale filtering, `modelPolicyVersion`, unsafe-field rejection, and cleaned-policy diagnostics.
+- Controller tests for `GET /creative/api/bootstrap` proving effective policy is filtered to the current user pool and no channel/base URL/key fields leak.
+- Admin endpoint tests for `GET`/`PUT /api/creative/model-policy`, including stale diagnostics and normalized JSON persistence.
+- Generic option endpoint tests proving `creative.model_policy` cannot be directly changed without the dedicated validator.
+- Ability/channel tests or fixtures proving duplicate logical models across channels remain deduped for OpenTU while backend channel selection remains server-side.
+- Admin UI type/API tests proving the UI client uses `/api/creative/model-policy` rather than raw `/api/option` for this key.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Browser bootstrap -> modelPolicy copied from raw option JSON, including stale model IDs and channel/provider fields
+Admin save -> POST /api/option { key: "creative.model_policy", value: arbitrary JSON string }
+OpenTU selector -> user can choose channel id / provider profile / base URL
+```
+
+#### Correct
+
+```text
+Browser bootstrap -> modelPolicy built by BuildEffectiveCreativeModelPolicy(policy, user.Group, availableModelIDs)
+Admin save -> PUT /api/creative/model-policy -> NormalizeCreativeModelPolicyValue -> UpdateStoredCreativeModelPolicy
+OpenTU selector -> one logical model ID from /creative/api/models; channel routing stays in new-api
+```

@@ -136,3 +136,86 @@ rsync -a --delete dist/apps/web/ new-api/web/creative/dist/
 rsync -a --delete dist/apps/web/ new-api/router/web/creative/dist/
 verify all three dist trees have identical relative hashes
 ```
+
+## Scenario: embedded Creative managed model policy, selectors, and fail-closed generation
+
+### 1. Scope / Trigger
+
+- Trigger: changing embedded OpenTU model discovery, provider settings, model selectors, generation services, MCP tools, canvas operations, or settings/default-model UI used under `/creative/`.
+- This is a cross-repo contract with `new-api`: OpenTU embedded mode is only a presentation/execution client for the `new-api-creative` managed profile and must not reintroduce standalone OpenTU provider/static defaults as selectable or executable models.
+- Applies to `creative-session-broker.ts`, `creative-model-policy-resolver.ts`, `creative-embedded-model-guard.ts`, `creative-display-policy.ts`, `runtime-model-discovery.ts`, `settings-manager.ts`, Gemini/runtime API wrappers such as `sendChatWithGemini`, AI input/ChatDrawer selectors, settings dialog, generation services, MCP tools, and canvas operations.
+
+### 2. Signatures
+
+- Managed profile constants:
+  - `CREATIVE_MANAGED_PROFILE_ID == "new-api-creative"`
+  - `CREATIVE_MANAGED_PROFILE_NAME == "New API Creative"`
+- Bootstrap/catalog inputs:
+  - `GET /creative/api/bootstrap` supplies `modelPolicy` and `modelPolicyVersion`.
+  - `GET /creative/api/models` supplies the current user's logical model catalog.
+- Resolver/guard functions:
+  - `setCreativeModelPolicyFromBootstrap(payload)`
+  - `resetCreativeModelPolicySnapshot()`
+  - `getCreativePolicyModels(type, fullPool)`
+  - `getCreativePolicyDefaultModel(type, fullPool)`
+  - `getCreativePolicyDefaultModelForGenerationType(generationType, fullPool)`
+  - `resolveCreativeEmbeddedModelForGeneration(type, requestedModel?, requestedModelRef?)`
+- Embedded selection refs:
+  - valid executable refs must point to `profileId: "new-api-creative"` or an equivalent managed `sourceProfileId` created from the catalog.
+
+### 3. Contracts
+
+- In embedded mode, model lists are projections of the managed catalog plus effective policy ordering. Static OpenTU lists (`CHAT_MODELS`, `IMAGE_MODELS`, `VIDEO_MODELS`, `AUDIO_MODELS`, `DEFAULT_*_MODEL_ID`) are standalone defaults only.
+- Static model metadata may enrich labels, icons, vendors, tags, and descriptions for catalog IDs already supplied by `new-api`; static entries absent from the managed catalog must not become selectable, persisted as active defaults, or sent to generation.
+- Selection/default order in embedded mode is: valid persisted/user preference when still in the managed catalog, valid admin policy default/recommended order, then remaining managed catalog models sorted by display priority. If no valid model exists for a modality, the UI shows an unavailable state.
+- `creative-session-broker.ts` must install policy before reconciling persisted selections; bootstrap/catalog errors or empty model pools must install/show the unavailable managed profile and reset policy instead of falling back to legacy providers.
+- Every generation or direct AI runtime entry point that can execute in embedded mode must call a central guard before relay/provider calls. This includes wrappers that build runtime config for direct chat/text utilities, not only high-level generation services. Missing or stale requested model IDs must throw a local unavailable error and must not call the provider relay or generic API transport.
+- Settings and defaults UI may display the managed catalog and policy state, but embedded settings must not save standalone provider presets or static fallback model IDs as active Creative defaults.
+- Standalone OpenTU behavior is not changed by this contract; standalone provider discovery/static defaults may continue outside `isCreativeEmbeddedMode()`.
+
+### 4. Validation & Error Matrix
+
+- Embedded bootstrap returns catalog `["managed-image"]` and static catalog contains `gpt-image-2-vip` -> selectors show only `managed-image`; `gpt-image-2-vip` may only be used as metadata if IDs match.
+- Embedded bootstrap returns policy default `image: "managed-image"` -> image selectors and generation default choose `managed-image`.
+- Persisted selection points to `removed-image` -> reconciliation replaces it with a valid policy/catalog model or marks image generation unavailable; it is not submitted silently.
+- Empty catalog / bootstrap error -> `New API Creative` unavailable profile, disabled dropdowns/submit buttons, and local fail-closed errors before relay calls or direct chat/text API transports.
+- Requested model is not in `getSelectableModels(type)` -> `resolveCreativeEmbeddedModelForGeneration` throws; network provider call count remains zero in tests.
+- Component has no explicit `models` prop in embedded mode -> it must not default to static `IMAGE_MODELS` / `IMAGE_VIDEO_MODELS`; it uses managed discovery/policy or stays empty/disabled.
+- Non-embedded standalone mode -> existing static defaults and provider profiles remain available.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `/creative/api/models` returns `gpt-4o` and `gpt-image-1`; AI input, ChatDrawer, settings, MCP text/image tools, and canvas image operations all show/use those logical IDs through `new-api-creative`.
+- Base: admin policy recommends `suno_music`, but the current user's channel groups do not expose it; audio tools show unavailable or use another available audio model, never the stale recommendation.
+- Bad: embedded `ModelDropdown` has no `models` prop and falls back to `IMAGE_MODELS`, showing `gpt-image-2-vip` despite that ID being absent from `/creative/api/models`.
+- Bad: task queue or canvas operation sees no requested model and submits `DEFAULT_VIDEO_MODEL_ID` directly to the relay in embedded mode.
+
+### 6. Tests Required
+
+- Resolver tests for bootstrap policy normalization, default/recommended ordering, stale/static-only exclusion, `agent` -> text pool behavior, and empty policy behavior.
+- Session broker tests for policy install before persisted-selection reconciliation, empty catalog/unavailable profile, bootstrap error reset, and managed catalog-only profiles.
+- Runtime discovery/settings tests proving embedded selectable/preferred/default models come only from `new-api-creative` and no legacy/static provider fallback is used.
+- Component tests for AI input dropdown/selector, ChatDrawer selector, and settings dialog empty/managed pool states.
+- Generation/runtime tests for text/image/video/audio services, direct Gemini/chat wrappers, task queue, fallback executor, MCP tools, and canvas operations proving invalid or missing embedded models fail before network relay/provider calls.
+- Cross-repo release gate after OpenTU changes: `VITE_BASE_URL=/creative/ pnpm build:web`, sync both `new-api` dist trees, then `python3 scripts/creative_release_gate.py build-sync-check --run-new-api-tests`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+if (isCreativeEmbeddedMode() && models.length === 0) {
+  return IMAGE_MODELS; // static standalone fallback
+}
+submit({ model: DEFAULT_IMAGE_MODEL_ID });
+```
+
+#### Correct
+
+```text
+if (isCreativeEmbeddedMode()) {
+  const resolved = resolveCreativeEmbeddedModelForGeneration('image', requestedModel, requestedRef);
+  // throws a local unavailable error when the managed catalog has no valid image model
+  return submit({ model: resolved.modelId, modelRef: resolved.modelRef });
+}
+```
