@@ -805,3 +805,36 @@ Unified embedded OpenTU Creative model availability/defaults around new-api mana
 ### Next Steps
 
 - None - task complete
+
+
+## Session 22: Creative model policy push and staging verification
+
+**Date**: 2026-06-14
+**Task**: Creative model policy push and staging verification
+**Branch**: `master`
+
+### Summary
+
+Recorded user-fork push fallback commands, built the local new-api Creative Docker image, started 127.0.0.1 staging, verified /api/status, /creative/, assets, service worker, unauth model-policy boundary, and Playwright smoke. Remote pushes are blocked in WSL by missing GitHub HTTPS auth; host-side push commands are documented.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4faa9dd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
