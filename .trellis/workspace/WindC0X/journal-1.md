@@ -770,3 +770,38 @@ Fixed persistent local staging issues for embedded OpenTU under `new-api` `/crea
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: Creative model policy unification
+
+**Date**: 2026-06-14
+**Task**: Creative model policy unification
+**Branch**: `master`
+
+### Summary
+
+Unified embedded OpenTU Creative model availability/defaults around new-api managed model policy, synced artifacts, verified tests/gate, and recorded final audit notes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b206848e` | (see git log) |
+| `3cca3ac` | (see git log) |
+| `0f4d7b7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
