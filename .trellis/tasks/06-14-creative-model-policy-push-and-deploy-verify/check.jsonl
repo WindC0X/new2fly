@@ -1,0 +1,8 @@
+{"file":".trellis/tasks/06-14-creative-model-policy-push-and-deploy-verify/prd.md","reason":"Verify push/deploy result satisfies stated requirements, scope limits, and acceptance criteria."}
+{"file":".trellis/tasks/06-14-creative-model-policy-push-and-deploy-verify/design.md","reason":"Check executed commands match remote/branch, no-secret, staging, and rollback design."}
+{"file":".trellis/tasks/06-14-creative-model-policy-push-and-deploy-verify/implement.md","reason":"Check every planned phase has been completed or explicitly recorded as blocked/not-run."}
+{"file":"ops/newapi-opentu-staging/README.md","reason":"Verify final stop/restart commands and URL match the documented staging runbook."}
+{"file":"ops/newapi-opentu-staging/docker-compose.yml","reason":"Verify running compose service uses the safe local staging contract."}
+{"file":"scripts/creative_release_gate.py","reason":"Verify release gate/check usage remains no-secrets and artifact-focused."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Verify deployed /creative artifact still meets embedded base path and model-policy contract."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Verify no deployment check leaks or bypasses backend Creative security boundaries."}

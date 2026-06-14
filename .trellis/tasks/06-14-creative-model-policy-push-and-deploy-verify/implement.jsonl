@@ -1,0 +1,8 @@
+{"file":".trellis/tasks/06-14-creative-model-policy-push-and-deploy-verify/prd.md","reason":"Requirements, constraints, known commits/remotes, staging scope, and acceptance criteria for push/deploy verification."}
+{"file":".trellis/tasks/06-14-creative-model-policy-push-and-deploy-verify/design.md","reason":"Operational design for remote/branch targets, no-secret boundary, local staging deployment, verification, and rollback."}
+{"file":".trellis/tasks/06-14-creative-model-policy-push-and-deploy-verify/implement.md","reason":"Ordered execution checklist for hygiene, push, image build, compose deployment, read-only smoke, and reporting."}
+{"file":"ops/newapi-opentu-staging/README.md","reason":"Authoritative local staging runbook and safety defaults."}
+{"file":"ops/newapi-opentu-staging/docker-compose.yml","reason":"Staging compose contract: bind, image tag, env file, volumes, and healthcheck."}
+{"file":"scripts/creative_release_gate.py","reason":"No-secrets release gate used before staging image build and artifact consistency verification."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded Creative artifact/model policy contract that deployment smoke must preserve."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Backend Creative security boundary for no-secret/no-provider-leak deployment verification."}
