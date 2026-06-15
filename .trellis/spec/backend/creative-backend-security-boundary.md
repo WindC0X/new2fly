@@ -180,3 +180,66 @@ Browser bootstrap -> modelPolicy built by BuildEffectiveCreativeModelPolicy(poli
 Admin save -> PUT /api/creative/model-policy -> NormalizeCreativeModelPolicyValue -> UpdateStoredCreativeModelPolicy
 OpenTU selector -> one logical model ID from /creative/api/models; channel routing stays in new-api
 ```
+
+
+## Scenario: Creative adapter binding config parser and forbidden normalizer
+
+### 1. Scope / Trigger
+
+- Trigger: changing backend-owned Creative adapter binding configuration, admin binding APIs, binding dry-run, runtime parameter schemas, or relay forbidden-field guards.
+- Applies to `service/creative_model_capability.go`, `controller/option.go`, future `controller/creative_model_bindings.go`, and any path that reads or writes `creative.model_bindings`.
+
+### 2. Signatures
+
+- Stored option key: `service.CreativeModelBindingsOptionKey == "creative.model_bindings"`.
+- Parser: `ParseCreativeModelBindingsConfig(raw string) (CreativeModelBindingsConfig, error)`.
+- Validator: `ValidateCreativeModelBindingsConfig(config CreativeModelBindingsConfig) error`.
+- Shared forbidden normalizer:
+  - `NormalizeCreativeForbiddenKey(key string) string`
+  - `CreativeForbiddenKey(key string) bool`
+- Config shape: `CreativeModelBindingsConfig{version, bindings[]}` where each binding has `id`, `providerModelId`, `priceModelId`, `modality`, `enabled`, optional `canaryGroups`, `channelId`, `adapterPreset`, `parameterTemplate`, ranking fields, and `parameterSchema`.
+
+### 3. Contracts
+
+- `creative.model_bindings` is a privileged backend config; generic `/api/option` must reject direct writes to this key.
+- Binding config JSON is versioned; only version `1` is accepted until a migration path exists.
+- `binding.id`, `providerModelId`, and `priceModelId` are separate fields. Tests should include distinct values.
+- The same forbidden-key normalizer must be used for binding IDs, parameter schema IDs, hidden/admin fields, relay body/query/form/multipart checks, and dry-run previews as those paths are wired.
+- The parser/validator must not contact provider endpoints; dry-run and fixture phases remain no-provider-call.
+
+### 4. Validation & Error Matrix
+
+- Empty raw config -> `version=1` with no bindings.
+- Unsupported version -> error.
+- Duplicate binding IDs, case-insensitive -> error.
+- Forbidden binding/schema ID such as `callback`, `notifyHook`, `headers.Authorization`, `ownerId`, `baseURL`, or `idempotencyKey` -> error.
+- Missing `providerModelId`, `priceModelId`, or `modality` -> error.
+- Direct `PUT /api/option/` for `creative.model_bindings` -> controlled error pointing to `/api/creative/model-bindings`.
+
+### 5. Good/Base/Bad Cases
+
+- Good: parse disabled mock binding with `id=mock:gpt-image-2:preview`, `providerModelId=gpt-image-2`, and `priceModelId=mock-gpt-image-2-price`; no provider call occurs.
+- Base: empty option during startup parses as empty v1 config.
+- Bad: administrator writes arbitrary `creative.model_bindings` JSON through `/api/option`, bypassing schema/forbidden validation and dry-run redaction.
+
+### 6. Tests Required
+
+- Service parser tests for valid v1 config, unsupported version, duplicate IDs, forbidden IDs, required fields, and nested parameter schema validation.
+- Shared normalizer tests covering camelCase, snake_case, kebab-case, dotted headers, and whitespace variants.
+- Controller tests proving generic `/api/option` rejects `creative.model_bindings`.
+- Future admin endpoint tests must reuse the same parser/normalizer and add auth, same-origin/nonce, redaction, and audit assertions.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+PUT /api/option/ { key: "creative.model_bindings", value: "..." } -> stored
+```
+
+#### Correct
+
+```text
+PUT /api/option/ { key: "creative.model_bindings", value: "..." } -> rejected
+POST /api/creative/model-bindings/validate -> ParseCreativeModelBindingsConfig -> no provider call
+```

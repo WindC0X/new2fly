@@ -30,9 +30,9 @@ No provider calls.
 
 No provider calls.
 
-1. [ ] new-api: add versioned binding config parser and shared forbidden-key normalizer.
+1. [x] new-api: add versioned binding config parser and shared forbidden-key normalizer.
 2. [ ] new-api: add admin-only model-bindings validate/dry-run endpoints with CSRF/same-origin gates.
-3. [ ] new-api: block generic option write path for `creative.model_bindings`.
+3. [x] new-api: block generic option write path for `creative.model_bindings`.
 4. [ ] new-api: add dry-run redacted request preview for mock and GrsAI fixture-backed presets.
 5. [ ] new-api admin security tests: non-admin denied, API-token-only denied, missing/bad CSRF/nonce denied for writes/dry-run, generic option write blocked, PUT emits sanitized audit event.
 6. [ ] new-api validator tests: duplicate id, unknown preset/template, wrong group/channel/modality, disabled channel, forbidden schema id, hidden user-submitted field, raw option bypass.

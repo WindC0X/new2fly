@@ -218,3 +218,27 @@ Phase A status:
 - Phase A checklist items 1-11 are now complete.
 - No provider calls were made.
 - Phase B admin validator/dry-run remains the next planned phase.
+
+
+## Phase B new-api binding config parser / generic option block verification
+
+Implemented in new-api commit `37477ef feat(creative): add model binding config parser`:
+
+- Added `service.CreativeModelBindingsOptionKey == "creative.model_bindings"`.
+- Added versioned `CreativeModelBindingsConfig` / `CreativeModelBindingConfig` parser for v1 JSON using `common.UnmarshalJsonStr`.
+- Added shared `NormalizeCreativeForbiddenKey()` and `CreativeForbiddenKey()` normalizer; existing parameter schema validation now uses it.
+- Parser currently validates version, duplicate binding ids, safe binding ids, required `providerModelId` / `priceModelId` / `modality`, and nested `parameterSchema`.
+- Generic `PUT /api/option/` now rejects direct writes to `creative.model_bindings`; future writes must go through dedicated `/api/creative/model-bindings` validator/dry-run endpoints.
+
+Verification:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./service -run 'TestCreativeForbiddenKey|TestParseCreativeModelBindingsConfig|TestValidateCreativeParameterSchema|TestCreativePreview'
+go test -count=1 ./controller -run 'TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+go test -count=1 ./controller ./service
+go build ./...
+git diff --check
+```
+
+Result: PASS. No provider calls were added or made.
