@@ -1,0 +1,8 @@
+{"file":".trellis/tasks/06-15-creative-embedded-push-deploy-verify/prd.md","reason":"Task requirements and acceptance criteria for push/deployment verification."}
+{"file":".trellis/tasks/06-15-creative-embedded-push-deploy-verify/design.md","reason":"Deployment, branch, cloud-sync env, and verification design."}
+{"file":".trellis/tasks/06-15-creative-embedded-push-deploy-verify/implement.md","reason":"Execution checklist and validation plan."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded artifact, staging, route/header, and cloud-sync wording contracts."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Production Creative asset storage and cloud-sync safety contract."}
+{"file":"ops/newapi-opentu-staging/README.md","reason":"Local staging runbook and safety defaults."}
+{"file":"ops/newapi-opentu-staging/docker-compose.yml","reason":"Local staging deployment target."}
+{"file":"scripts/creative_release_gate.py","reason":"Release gate and embedded smoke command implementation."}

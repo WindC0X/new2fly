@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/06-15-creative-embedded-push-deploy-verify/prd.md","reason":"Verify push/deploy task meets stated acceptance criteria."}
+{"file":".trellis/tasks/06-15-creative-embedded-push-deploy-verify/design.md","reason":"Verify deployment/cloud-sync design is safe and complete."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check embedded release and smoke expectations."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Check production asset storage requirements."}
+{"file":"ops/newapi-opentu-staging/README.md","reason":"Check local staging runbook remains accurate."}
+{"file":"scripts/creative_release_gate.py","reason":"Check route/artifact/smoke gate availability."}

@@ -23,6 +23,8 @@
   - add `--embedded-smoke-url http://localhost:<port>/creative/` when a local `new-api` server is already running and browser smoke should be included
 - Remote-backed RC verification:
   - prove candidate refs with live `git ls-remote` output before reporting a pushed branch as verified
+  - when GitHub credentials are intentionally available only on the host machine, first try a non-interactive WSL `git push --dry-run` / `git ls-remote`; if it cannot read credentials, run push/verify with host Git (for example Windows Git from PowerShell) rather than copying tokens into WSL or logs
+  - do not report orchestration/task records such as `new2fly` as pushed until the task/check files have been committed and the final remote ref has been verified
   - run `python3 scripts/creative_release_gate.py check --source-diff-check --run-new-api-tests`
   - run OpenTU checks, including cold smoke with `NX_SKIP_NX_CACHE=true pnpm e2e:smoke`
   - run embedded smoke against a temporary local `new-api` server started with a sanitized process environment:
