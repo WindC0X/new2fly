@@ -240,3 +240,93 @@ if (isCreativeEmbeddedMode()) {
   return submit({ model: resolved.modelId, modelRef: resolved.modelRef });
 }
 ```
+
+## Scenario: schema-backed Creative image userParams boundary
+
+### 1. Scope / Trigger
+
+- Trigger: changing OpenTU runtime parameter schema rendering, AI input parsing, workflow serialization, image generation services, media executors, model adapters, or future new-api managed Creative image adapters.
+- Applies only to embedded `/creative/` schema-backed image bindings whose selectable params come from `new-api` `CreativeParameterSchemaItem[]`.
+
+### 2. Signatures
+
+- Runtime schema source: `ModelConfig.parameterSchema?: ParamConfig[]` with `runtimeSchema: true`.
+- User payload carrier: `CreativeUserParams = Record<string, string | number | boolean>`.
+- OpenTU request chain fields:
+  - `ParsedGenerationParams.userParams?: CreativeUserParams`
+  - `WorkflowStep.args.userParams?: CreativeUserParams`
+  - `ImageGenerationOptions.userParams?: CreativeUserParams`
+  - `ImageGenerationParams.userParams?: CreativeUserParams`
+  - `ImageGenerationRequest.userParams?: CreativeUserParams`
+- Adapter opt-in flag: `AdapterMetadata.supportsCreativeUserParams?: boolean`.
+
+### 3. Contracts
+
+- For schema-backed image models, OpenTU submits the backend catalog `id` as `model`/binding id and carries only typed `userParams` derived from backend schema IDs.
+- Runtime schema preferences are scoped by binding/selection key, not by `providerModelId`; two bindings that share one upstream provider model must keep separate defaults and saved params.
+- Schema-backed image requests must not legacy-rewrite or pass through OpenTU `params`, `size`, `resolution`, `quality`, `inputFidelity`, `background`, `outputFormat`, `outputCompression`, `count`, aspect/duration defaults, callback/webhook/header/url/provider/channel/model override fields, or frontend callbacks as provider parameters.
+- `buildCreativeUserParams()` may collect only IDs that survived `normalizeCreativeParameterSchema()`; unsafe/control schema IDs are dropped before they become UI params.
+- Existing standalone/default image adapters are not schema-backed adapters. A schema-backed request may call an adapter only when that adapter explicitly sets `supportsCreativeUserParams: true` and implements the managed new-api contract.
+- If no adapter explicitly supports typed `userParams`, schema-backed image generation fails locally before provider/network calls. This is intentional for Phase A/B/C1 no-provider-call gates.
+
+### 4. Validation & Error Matrix
+
+- Runtime schema contains forbidden ID such as `baseUrl`, `endpoint`, `url`, `headers`, `provider`, `channel`, `modelRef`, `sourceProfileId`, `idempotencyKey`, `onProgress`, `onSubmitted`, `callback`, `webhook`, or `notifyHook` -> drop the field from runtime params and from submitted `userParams`.
+- Schema-backed model has `options.params.size` or prompt `-size=` -> do not legacy-normalize into `size`; keep provider-specific size only as a typed schema field when schema ID allows it.
+- Schema-backed request reaches an adapter without `supportsCreativeUserParams === true` -> throw a local error before image preprocessing, adapter `generateImage`, or provider relay.
+- Non-schema standalone image model -> keep existing static params/default behavior.
+- Schema-backed binding has no exact scoped preference entry -> rebuild from that binding schema defaults; do not fall back to a previous binding's global image tool params.
+
+### 5. Good/Base/Bad Cases
+
+- Good: catalog binding `mock:gpt-image-2:preview` renders schema params, parser emits `userParams: { size: "1024x1024", seed: 42 }`, workflow/generation/executor omit legacy `params` and `size`, and an unsupported GPT/OpenAI adapter is not called.
+- Base: schema has a hidden or forbidden control field; the field is absent from OpenTU selectable params and absent from submitted `userParams`.
+- Bad: schema-backed request falls through to `gpt-image-adapter` with `model="mock:gpt-image-2:preview"` and legacy `params` or `size`; this can send a binding id to a real provider and violates the no-provider-call gate.
+
+### 6. Tests Required
+
+- Model-config tests: typed enum/string/number/integer/boolean cast; dangerous schema IDs are filtered; static fallback still works for non-schema models.
+- Parser/workflow tests: schema-backed image steps serialize `userParams` and do not serialize legacy `params`/`size`.
+- Generation service tests: persisted task params and executor params include typed `userParams` and strip legacy adapter/provider fields when `userParams` is present.
+- Executor/adapter tests: supported managed adapter receives typed `userParams`; unsupported adapter rejects before `generateImage` is called.
+- Preference tests: two runtime bindings with the same `providerModelId` but different binding ids/default schemas keep separate scoped params; A -> B -> A never applies A params to B.
+- Future managed adapter tests: prove the final new-api request body contains `model=<bindingId>` plus typed `userParams`, with no provider credentials, arbitrary URLs, headers, callbacks, channel/provider overrides, or legacy OpenTU `params`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+await adapter.generateImage(context, {
+  model: bindingId,
+  size: options.params?.size,
+  params: { ...options.params, callback: userCallbackUrl },
+});
+```
+
+#### Correct
+
+```typescript
+if (userParams && !adapter.supportsCreativeUserParams) {
+  throw new Error('schema-backed Creative image requests require a managed userParams adapter');
+}
+await adapter.generateImage(context, {
+  model: bindingId,
+  userParams,
+  params: userParams ? undefined : legacyParams,
+  size: userParams ? undefined : legacySize,
+});
+```
+
+#### Wrong
+
+```typescript
+const rawParams = scoped?.extraParams ?? stored.extraParams; // may be another binding's params
+```
+
+#### Correct
+
+```typescript
+const rawParams =
+  schemaBacked && !scoped ? {} : scoped?.extraParams ?? stored.extraParams;
+```

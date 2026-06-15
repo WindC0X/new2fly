@@ -21,10 +21,10 @@ No provider calls.
 5. [x] OpenTU: preserve runtime `providerModelId` and `parameterSchema` in creative session broker/runtime catalog.
 6. [x] OpenTU: add schema-to-UI conversion for enum/string/number/integer/boolean with typed default/options and cast tests.
 7. [x] OpenTU: make runtime schema override static `model-config` params.
-8. [ ] OpenTU: introduce explicit typed `userParams` carrier through parsed params, workflow args, generation service, and adapter request boundaries; cut schema-backed models off from legacy `params`透传.
-9. [ ] OpenTU: disable legacy size/aspect/duration rewrite for schema-backed models unless server derives provider fields.
-10. [ ] OpenTU negative tests: serialized schema-backed request contains `model=bindingId` and typed `userParams` only; does not contain onProgress/onSubmitted/idempotencyKey/modelRef/sourceProfileId/provider/channel/callback/webhook/headers/control URLs.
-11. [ ] OpenTU preference tests: two bindings sharing one provider model keep separate parameters/preferences; A→B→A does not fallback B to A params; B defaults come from B schema.
+8. [x] OpenTU: introduce explicit typed `userParams` carrier through parsed params, workflow args, generation service, and adapter request boundaries; cut schema-backed models off from legacy `params`透传.
+9. [x] OpenTU: disable legacy size/aspect/duration rewrite for schema-backed models unless server derives provider fields.
+10. [x] OpenTU negative tests: serialized schema-backed request contains `model=bindingId` and typed `userParams` only; does not contain onProgress/onSubmitted/idempotencyKey/modelRef/sourceProfileId/provider/channel/callback/webhook/headers/control URLs.
+11. [x] OpenTU preference tests: two bindings sharing one provider model keep separate parameters/preferences; A→B→A does not fallback B to A params; B defaults come from B schema.
 
 ## Phase B — Admin Validator and Dry-Run Only
 

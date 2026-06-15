@@ -134,3 +134,87 @@ Still not complete:
 - Phase B admin validator/dry-run remains pending.
 - Phase C1 mock image task route remains pending.
 - Real provider calls remain blocked.
+
+
+## Phase A OpenTU typed userParams verification
+
+OpenTU:
+
+```bash
+cd /mnt/f/code/project/opentu
+pnpm vitest run \
+  packages/drawnix/src/constants/__tests__/model-config.test.ts \
+  packages/drawnix/src/components/ai-input-bar/__tests__/workflow-converter.test.ts \
+  packages/drawnix/src/services/__tests__/image-generation-service.test.ts \
+  packages/drawnix/src/services/__tests__/media-executor.test.ts
+pnpm typecheck
+git diff --check
+```
+
+Result: PASS. Targeted Vitest covered 77 tests across 4 files; typecheck covered 5 Nx projects. `.npmrc` `${NPM_TOKEN}` warnings and existing jsdom/IndexedDB/crypto stderr noise were non-blocking.
+
+Dynamic workflow attempt:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-adapter-phase-a-opentu-userparams-audit.workflow.ts
+```
+
+Result: incomplete/unavailable for final reviewer output because the workflow ended with `unexpected status 403 Forbidden: 用户额度不足, 剩余额度: ¥-0.012528`; journal path: `.codex-flow/journal/creative-adapter-phase-a-opentu-userparams-audit.jsonl`. No provider calls were made by the workflow. Partial journal review still exposed a material risk: schema-backed `userParams` could be ignored by existing GPT/OpenAI-style adapters and fall through to a real provider route with `model=bindingId`. The implementation now fail-closes this by requiring `adapter.supportsCreativeUserParams === true` before any schema-backed adapter `generateImage` call. No production/default adapter currently sets that flag.
+
+Manual targeted reaudit after workflow failure:
+
+- Runtime schema-backed models are detected via `parameterSchema.runtimeSchema`; static model params remain unchanged for non-schema models.
+- `buildCreativeUserParams()` collects only schema IDs produced by `normalizeCreativeParameterSchema`; forbidden/control IDs such as URL/baseUrl/endpoint/header/provider/channel/modelRef/sourceProfileId/idempotencyKey/onProgress/onSubmitted/callback/webhook/notifyHook are dropped before they can become selectable or submitted user params.
+- Parser/workflow conversion carries typed `userParams` for schema-backed image requests and does not emit legacy `extraParams`, `params`, `size`, or duration/aspect rewrites for those models.
+- Image task persistence and executor params strip legacy `params`, `size`, `resolution`, `quality`, `inputFidelity`, `background`, `outputFormat`, `outputCompression`, and `count` whenever `userParams` is present.
+- `executeImageViaAdapter` strips legacy adapter fields for schema-backed requests and fail-fast rejects adapters that do not explicitly support `supportsCreativeUserParams`, before reference-image processing or adapter/provider calls.
+- No real Duomi/GrsAI/GPT/OpenAI/Gemini/Flux/MJ adapter is marked `supportsCreativeUserParams`; Phase A remains contract/schema/request-boundary only.
+
+Implemented in this slice:
+
+- Added `CreativeUserParams` / typed runtime value helpers and schema-backed param casting for enum/string/number/integer/boolean.
+- Added typed `userParams` through `ParsedGenerationParams`, workflow args, workflow submission fallback, workflow engine, image generation options, executor params, and adapter request types.
+- Added tests for typed casts, dangerous schema ID filtering, workflow serialization without legacy `params/size`, image generation persistence/executor stripping, successful managed adapter `userParams`, and unsupported adapter fail-fast before provider invocation.
+
+Still not complete:
+
+- OpenTU preference isolation tests for two bindings sharing one provider model remain pending.
+- Phase B admin validator/dry-run remains pending.
+- Phase C1 mock image task route remains pending.
+- Real provider calls remain blocked.
+
+
+## Phase A OpenTU binding preference isolation verification
+
+Finding fixed in this slice:
+
+- `loadScopedAIImageToolPreferences()` could fall back to global `stored.extraParams` when schema-backed binding B had no scoped preference entry. If binding A and binding B share the same `providerModelId` and compatible parameter IDs, B could inherit A's values instead of B schema defaults.
+
+Implemented fix:
+
+- Runtime schema-backed bindings now avoid cross-binding fallback in `loadScopedAIInputModelParams()` when no exact scoped params exist, letting the caller rebuild defaults from the selected binding schema.
+- Runtime schema-backed image tool preferences now avoid global `stored.extraParams` / aspect-ratio fallback when no exact scoped entry or AI-input scoped params exist. Non-schema standalone behavior remains unchanged.
+- Added regression coverage using `mock:gpt-image-2:fast` and `mock:gpt-image-2:quality`, both with `providerModelId=gpt-image-2` but distinct binding ids/default schemas.
+
+OpenTU verification after preference isolation fix:
+
+```bash
+cd /mnt/f/code/project/opentu
+pnpm vitest run \
+  packages/drawnix/src/constants/__tests__/model-config.test.ts \
+  packages/drawnix/src/services/__tests__/ai-generation-preferences-service.test.ts \
+  packages/drawnix/src/components/ai-input-bar/__tests__/workflow-converter.test.ts \
+  packages/drawnix/src/services/__tests__/image-generation-service.test.ts \
+  packages/drawnix/src/services/__tests__/media-executor.test.ts
+pnpm typecheck
+git diff --check
+```
+
+Result: PASS. Targeted Vitest covered 89 tests across 5 files; typecheck covered 5 Nx projects. Existing `.npmrc`, jsdom crypto/IndexedDB, ConfigWriter, and Browserslist warnings/noise were non-blocking.
+
+Phase A status:
+
+- Phase A checklist items 1-11 are now complete.
+- No provider calls were made.
+- Phase B admin validator/dry-run remains the next planned phase.
