@@ -321,3 +321,51 @@ codex-flow run .codex-flow/generated/creative-adapter-phase-b-hardening-reaudit.
 ```
 
 Result: unavailable due quota precharge failure; both read-only reviewer nodes failed before analysis with `403 Forbidden: 预扣费额度失败`. Journal path: `.codex-flow/journal/creative-adapter-phase-b-hardening-reaudit.jsonl`. Main-thread static review plus the verification commands above were used as fallback.
+
+## Phase C1 mock image task slice verification
+
+Implemented in new-api working tree after commit `69853ed`:
+
+- Added `TaskPlatformCreativeImage` and a browser-session image task route set:
+  - `POST /creative/relay/v1/images/tasks`
+  - `GET /creative/relay/v1/images/tasks/:task_id`
+  - `GET /creative/relay/v1/images/tasks/:task_id/content`
+- Added `ResolveCreativeImageModelBindingForGroup()` for mock-only image bindings. It fail-closes unless `creative.adapter.enabled=true`, the binding exists and is enabled, modality is `image`, preset/template are `mock_image_task`/`mock_gpt_image`, the user group matches the binding canary list, and typed `userParams` pass schema validation.
+- Added route-specific image task DTO and content proxy contract. The internal mock result URL (`mock://...?...token=secret`) stays in private task data and the public DTO returns only `/creative/relay/v1/images/tasks/:task_id/content`.
+- Added a sync image route gate so managed image binding IDs are rejected before `CreativeRelaySessionBroker()` / `Distribute()` / provider relay.
+- Added tests for submit/fetch/replay privacy, route boundary failures, sync-route rejection, owner/platform-scoped fetch, API-token-only handler rejection, accepted+insert-failure idempotency guard retention, typed `userParams`, hidden/forbidden field rejection, and mock/group-scoped binding resolution.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w constant/task.go service/creative_model_capability.go service/creative_model_capability_test.go controller/creative_image_tasks.go controller/creative_test.go router/web-router.go
+
+go test -count=1 ./controller -run 'TestCreativeImageTask|TestCreativeImageSyncRoute|TestCreativeRelaySessionBroker|TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+
+go test -count=1 ./service -run 'TestCreativeForbiddenKey|TestParseCreativeModelBindingsConfig|TestCreativeModelBindingsRejectFakeSecretCorpus|TestNormalizeCreativeModelBindingsConfig|TestValidateCreativeParameterSchema|TestValidateCreativeUserParamsForSchema|TestResolveCreativeImageModelBinding|TestCreativePreview|TestValidateCreativeModelBindingsConfig|TestBuildCreativeModelBindingsDryRun'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. The targeted controller/service tests, full controller+service test run, full Go build, and whitespace check all exited 0.
+
+Dynamic workflow validation attempt:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-adapter-phase-c1-mock-image-task-audit.workflow.ts
+```
+
+Result: unavailable in this runtime. All three read-only reviewer nodes failed with `access_denied: Only Codex clients can use this group`; journal path: `.codex-flow/journal/creative-adapter-phase-c1-mock-image-task-audit.jsonl`. No code/provider action was performed by the failed workflow.
+
+Manual targeted review after workflow failure:
+
+- `router/web-router.go` wires image task routes without `CreativeRelaySessionBroker()` or `Distribute()`, while `/images/generations` calls `CreativeRejectManagedImageBindingSyncRoute()` before broker/distribute.
+- `controller/creative_image_tasks.go` performs local mock task creation only; no provider/channel HTTP transport is reachable from submit/fetch/content.
+- Idempotency uses scoped `CreativeVideoIdempotency` with `scope=image.task.submit`; replay with same hash returns the existing task, conflicting hash returns 409, and accepted+insert failure keeps the guard instead of deleting it.
+- Public DTO/fetch/content are owner-scoped and platform-scoped, and do not serialize generic task internals (`user_id`, `channel_id`/`channelId`, `quota`, `private_data`) or internal mock URL/signed-query material.
+- This slice remains intentionally partial for real billing/outbox/CAS/refund, real provider/channel selection, full query/form/multipart forbidden matrix, full fake-secret logs/metrics/build corpus, and a stronger AST/panic no-provider-host gate.

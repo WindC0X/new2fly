@@ -264,3 +264,87 @@ PUT /api/option/ { key: "creative.model_bindings", value: "..." } -> rejected
 POST /api/creative/model-bindings/validate -> ParseCreativeModelBindingsConfig -> no provider call
 POST /api/creative/model-bindings/dry-run -> validate -> redacted mock/fixture preview, no provider call
 ```
+
+## Scenario: Creative mock image task route contract
+
+### 1. Scope / Trigger
+
+- Trigger: changing `new-api` Creative managed image task routes, binding resolution, task DTOs, image content proxying, or sync image relay behavior for backend-owned adapter bindings.
+- Applies to `controller/creative_image_tasks.go`, `router/web-router.go`, `service/creative_model_capability.go`, `constant/task.go`, and related controller/service tests.
+
+### 2. Signatures
+
+- Task platform: `constant.TaskPlatformCreativeImage == "creative_image"`.
+- Mock image task routes:
+  - `POST /creative/relay/v1/images/tasks`
+  - `GET /creative/relay/v1/images/tasks/:task_id`
+  - `GET /creative/relay/v1/images/tasks/:task_id/content`
+- Sync route privacy gate:
+  - `POST /creative/relay/v1/images/generations` must reject managed image binding IDs before session broker, distribution, channel selection, or provider relay.
+- Resolver:
+  - `ResolveCreativeImageModelBindingForGroup(bindingID, userGroup, userParams)`.
+  - `ValidateCreativeUserParamsForSchema(schema, userParams)`.
+
+### 3. Contracts
+
+- Phase C1 image tasks are mock-only. The task submit/fetch/content routes must not call `CreativeRelaySessionBroker`, `Distribute`, channel selection, provider adaptors, provider HTTP clients, or read channel keys/base URLs.
+- Submit requires browser-session relay gates inherited from `/creative/relay/v1`: session header bridge, `UserAuth`, same-origin, nonce, and forbidden relay-field guard. API-token-only handlers must reject with a browser-session error.
+- Submit also requires a scoped idempotency key. The scope for managed image tasks is `image.task.submit`, separate from video/Suno/MJ scopes.
+- Resolver fails closed unless all are true:
+  - global `creative.adapter.enabled` is true;
+  - binding exists in `creative.model_bindings`;
+  - binding is enabled;
+  - modality is `image`;
+  - preset/template are the current mock allowlist (`mock_image_task` / `mock_gpt_image`);
+  - user's group matches `canaryGroups` (or `*`);
+  - all submitted `userParams` are visible schema fields with typed values.
+- `userParams` must reject hidden schema fields, unsupported fields, forbidden/control keys, sensitive string values, wrong scalar types, enum values outside options, and numeric values outside min/max.
+- The created mock task may store internal private data such as `UpstreamTaskID` and `PrivateData.ResultURL`, but public responses must use a route-specific DTO and must not serialize generic task internals (`user_id`, `channel_id`/`channelId`, `quota`, `private_data`), raw provider/mock URLs, signed query material, selected keys, channel keys, or base URLs.
+- Fetch/content must load by logged-in `user_id + task_id`, then require `Platform == creative_image` and `creativeManaged == true` metadata before returning a result. Same-user tasks from other platforms must look like not-found.
+- Public result URLs point only to `/creative/relay/v1/images/tasks/:task_id/content`; content responses are owner-scoped and `Cache-Control: private, no-store`.
+- If mock/provider acceptance has been marked and local persistence fails, the idempotency guard must not be deleted. A retry must not create a second upstream/mock accepted task.
+- Until sync response interception and private URL rewriting exists, managed image adapter bindings must be forced to the task route and rejected on `/images/generations` before broker/distribute/provider relay.
+
+### 4. Validation & Error Matrix
+
+- Missing/empty `Idempotency-Key` on `POST /images/tasks` -> `400`, no mock task.
+- Same idempotency key + same payload after successful task insert -> return the existing public task DTO, no second mock/provider call.
+- Same idempotency key + different payload -> `409`, no second mock/provider call.
+- Adapter disabled, binding disabled, wrong group, wrong modality, or non-mock preset/template -> controlled `400`, no mock/provider call.
+- `userParams.callback`, hidden schema field, unsupported field, wrong type, or sensitive string value -> controlled `400`, no mock/provider call.
+- Cross-user fetch/content or same-user wrong-platform task -> non-leaky not-found.
+- Managed binding submitted to `/creative/relay/v1/images/generations` -> controlled `400` before broker/distribute; no raw provider URL can reach the browser on that path.
+- Accepted + local insert failure -> `500`/controlled error while retaining the idempotency record.
+
+### 5. Good/Base/Bad Cases
+
+- Good: browser submits `model=mock:gpt-image-2:preview`, typed `userParams`, same-origin nonce, and `Idempotency-Key`; backend creates a local `creative_image` mock task and returns a private DTO with `/content` URL only.
+- Base: replay of the same idempotency key and payload returns the same task id without a second local mock acceptance.
+- Bad: image task route enters `Distribute()` and reads a channel key; public DTO includes `channel_id`, `quota`, `mock://...token=secret`, or `PrivateData`; sync `/images/generations` accepts a managed binding and streams raw provider URLs to the browser.
+
+### 6. Tests Required
+
+- Controller route tests for submit/fetch/replay/content privacy and no-store headers.
+- Controller boundary tests for API-token-only, cross-origin, missing/bad nonce, missing idempotency key, and forbidden JSON/control fields before mock/provider work.
+- Service tests for resolver fail-closed behavior, group/canary filtering, mock-only preset/template enforcement, and typed/hidden/forbidden `userParams` validation.
+- Sync route test proving managed image binding is rejected before `CreativeRelaySessionBroker` / `Distribute` / provider relay.
+- Owner/platform-scope tests proving cross-user and wrong-platform task fetches return not-found and do not leak private URLs.
+- Idempotency/recovery tests proving accepted+local-failure keeps the guard; future provider-backed phases must also test idempotency-complete failure, settle failure, and durable outbox/recovery rows.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+POST /creative/relay/v1/images/tasks -> CreativeRelaySessionBroker -> Distribute -> provider adaptor
+GET /creative/relay/v1/images/tasks/:id -> generic Task JSON with user_id/channel_id/quota/private_data
+POST /creative/relay/v1/images/generations with model=mock:gpt-image-2:preview -> provider relay returns raw URL
+```
+
+#### Correct
+
+```text
+POST /creative/relay/v1/images/tasks -> resolver -> local mock Task(platform=creative_image) -> private DTO
+GET /creative/relay/v1/images/tasks/:id -> owner + platform + creativeManaged check -> allowlisted DTO
+POST /creative/relay/v1/images/generations with managed binding -> 400 before broker/distribute/provider relay
+```

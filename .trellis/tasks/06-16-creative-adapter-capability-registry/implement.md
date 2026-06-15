@@ -45,20 +45,20 @@ No provider calls.
 
 No provider calls.
 
-1. [ ] new-api: add Creative image task submit/fetch route using mock upstream preset only.
-2. [ ] new-api: add binding resolver before broker/distribute/pricing for image task route.
-3. [ ] new-api: add explicit relay/task metadata for binding/provider/price/preset/template/channel/userParams.
-4. [ ] new-api: make pricing use explicit price model, tested with distinct binding/provider/price ids.
-5. [ ] new-api: add durable accepted-task recovery state/outbox or equivalent pending recovery record for provider/mock accepted followed by local failure.
-6. [ ] new-api: add owner-scoped private image task DTO; do not reuse generic TaskDto.
-7. [ ] new-api: add mock private image URL sanitizer/proxy contract.
-8. [ ] new-api sync-route privacy gate: schema-backed Creative adapter bindings are rejected/hidden/forced to task route until sync ImageHelper response interception/private rewrite exists; add negative test proving no sync adapter binding can expose raw provider URL/signed query to browser.
-9. [ ] new-api route-boundary tests: no session, API-token-only, cross-origin, missing/bad nonce, missing Idempotency-Key, JSON/query/form/multipart forbidden material all fail before mock/upstream call.
-10. [ ] new-api recovery/idempotency tests: accepted + insert fail, accepted + idempotency complete fail, accepted + settle fail all create durable recovery/pending state and never release guard; duplicate retry returns recoverable state/task and does not second-submit.
-11. [ ] new-api task tests: double poller CAS, missing selected key fail-closed, fetch cross-user denied, DTO allowlist excludes generic TaskDto internals.
-12. [ ] new-api kill-switch tests: disabled global/per-binding hides catalog, rejects submit, and prevents polling/cache from starting new managed provider/mock work.
-13. [ ] fake-secret corpus tests: submit/poll/fetch/logs/metrics/task DTO/Trellis artifacts/build outputs do not contain secret corpus.
-14. [ ] No-provider-call gate: mock upstream is the only transport reachable in C1; any provider host call fails tests.
+1. [x] new-api: add Creative image task submit/fetch route using mock upstream preset only. _(POST/GET/content routes added under `/creative/relay/v1/images/tasks`; submit uses only local mock task creation.)_
+2. [x] new-api: add binding resolver before broker/distribute/pricing for image task route. _(Resolver validates `bindingId`, global flag, per-binding enabled state, canary group, image modality, and mock preset/template before task creation. The image task route intentionally does not enter broker/distribute.)_
+3. [ ] new-api: add explicit relay/task metadata for binding/provider/price/preset/template/channel/userParams. _(Partial: task data now stores versioned binding/provider/price/preset/template/userParams metadata and internal channelId=0; real channel selection/locked-channel metadata remains future C2+.)_
+4. [ ] new-api: make pricing use explicit price model, tested with distinct binding/provider/price ids. _(Partial: mock task stores `BillingContext.OriginModelName=priceModelId` and tests assert distinct ids; no real quota/pricing mutation is enabled in C1.)_
+5. [ ] new-api: add durable accepted-task recovery state/outbox or equivalent pending recovery record for provider/mock accepted followed by local failure. _(Partial: scoped idempotency record is prepared before mock acceptance and retained on accepted+insert failure; full billing outbox/recovery state remains future work.)_
+6. [x] new-api: add owner-scoped private image task DTO; do not reuse generic TaskDto. _(Route-specific DTO omits user/channel/quota/private fields and fetch/content load by `user_id + task_id` plus `Platform==creative_image`.)_
+7. [x] new-api: add mock private image URL sanitizer/proxy contract. _(Internal mock `ResultURL` is never returned; public result URL points to owner-scoped `/content` route returning no-store PNG.)_
+8. [x] new-api sync-route privacy gate: schema-backed Creative adapter bindings are rejected/hidden/forced to task route until sync ImageHelper response interception/private rewrite exists; add negative test proving no sync adapter binding can expose raw provider URL/signed query to browser. _(Managed image binding IDs are rejected by `/images/generations` before broker/distribute/provider relay.)_
+9. [ ] new-api route-boundary tests: no session, API-token-only, cross-origin, missing/bad nonce, missing Idempotency-Key, JSON/query/form/multipart forbidden material all fail before mock/upstream call. _(Partial: API-token-only, cross-origin, missing nonce, missing idempotency, forbidden JSON userParams, and adapter-disabled cases are covered; full no-session/query/form/multipart matrix remains pending.)_
+10. [ ] new-api recovery/idempotency tests: accepted + insert fail, accepted + idempotency complete fail, accepted + settle fail all create durable recovery/pending state and never release guard; duplicate retry returns recoverable state/task and does not second-submit. _(Partial: replay and accepted+insert-fail guard retention covered; idempotency-complete-fail, settle-fail, and full durable recovery response remain pending.)_
+11. [ ] new-api task tests: double poller CAS, missing selected key fail-closed, fetch cross-user denied, DTO allowlist excludes generic TaskDto internals. _(Partial: mock route has no poller/selected key; cross-user fetch and DTO allowlist are covered.)_
+12. [ ] new-api kill-switch tests: disabled global/per-binding hides catalog, rejects submit, and prevents polling/cache from starting new managed provider/mock work. _(Partial: global disabled submit rejection covered; broader catalog/per-binding/polling/cache matrix remains pending.)_
+13. [ ] fake-secret corpus tests: submit/poll/fetch/logs/metrics/task DTO/Trellis artifacts/build outputs do not contain secret corpus. _(Partial: submit/fetch/sync DTO assertions prove no `mock://`/`token=secret`/generic task internals; full logs/metrics/artifacts/build corpus remains pending.)_
+14. [ ] No-provider-call gate: mock upstream is the only transport reachable in C1; any provider host call fails tests. _(Partial: image task route is not wired through broker/distribute and tests install fatal relay handlers; stronger AST/panic provider-host gate remains pending.)_
 
 ## Phase C2+ — Real Provider Canary
 
