@@ -555,3 +555,38 @@ git diff --check
 ```
 
 Result: PASS. Targeted controller/service tests, full controller+service tests, full Go build, new-api whitespace check, current-task/spec fake-secret artifact grep, and new2fly whitespace check all exited 0.
+
+## Phase B shared forbidden normalizer matrix verification
+
+Implemented after C1 final sweep:
+
+- Added `TestCreativeForbiddenNormalizerMatrixCoversAdminSchemaDryRunAndRelay`.
+- The same dangerous-key corpus now covers:
+  - `service.CreativeForbiddenKey`;
+  - parameter schema ID validation;
+  - raw admin binding JSON key validation;
+  - typed `userParams` validation plus hidden-field rejection;
+  - dry-run preview redaction;
+  - relay JSON nested legacy `params`;
+  - relay query parameters;
+  - URL-encoded form fields;
+  - multipart form field names;
+  - multipart file-part names.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w controller/creative_test.go
+
+go test -count=1 ./controller -run 'TestCreativeForbiddenNormalizerMatrix|TestCreativeRelayRejectsForbiddenAliases|TestCreativeImageTask|TestCreativeImageSyncRoute|TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+
+go test -count=1 ./service -run 'TestCreativeForbiddenKey|TestParseCreativeModelBindingsConfig|TestCreativeModelBindingsRejectFakeSecretCorpus|TestNormalizeCreativeModelBindingsConfig|TestValidateCreativeParameterSchema|TestValidateCreativeUserParamsForSchema|TestResolveCreativeImageModelBinding|TestStoredCreativeModelBindingsCatalog|TestCreativePreview|TestValidateCreativeModelBindingsConfig|TestBuildCreativeModelBindingsDryRun'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. Targeted controller/service tests, full controller+service tests, full Go build, and whitespace check exited 0.
