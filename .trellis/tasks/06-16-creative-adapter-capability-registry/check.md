@@ -590,3 +590,29 @@ git diff --check
 ```
 
 Result: PASS. Targeted controller/service tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+## Phase B fake-secret corpus response/log verification
+
+Implemented after forbidden normalizer matrix:
+
+- Expanded backend fake-secret corpus recognition to cover cookie, CSRF, nonce, and object-key marker families in addition to existing bearer/key-like, provider URL, signed URL, data/base64-like, credential/token/access-key marker families.
+- Added `TestCreativeModelBindingsAdminRejectsFakeSecretCorpusWithoutLogging`: validate and dry-run reject corpus-bearing admin binding payloads, and response/log surfaces do not echo the submitted secret values.
+- Existing service corpus tests continue to assert admin-state/dry-run diagnostics reject sensitive provider/schema values without including raw submitted values in error text.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w service/creative_model_capability.go service/creative_model_capability_test.go controller/creative_model_bindings_test.go
+
+go test -count=1 ./controller -run 'TestCreativeModelBindingsAdmin|TestCreativeForbiddenNormalizerMatrix|TestCreativeRelayRejectsForbiddenAliases'
+
+go test -count=1 ./service -run 'TestCreativeModelBindingsRejectFakeSecretCorpus|TestBuildCreativeModelBindingsDryRun|TestValidateCreativeParameterSchema|TestValidateCreativeUserParamsForSchema|TestCreativeForbiddenKey'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. Targeted controller/service tests, full controller+service tests, full Go build, and whitespace check exited 0.
