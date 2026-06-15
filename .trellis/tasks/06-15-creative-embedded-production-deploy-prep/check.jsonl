@@ -1,0 +1,10 @@
+{"file":".trellis/tasks/06-15-creative-embedded-production-deploy-prep/prd.md","reason":"Verify production deployment prep meets stated acceptance criteria."}
+{"file":".trellis/tasks/06-15-creative-embedded-production-deploy-prep/design.md","reason":"Verify deployment prep design keeps local/prod and secrets boundaries clear."}
+{"file":".trellis/tasks/06-15-creative-embedded-production-deploy-prep/implement.md","reason":"Verify implementation/check plan is complete."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check embedded release and production readiness expectations."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Check production asset storage requirements."}
+{"file":"ops/newapi-opentu-staging/README.md","reason":"Ensure production runbook stays separate from local staging runbook."}
+{"file":"/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_FINAL_HANDOFF_2026-04-09.md","reason":"Verify target selection evidence."}
+{"file":"/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_SERVICE_INVENTORY_2026-03-06.md","reason":"Verify service paths, domains, and boundary claims."}
+{"file":"/mnt/f/CODE/Project/OpenClawChineseTranslation/docs/VPS_OPERATIONS_RUNBOOK_2026-03-06.md","reason":"Verify operational commands and SSH entry are represented accurately."}
+{"file":".trellis/tasks/06-15-creative-embedded-production-deploy-prep/research/vps-a-readonly-preflight-2026-06-15.md","reason":"Verify runbook matches current live VPS-A baseline and does not overclaim Creative readiness."}

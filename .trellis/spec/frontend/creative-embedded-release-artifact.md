@@ -55,6 +55,12 @@
   - do not treat OpenTU `release:dry`, `npm:publish:dry`, or deploy upload scripts as no-network/no-mutation checks; they may contact registries, rewrite `dist/`, or use SSH/rsync/scp paths
   - verify publish credentials by presence or identity only (`NPM_TOKEN`, `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `GITHUB_TOKEN`), never by printing secret values
   - if no deployed staging/production target exists yet, run a local/intranet release-like staging check first with sanitized `env -i`, temporary SQLite, disabled upstream update jobs, `--embedded-smoke-url http://localhost:<port>/creative/`, and a redacted `GET`/`HEAD` route/header table; label the result as local staging only, not production/CDN/S3 readiness
+  - production Docker/Compose cutover runbooks must preserve the existing production `.env`, data mount, logs mount, and stable `SESSION_SECRET`; never copy local staging env or a template over production `.env`
+  - for SQLite-backed production targets, take a consistent backup during a maintenance window or via SQLite `.backup`, then run the candidate startup/migration against a copy of the production DB before touching the live DB
+  - when the production container uses a mount such as `./data:/data`, host-side backup/rehearsal scripts must map container `SQLITE_PATH=/data/...` to the host app data directory and must fail closed on unknown absolute paths until manually verified
+  - DB-copy rehearsal containers must use a minimal whitelist env, no provider/payment/S3/admin secrets, generated temporary secrets, and localhost-only port binding; do not expose a production DB copy through host-network/public ports
+  - authenticated Creative 云同步 smoke helpers must not pass passwords, cookies, CSRF, nonce, or tokens in subprocess argv or logs; use temporary 0700/077 files/stdin and print only statuses plus sanitized generated IDs
+  - image build/transfer must have an identity gate: record and verify image ID or immutable registry digest so the rehearsal image and production cutover image are the same candidate, not merely the same mutable tag
 
 ### 3. Contracts
 
@@ -100,6 +106,11 @@
 - A `GET`/`HEAD`-only route table is used to claim mutating relay/provider behavior -> fail evidence quality unless the claim is backed by an explicit authorized check or existing smoke/log evidence that did not call providers.
 - Docker image built from a checkout whose `web/creative/dist` was not first verified against OpenTU dist -> fail packaging readiness; the image will embed whatever stale files are present in `web/creative/dist`.
 - Container staging uses `docker-compose.yml` defaults or a pulled `latest` image and then claims candidate parity -> fail evidence quality; it proves the compose/published image path, not the local candidate Dockerfile packaging.
+- Production rehearsal copies the full production `.env` into a candidate container -> fail no-secrets/process hygiene; rehearsal must use a minimal whitelist env and a DB copy.
+- Production SQLite backup script treats container `SQLITE_PATH=/data/...` as a host absolute path -> fail data-preservation gate; map it to the Compose host data mount or stop for manual verification.
+- DB-copy rehearsal binds to `0.0.0.0` or uses Docker host networking without a firewall/localhost-only control -> fail data exposure gate.
+- Authenticated smoke passes browser-session credentials, CSRF, nonce, cookies, or tokens as command-line arguments -> fail secret hygiene; use temp files/stdin and redact outputs.
+- Candidate image is identified only by a mutable local tag across build, rehearsal, and cutover -> warn/fail depending on release criticality; verify image ID or immutable digest.
 
 ### 5. Good/Base/Bad Cases
 
