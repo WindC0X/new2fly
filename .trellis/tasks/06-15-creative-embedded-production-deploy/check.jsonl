@@ -1,0 +1,7 @@
+{"file":"ops/newapi-opentu-production/README.md","reason":"Check deployment execution against the committed runbook."}
+{"file":"ops/newapi-opentu-production/creative-route-check.sh","reason":"Verify route/header assertion command and interpret post-deploy output."}
+{"file":"ops/newapi-opentu-production/creative-cloud-sync-smoke.sh","reason":"Verify optional authenticated Phase 1 disabled-state smoke without secret leakage."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Quality check for production readiness, data-preservation, image identity, and secret hygiene contracts."}
+{"file":".trellis/tasks/06-15-creative-embedded-production-deploy/prd.md","reason":"Task requirements and acceptance criteria."}
+{"file":".trellis/tasks/06-15-creative-embedded-production-deploy/design.md","reason":"Deployment design and rollback approach."}
+{"file":".trellis/tasks/06-15-creative-embedded-production-deploy/implement.md","reason":"Ordered execution and validation plan."}

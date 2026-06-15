@@ -1,0 +1,7 @@
+{"file":"ops/newapi-opentu-production/README.md","reason":"Canonical production deployment runbook for VPS-A Phase 1 route/UI cutover."}
+{"file":"ops/newapi-opentu-production/env.production.example","reason":"Placeholder-only production env checklist and Phase 1/Phase 2 Creative cloud-sync contract."}
+{"file":"ops/newapi-opentu-production/creative-route-check.sh","reason":"Post-deploy route/header assertion helper."}
+{"file":"ops/newapi-opentu-production/creative-cloud-sync-smoke.sh","reason":"No-secret authenticated Creative 云同步 smoke helper for disabled/enabled phases."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded release, production readiness, DB rehearsal, secret hygiene, and image identity contract."}
+{"file":".trellis/tasks/archive/2026-06/06-15-creative-embedded-production-deploy-prep/check.md","reason":"Prior runbook verification evidence and dynamic workflow findings/fixes."}
+{"file":".trellis/tasks/archive/2026-06/06-15-creative-embedded-production-deploy-prep/research/vps-a-readonly-preflight-2026-06-15.md","reason":"Sanitized VPS-A production baseline discovered during read-only preflight."}
