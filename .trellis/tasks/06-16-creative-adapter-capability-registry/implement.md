@@ -14,9 +14,9 @@
 
 No provider calls.
 
-1. [ ] new-api: add frozen Go/JSON `CreativeParameterSchemaItem` contract with typed defaults/options, `enum|string|number|integer|boolean`, order, hidden, validation, and tests.
-2. [ ] new-api: add mock binding/template service behind disabled global flag and canary filter.
-3. [ ] new-api tests: binding id, provider id, and price id are distinct and preserved through bootstrap catalog.
+1. [x] new-api: add frozen Go/JSON `CreativeParameterSchemaItem` contract with typed defaults/options, `enum|string|number|integer|boolean`, order, hidden, validation, and tests.
+2. [x] new-api: add mock binding/template service behind disabled global flag and canary filter.
+3. [x] new-api tests: binding id, provider id, and price id are distinct and preserved through bootstrap catalog.
 4. [x] OpenTU: add matching TypeScript `CreativeParameterSchemaItem` contract and schema-to-runtime-param conversion tests.
 5. [x] OpenTU: preserve runtime `providerModelId` and `parameterSchema` in creative session broker/runtime catalog.
 6. [x] OpenTU: add schema-to-UI conversion for enum/string/number/integer/boolean with typed default/options and cast tests.

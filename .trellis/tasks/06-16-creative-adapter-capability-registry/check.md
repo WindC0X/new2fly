@@ -87,3 +87,50 @@ Result: PASS; targeted Vitest now covers 24 tests across the two files. `.npmrc`
 - Runtime schema parameter IDs are locally filtered against a broader forbidden/control-field matrix before they become `ParamConfig` IDs.
 - Static parameter fallback uses `providerModelId`, not `priceModelId`.
 - Added negative tests for dangerous schema IDs and for `priceModelId` not influencing frontend parameter fallback.
+
+
+## Phase A mock preview binding verification
+
+new-api:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./service -run 'TestCreativePreview|TestValidateCreativeParameterSchema'
+go test -count=1 ./controller -run 'TestCreativeListModels'
+go test -count=1 ./controller ./dto ./service
+go build ./...
+git diff --check
+```
+
+Result: PASS.
+
+Dynamic workflow attempt:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-adapter-phase-a-mock-binding-targeted-reaudit.workflow.ts
+```
+
+Result: unavailable in this runtime. All three read-only reviewer nodes failed with `access_denied: Only Codex clients can use this group`; journal path: `.codex-flow/journal/creative-adapter-phase-a-mock-binding-targeted-reaudit.jsonl`. No code/provider action was performed by the failed workflow.
+
+Manual targeted reaudit after the workflow failure:
+
+- Scope is limited to `controller/creative.go`, `controller/creative_test.go`, `service/creative_model_capability.go`, and `service/creative_model_capability_test.go`. Relay/provider/channel/pricing/task/billing files are unchanged.
+- Preview binding is fail-closed unless `creative.adapter.enabled=true` and `creative.adapter.canary_groups` contains the user's group (or `*`).
+- The preview item is catalog/schema-only and uses intentionally distinct IDs: `id=mock:gpt-image-2:preview`, `providerModelId=gpt-image-2`, `priceModelId=mock-gpt-image-2-price`.
+- Schema validation rejects unsafe/control ids, duplicate ids, unknown types, enum without options, non-scalar default/option values, enum default not present by strict kind/value comparison, non-finite numbers, and non-enum default/type mismatches.
+- No Duomi/GrsAI/provider call path is added or enabled.
+
+Implemented in this slice:
+
+- Added `service.GetCreativePreviewModelBindingsForGroup` behind disabled global flag plus canary group gate.
+- Added `service.ValidateCreativeParameterSchema` and tests for forbidden keys, typed defaults/options, scalar-only values, and strict enum default matching.
+- Appended the preview binding to `/creative/api/models` only after regular user model catalog construction.
+- Added controller tests proving absent-by-default behavior, canary miss behavior, and canary hit catalog JSON preserving binding/provider/price separation.
+
+Still not complete:
+
+- OpenTU typed end-to-end `userParams` carrier and schema-backed request serialization isolation remain pending.
+- Phase B admin validator/dry-run remains pending.
+- Phase C1 mock image task route remains pending.
+- Real provider calls remain blocked.
