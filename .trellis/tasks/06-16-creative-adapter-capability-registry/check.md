@@ -242,3 +242,82 @@ git diff --check
 ```
 
 Result: PASS. No provider calls were added or made.
+
+## Phase B new-api admin validate/dry-run endpoints verification
+
+Implemented in new-api commit `69853ed feat(creative): add model binding admin validation`:
+
+- Added dedicated root-admin `/api/creative/model-bindings` endpoints for GET/PUT/validate/dry-run.
+- Unsafe admin operations are wired behind `CreativeRequireNonce()` in the real API router; the real route requires root dashboard session, and handlers additionally reject API-token-only access when that flag is present.
+- Added normalized config persistence through `service.UpdateStoredCreativeModelBindingsConfig`; persisted JSON trims/canonicalizes binding/schema fields; generic `/api/option` remains blocked for `creative.model_bindings`.
+- Added mock-only dry-run request preview with `noProviderCall=true`; no Duomi/GrsAI/provider transport was added.
+- Extended validator to reject unsupported modality, unknown adapter preset/template, non-positive channel id, forbidden/empty canary groups, duplicate IDs, forbidden IDs, unknown/forbidden raw admin JSON keys, sensitive provider/price model values, null shape drift, and invalid parameter schema.
+- Added sanitized PUT audit log containing only user id and binding count, not binding/provider IDs or payload secrets. Dry-run redaction now covers dangerous keys and sensitive string values such as provider URLs, signed URL markers, bearer/sk-like material, data URLs/base64-like material, credentials, access-key markers, and token markers.
+
+Verification:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./controller -run 'TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+go test -count=1 ./service -run 'TestCreativeForbiddenKey|TestParseCreativeModelBindingsConfig|TestValidateCreativeParameterSchema|TestCreativePreview|TestValidateCreativeModelBindingsConfig|TestBuildCreativeModelBindingsDryRun'
+go test -count=1 ./controller ./service
+go build ./...
+git diff --check
+```
+
+Result: PASS. No provider calls were added or made.
+
+Coverage notes / remaining Phase B work:
+
+- Mock dry-run preview is implemented; GrsAI fixture-backed dry-run remains intentionally blocked until local fixture evidence exists.
+- Admin security coverage now covers non-root denied, API-token flag denied, missing/bad nonce on validate/dry-run/PUT routes, generic option write blocked, and sanitized PUT audit.
+- Validator coverage is partial: duplicate id, unknown preset/template, wrong modality, invalid channel id, forbidden canary/schema ids, forbidden raw admin keys, sensitive provider/price/schema/default/option values, null-shape rejection, Duomi/GrsAI live preset blocking, and raw option bypass are covered. Disabled-channel lookup and hidden user-submitted-field resolver handling are pending future resolver work.
+
+Dynamic workflow review for this slice:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-adapter-phase-b-admin-validation-audit.workflow.ts
+codex-flow run .codex-flow/generated/creative-adapter-phase-b-admin-validation-reaudit.workflow.ts
+```
+
+Results:
+
+- First workflow found two Phase-B High issues: config persistence validated but did not canonicalize stored values, and raw JSON unknown/forbidden admin keys could be silently dropped by struct unmarshal. Both were fixed by raw-key validation plus canonical normalization before response/persist/dry-run.
+- Re-audit found one remaining High: dry-run redaction was key-only and could echo sensitive string values through `requestPreview.model`. Fixed by sensitive-value validation for provider/price model ids and value-level dry-run redaction.
+- Re-audit also reported a pre-existing Medium in the shared Creative nonce same-origin helper: raw forwarded proto headers are still trusted in `middleware/creative.go`; this is outside the current model-bindings slice and remains tracked as the broader XFF/trusted-proxy hardening item.
+- Journal paths:
+  - `.codex-flow/journal/creative-adapter-phase-b-admin-validation-audit.jsonl`
+  - `.codex-flow/journal/creative-adapter-phase-b-admin-validation-reaudit.jsonl`
+
+
+## Phase B fake-secret / blocked-provider hardening update
+
+Implemented in amended new-api commit `69853ed feat(creative): add model binding admin validation`:
+
+- Added a fake-secret corpus test covering bearer/sk-like material, provider URLs, signed URL markers, data URL/base64-like material, credential/access-key markers, and token markers.
+- Validator/admin-state paths now reject sensitive `providerModelId`, `priceModelId`, schema default values, enum option values/labels, display text, and canary group values before diagnostics can echo raw secrets.
+- Dry-run redaction now redacts dangerous keys and sensitive string values, including slices of string values.
+- Duomi/GrsAI live presets/templates remain blocked by allowlists; no fixture-backed provider transport was added. Added a static AST regression gate proving `BuildCreativeModelBindingsDryRun` does not reference HTTP/client/channel/key/baseURL or Duomi/GrsAI/provider endpoint literals.
+
+Verification rerun:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./service -run 'TestCreativeForbiddenKey|TestParseCreativeModelBindingsConfig|TestCreativeModelBindingsRejectFakeSecretCorpus|TestNormalizeCreativeModelBindingsConfig|TestValidateCreativeParameterSchema|TestCreativePreview|TestValidateCreativeModelBindingsConfig|TestBuildCreativeModelBindingsDryRun'
+go test -count=1 ./controller -run 'TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+go test -count=1 ./controller ./service
+go build ./...
+git diff --check
+```
+
+Result: PASS. No provider calls were added or made.
+
+Dynamic workflow follow-up attempt:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-adapter-phase-b-hardening-reaudit.workflow.ts
+```
+
+Result: unavailable due quota precharge failure; both read-only reviewer nodes failed before analysis with `403 Forbidden: 预扣费额度失败`. Journal path: `.codex-flow/journal/creative-adapter-phase-b-hardening-reaudit.jsonl`. Main-thread static review plus the verification commands above were used as fallback.

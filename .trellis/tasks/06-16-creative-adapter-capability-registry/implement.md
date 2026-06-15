@@ -31,15 +31,15 @@ No provider calls.
 No provider calls.
 
 1. [x] new-api: add versioned binding config parser and shared forbidden-key normalizer.
-2. [ ] new-api: add admin-only model-bindings validate/dry-run endpoints with CSRF/same-origin gates.
+2. [x] new-api: add admin-only model-bindings validate/dry-run endpoints with CSRF/same-origin gates.
 3. [x] new-api: block generic option write path for `creative.model_bindings`.
-4. [ ] new-api: add dry-run redacted request preview for mock and GrsAI fixture-backed presets.
-5. [ ] new-api admin security tests: non-admin denied, API-token-only denied, missing/bad CSRF/nonce denied for writes/dry-run, generic option write blocked, PUT emits sanitized audit event.
-6. [ ] new-api validator tests: duplicate id, unknown preset/template, wrong group/channel/modality, disabled channel, forbidden schema id, hidden user-submitted field, raw option bypass.
+4. [ ] new-api: add dry-run redacted request preview for mock and GrsAI fixture-backed presets. _(Partial: mock-only redacted preview added; GrsAI fixture-backed preset remains blocked.)_
+5. [x] new-api admin security tests: non-admin denied, API-token-only denied, missing/bad CSRF/nonce denied for writes/dry-run, generic option write blocked, PUT emits sanitized audit event.
+6. [ ] new-api validator tests: duplicate id, unknown preset/template, wrong group/channel/modality, disabled channel, forbidden schema id, hidden user-submitted field, raw option bypass. _(Partial: duplicate id, unknown preset/template, wrong modality, invalid channel id, forbidden canary/schema/raw admin keys, sensitive provider/price values, null-shape rejection, and raw option bypass covered; disabled-channel lookup and hidden user-submitted-field handling remain future resolver work.)_
 7. [ ] shared normalizer matrix tests: same dangerous-key corpus across admin JSON, schema id, hidden fields, legacy params, relay JSON, query, form, multipart field names, multipart file-part names, and dry-run preview.
-8. [ ] fake-secret corpus tests: validator/dry-run/logs/diagnostics do not emit API keys, Authorization, baseURL secrets, signed URL query, base64, object keys, cookies, CSRF, nonce, or raw provider URLs.
-9. [ ] Provider fixtures: mark Duomi blocked; add GrsAI request/parser/redaction fixtures from local evidence only.
-10. [ ] No-provider-call gate: dry-run/fixture code uses mock transport or panic-on-provider-call test hooks; Phase B cannot reach Duomi/GrsAI network endpoints.
+8. [ ] fake-secret corpus tests: validator/dry-run/logs/diagnostics do not emit API keys, Authorization, baseURL secrets, signed URL query, base64, object keys, cookies, CSRF, nonce, or raw provider URLs. _(Partial: validator/admin-state/dry-run diagnostics now reject/redact bearer/sk-like values, provider URLs, signed URL markers, data URLs/base64-like data, credential/token/access-key markers; full cookie/CSRF/nonce/object-key/log corpus remains pending.)_
+9. [ ] Provider fixtures: mark Duomi blocked; add GrsAI request/parser/redaction fixtures from local evidence only. _(Partial: Duomi/GrsAI live presets/templates explicitly fail closed; fixture-backed GrsAI parser/redaction remains pending local evidence.)_
+10. [ ] No-provider-call gate: dry-run/fixture code uses mock transport or panic-on-provider-call test hooks; Phase B cannot reach Duomi/GrsAI network endpoints. _(Partial: current dry-run path has mock-only allowlists, Duomi/GrsAI configs reject, and AST regression gate forbids HTTP/client/channel/key/baseURL/provider endpoint references inside `BuildCreativeModelBindingsDryRun`; future fixture-backed code still needs its own panic transport/hook.)_
 
 ## Phase C1 — Mock Image Task Full Chain
 

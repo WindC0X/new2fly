@@ -198,14 +198,24 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
   - `NormalizeCreativeForbiddenKey(key string) string`
   - `CreativeForbiddenKey(key string) bool`
 - Config shape: `CreativeModelBindingsConfig{version, bindings[]}` where each binding has `id`, `providerModelId`, `priceModelId`, `modality`, `enabled`, optional `canaryGroups`, `channelId`, `adapterPreset`, `parameterTemplate`, ranking fields, and `parameterSchema`.
+- Admin endpoints:
+  - `GET /api/creative/model-bindings` returns normalized admin state.
+  - `PUT /api/creative/model-bindings` validates, normalizes, persists, and emits a sanitized audit log.
+  - `POST /api/creative/model-bindings/validate` validates without persisting.
+  - `POST /api/creative/model-bindings/dry-run` validates and returns a redacted mock/fixture preview without provider transport.
 
 ### 3. Contracts
 
 - `creative.model_bindings` is a privileged backend config; generic `/api/option` must reject direct writes to this key.
 - Binding config JSON is versioned; only version `1` is accepted until a migration path exists.
+- Dedicated admin writes must persist canonical JSON, not merely validate and echo raw input. Trim and normalize binding/schema fields such as ids, modality, presets/templates, canary groups, and schema type before storage and dry-run.
+- Raw binding config parsing must fail closed on unknown keys and forbidden admin/config keys before struct unmarshalling can silently drop them.
 - `binding.id`, `providerModelId`, and `priceModelId` are separate fields. Tests should include distinct values.
 - The same forbidden-key normalizer must be used for binding IDs, parameter schema IDs, hidden/admin fields, relay body/query/form/multipart checks, and dry-run previews as those paths are wired.
 - The parser/validator must not contact provider endpoints; dry-run and fixture phases remain no-provider-call.
+- Dedicated admin binding endpoints require root dashboard session. API-token-only access is rejected by the handler, and unsafe methods (`PUT`, `POST validate`, `POST dry-run`) must also pass same-origin + Creative CSRF/nonce middleware.
+- Admin PUT audit logs must be sanitized: log actor and counts/status only, never raw binding JSON, provider URLs, keys, headers, signed URLs, object keys, CSRF/nonce, cookies, or raw provider response bodies.
+- Phase-B dry-run previews are diagnostic only. They may show binding/provider/price ids and sanitized request shape, but must redact dangerous keys and sensitive string values (provider URLs, signed URL markers, bearer/sk-like material, data/base64-like payloads, credentials, access-key markers, token markers) and must not read channel secrets or perform real provider calls.
 
 ### 4. Validation & Error Matrix
 
@@ -214,20 +224,29 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 - Duplicate binding IDs, case-insensitive -> error.
 - Forbidden binding/schema ID such as `callback`, `notifyHook`, `headers.Authorization`, `ownerId`, `baseURL`, or `idempotencyKey` -> error.
 - Missing `providerModelId`, `priceModelId`, or `modality` -> error.
+- Sensitive `providerModelId` / `priceModelId` / schema default / schema option / display text values such as URLs, signed query material, bearer/sk-like secrets, data/base64-like payloads, credentials, access-key markers, or token markers -> error.
+- Raw JSON with unknown or forbidden admin keys such as `baseURL`, `headers`, `Authorization`, `callback`, `webhook`, or `notify` -> error before persistence.
+- `null` root, `bindings:null`, `parameterSchema:null`, or `options:null` -> error; arrays must be explicit arrays.
 - Direct `PUT /api/option/` for `creative.model_bindings` -> controlled error pointing to `/api/creative/model-bindings`.
+- API-token-only request to `/api/creative/model-bindings*` -> `403` dashboard-session-required response.
+- Non-root dashboard user -> denied by `RootAuth`.
+- Missing/bad Creative CSRF/nonce on unsafe admin binding endpoints -> `403` before validation/persistence/dry-run.
+- Admin dry-run preview containing `Authorization`, `baseURL`, callback/webhook/notifyHook, API-key, or signed URL material -> redacted before response/logging.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: parse disabled mock binding with `id=mock:gpt-image-2:preview`, `providerModelId=gpt-image-2`, and `priceModelId=mock-gpt-image-2-price`; no provider call occurs.
+- Good: `POST /api/creative/model-bindings/dry-run` for a mock binding returns `noProviderCall=true` and `transport=mock` without channel key/base URL material.
 - Base: empty option during startup parses as empty v1 config.
 - Bad: administrator writes arbitrary `creative.model_bindings` JSON through `/api/option`, bypassing schema/forbidden validation and dry-run redaction.
+- Bad: dry-run contacts Duomi/GrsAI or emits raw `Authorization`, `baseURL`, signed object URL query, cookie, CSRF, nonce, or raw provider body.
 
 ### 6. Tests Required
 
 - Service parser tests for valid v1 config, unsupported version, duplicate IDs, forbidden IDs, required fields, and nested parameter schema validation.
 - Shared normalizer tests covering camelCase, snake_case, kebab-case, dotted headers, and whitespace variants.
 - Controller tests proving generic `/api/option` rejects `creative.model_bindings`.
-- Future admin endpoint tests must reuse the same parser/normalizer and add auth, same-origin/nonce, redaction, and audit assertions.
+- Admin endpoint tests must reuse the same parser/normalizer and cover root/dashboard auth, API-token-only rejection, same-origin/nonce failures on unsafe methods, redaction, no-provider-call dry-run, normalized persistence, and sanitized audit assertions.
 
 ### 7. Wrong vs Correct
 
@@ -235,6 +254,7 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 
 ```text
 PUT /api/option/ { key: "creative.model_bindings", value: "..." } -> stored
+POST /api/creative/model-bindings/dry-run -> real provider HTTP request to prove it works
 ```
 
 #### Correct
@@ -242,4 +262,5 @@ PUT /api/option/ { key: "creative.model_bindings", value: "..." } -> stored
 ```text
 PUT /api/option/ { key: "creative.model_bindings", value: "..." } -> rejected
 POST /api/creative/model-bindings/validate -> ParseCreativeModelBindingsConfig -> no provider call
+POST /api/creative/model-bindings/dry-run -> validate -> redacted mock/fixture preview, no provider call
 ```
