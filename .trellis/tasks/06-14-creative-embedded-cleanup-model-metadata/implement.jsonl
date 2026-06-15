@@ -1,0 +1,19 @@
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/feedback-button/feedback-button.tsx","reason":"Hard-coded feedback QR button to hide or gate in embedded mode."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/bottom-actions-section.tsx","reason":"FeedbackButton is rendered here; verify layout remains stable when hidden."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/app-toolbar/app-toolbar.tsx","reason":"Embedded toolbar currently renders upstream OpenTU GitHub button."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/app-toolbar/app-menu-items.tsx","reason":"Backup/Restore and Cloud Sync menu entry points live here."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolboxDrawer.tsx","reason":"Toolbox currently redirects API-key-template tools to settings; must change for embedded mode."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/tools/built-in-manifests.tsx","reason":"Chat-MJ external built-in tool contains ${apiKey} URL and should be hidden or gated in embedded mode."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts","reason":"Consumes /creative/api/models and normalizes managed catalog metadata."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/utils/runtime-model-discovery.ts","reason":"Runtime model metadata fallback, static config merge, and selector model pool behavior."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/constants/model-config.ts","reason":"Static model labels, short codes, tags, and parameter compatibility definitions."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/ModelDropdown.tsx","reason":"Model selector display, provider grouping, short code and settings action behavior."}
+{"file":"/mnt/f/code/project/new-api/controller/creative.go","reason":"Creative bootstrap/models endpoints and creativeModelsForUser catalog builder."}
+{"file":"/mnt/f/code/project/new-api/dto/pricing.go","reason":"Current OpenAIModels DTO shape returned by Creative models endpoint."}
+{"file":"/mnt/f/code/project/new-api/model/pricing.go","reason":"Safe model metadata and supported endpoint type source."}
+{"file":"/mnt/f/code/project/new-api/service/creative_model_policy.go","reason":"Effective policy filtering must remain based on available safe model pool."}
+{"file": "/mnt/f/code/project/new-api/web/default/src/features/system-settings/models/creative-model-policy-section.tsx", "reason": "Current Creative model policy admin page; optimize from JSON-first to guided builder."}
+{"file": "/mnt/f/code/project/new-api/web/default/src/features/system-settings/types.ts", "reason": "Frontend Creative policy/admin state types may need enriched catalog/model-pool metadata."}
+{"file": "/mnt/f/code/project/new-api/web/default/src/features/system-settings/api.ts", "reason": "Dedicated Creative model policy API client used by the admin UI."}
+{"file": "/mnt/f/code/project/new-api/web/default/src/i18n/locales/zh.json", "reason": "Chinese labels/help text for optimized Creative model policy admin UI."}
+{"file": "/mnt/f/code/project/new-api/web/default/src/i18n/locales/en.json", "reason": "English labels/help text for optimized Creative model policy admin UI."}

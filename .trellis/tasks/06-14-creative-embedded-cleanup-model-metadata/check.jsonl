@@ -1,0 +1,13 @@
+{"file":".trellis/tasks/06-14-creative-embedded-cleanup-model-metadata/prd.md","reason":"Verify implementation satisfies user-visible cleanup and model metadata acceptance criteria."}
+{"file":".trellis/tasks/06-14-creative-embedded-cleanup-model-metadata/design.md","reason":"Check implementation follows embedded boundary, safe DTO, and metadata merge design."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Ensure embedded /creative artifact and model-provider UI contract still hold after OpenTU changes."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Ensure Creative model catalog enrichment does not leak channel/provider secrets or bypass model policy."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.test.ts","reason":"Run/update managed session-broker model catalog tests."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/utils/__tests__/runtime-model-discovery.test.ts","reason":"Run/update runtime metadata and selector pool tests."}
+{"file":"/mnt/f/code/project/new-api/controller/creative_model_policy_test.go","reason":"Ensure admin policy contract remains intact after model DTO changes."}
+{"file":"/mnt/f/code/project/new-api/controller/creative_test.go","reason":"Run/update Creative endpoint and safe catalog tests."}
+{"file":"scripts/creative_release_gate.py","reason":"Final build-sync-check and staging verification gate after OpenTU/new-api changes."}
+{"file":"ops/newapi-opentu-staging/docker-compose.yml","reason":"Local staging compose remains the deployment verification target."}
+{"file": "/mnt/f/code/project/new-api/web/default/src/features/system-settings/models/creative-model-policy-section.tsx", "reason": "Verify admin UX no longer defaults to giant JSON editor and preserves safe save flow."}
+{"file": "/mnt/f/code/project/new-api/web/default/src/features/system-settings/types.ts", "reason": "Verify frontend types match backend Creative policy/catalog response."}
+{"file": "/mnt/f/code/project/new-api/web/default/src/i18n/locales/zh.json", "reason": "Verify new policy UI copy is localized."}

@@ -13,6 +13,7 @@
 - Build command for embedded release artifacts:
   - `cd /mnt/f/code/project/opentu`
   - `VITE_BASE_URL=/creative/ pnpm build:web`
+  - the Opentu `web:build` target must run `node scripts/postprocess-embedded-creative-dist.js` after `web:build-sw`; do not run the postprocess only after `web:build-app`, because service-worker generation can reintroduce `sw.js` metadata after the app bundle is rewritten
 - Artifact source:
   - `opentu/dist/apps/web/`
 - Local no-secrets gate script:
@@ -61,12 +62,15 @@
 - `new-api/web/creative/dist/index.html`, `sw.js`, and `version.json` must match `new-api/router/web/creative/dist/*`.
 - `sw.js` must register and run from `/creative/sw.js` when loaded from `/creative/`; runtime metadata (`version.json`, manifests, `sw.js`) stays same-origin.
 - Generated artifact files may contain build-tool whitespace or sourcemaps; release gates must either accept generated-artifact policy exceptions or enforce normalization at the Opentu build-output source, not by manually editing only `new-api` copies.
+- Embedded final-artifact postprocess is part of the Opentu artifact source contract. It must run after `build-sw` and normalize final metadata files such as `sw.js` and `changelog.json`, remove stale `sw.js.map` when embedded policy forbids maps, and keep the source dist ready to sync byte-for-byte into both `new-api` targets.
+- Static standalone marker scans must include final generated metadata, not just `index.html`/manifest/chunks. At minimum scan `changelog.json` and `sw.js` for standalone OpenTU/Tuzi/GitHub/API-key markers because they are easy to miss in visual smoke tests but still ship to browsers.
 - Source whitespace checks and generated-dist checks are separate gates: run source-only `git diff --check` for hand-written code, and enforce generated dist by byte identity across `opentu/dist/apps/web/`, `new-api/web/creative/dist/`, and `new-api/router/web/creative/dist/`.
 - `apps/web/public/version.json` buildTime changes caused by local `pnpm build:web` are build side effects unless intentionally part of an Opentu source release; do not commit source timestamp churn blindly.
 - No-secrets RC verification must not inherit arbitrary host environment into the temporary `new-api` server. Use `env -i` plus only the minimum build/runtime variables needed for local SQLite and Go caches. Do not pass provider, payment, CDN, analytics, Pyroscope, Redis, or production endpoint variables.
 - A local embedded smoke server should disable known background external-update paths where supported, for example `CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED=false`; keep the smoke short-lived and stop it immediately after the browser check.
 - Embedded release readiness is not complete until the target environment has a redacted presence-only env check and a read-only route/CDN check for `/creative/`, `/creative/sw.js`, existing `/creative/assets/*`, missing `/creative/assets/*`, `/creative/api/*`, and `/creative/relay/v1/*`.
 - Embedded model/provider settings, generation dropdowns, and model benchmark tools must filter provider/profile state to the managed `new-api-creative` session-broker profile. If bootstrap/auth fails or `/creative/api/models` is unavailable, install/show an unavailable managed profile with an empty catalog rather than showing OpenTU legacy defaults.
+- Embedded document/asset save status copy uses the product term **云同步** for the new-api-backed Creative sync path, not the old standalone GitHub/Gist Cloud Sync feature. Allowed managed status labels include `云同步就绪`, `正在同步到云端…`, `已同步到云端`, `已保存到此浏览器`, and `云同步不可用 · 已保存到此浏览器`. Release smoke tests must not globally ban the Chinese word `云同步`; instead they must reject concrete standalone setup markers such as `GitHub Gist`, `GitHub Token`, `Cloud Sync`, `API Key`, `API 地址`, `Base URL`, external Tuzi API hosts, and provider profile names.
 - Local/intranet staging is an allowed intermediate gate when no real target exists, but the report must keep production-only surfaces as `not-run`: public route/CDN/DNS, production env presence, S3-compatible asset storage, provider/payment/channel health, publish credentials, Docker/NPM publish, deploy/upload/SSH, production `FRONTEND_BASE_URL` mode, and final sourcemap policy.
 - Redacted local route checks should record method, path, status, selected headers (`content-type`, `cache-control`, `location`, `x-content-type-options` when present), and classification only. Do not record response bodies, cookies, auth headers, query secrets, provider credentials, or generated-task payloads.
 - The embedded `new-api` Docker path depends on prebuilt `web/creative/dist`; the Dockerfile does not build OpenTU. CI/release orchestration must run the artifact identity gate before image build/push.
@@ -80,9 +84,12 @@
 - `new-api` Go embed/static tests pass but Opentu source was changed after the dist sync -> fail release readiness; rebuild and resync before packaging.
 - Missing `/creative/assets/*` returns Creative SPA HTML -> fail; hashed asset prefix is reserved for static chunks and must fail as a static miss.
 - Embedded `/creative/` settings or model selectors show OpenTU standalone provider defaults such as default/OpenAI/Gemini/Tuzi/Doubao/Kling/Flux/Midjourney instead of `New API Creative` -> fail; the embedded catalog is controlled by `new-api` session-broker APIs, not by local OpenTU provider setup.
+- Embedded smoke fails only because the managed save-status badge contains `云同步` -> fix the test; `云同步` is the intended new-api-backed user-facing term. Embedded smoke should fail on legacy GitHub/Gist/API-key setup surfaces, not on managed cloud-sync status copy.
 - Full `git diff --check` fails only inside generated dist -> treat as release-policy risk; do not hand-normalize one target unless all artifact copies remain byte-identical.
 - `pnpm e2e:smoke` cold-start fails before app readiness but prewarmed/long-wait runtime succeeds -> classify as E2E harness/readiness risk, not as proof of runtime failure.
 - `sw.js.map` or other generated maps are emitted -> decide by production sourcemap policy; if forbidden, disable/strip at the Opentu artifact source and keep all embedded copies identical.
+- `build-app` postprocess passes but `build-sw` later writes a new `sw.js` with standalone package/CDN markers -> fail; move or repeat postprocess after `build-sw` and add `sw.js` to the release-gate marker scan.
+- `changelog.json` still contains standalone OpenTU release notes or API-key/feedback copy -> fail; rewrite it at the Opentu source dist during embedded postprocess and scan it before syncing/packaging.
 - RC verification relies only on local remote-tracking refs -> warn; use `git ls-remote` to prove the pushed branch still points at the verified commit.
 - Temporary embedded smoke server started with the ambient shell environment -> warn/fail no-secrets hygiene; rerun with `env -i` and a temporary SQLite DB before claiming no-secrets verification.
 - Target has `FRONTEND_BASE_URL` in non-master redirect mode and `/creative/` or `/creative/assets/*` redirects away from `new-api` -> fail embedded release readiness unless that external frontend is the intended Creative host and is checked separately.
@@ -108,6 +115,7 @@
 ### 6. Tests Required
 
 - Opentu build check: assert rebuilt `dist/apps/web/index.html` contains `/creative/assets/` entry JS/CSS and no `./assets/` entry refs for embedded releases.
+- Final metadata check: assert `dist/apps/web/changelog.json` and `dist/apps/web/sw.js` contain no standalone OpenTU/Tuzi/GitHub/API-key markers and no stale `sw.js.map` remains when the embedded policy strips maps.
 - Cross-repo artifact check: assert source and both `new-api` target dist trees have identical relative path lists and hashes.
 - `new-api` tests: run root Creative dist contract test and router static/API boundary tests after syncing artifacts.
 - Browser smoke: run official smoke with a documented readiness strategy; cold readiness must use the shared Drawnix readiness wait instead of duplicated hardcoded 10s waits. Embedded browser smoke runs with `CREATIVE_EMBEDDED_BASE_URL=http://localhost:<port>/creative/ pnpm e2e:creative-embedded` or through the release gate script's `--embedded-smoke-url`.

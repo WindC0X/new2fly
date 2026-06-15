@@ -21,18 +21,109 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
 
 CREATIVE_BASE = "/creative/"
 ENTRY_REF_PATTERN = re.compile(r"[\"'](?P<ref>/creative/assets/[^\"']+\.(?:js|css))(?:\?[^\"']*)?[\"']")
 BAD_RELATIVE_ENTRY_PATTERN = re.compile(r"[\"']\.\/assets\/[^\"']+\.(?:js|css)(?:\?[^\"']*)?[\"']")
+BAD_ROOT_ENTRY_PATTERN = re.compile(r"[\"']/assets/[^\"']+\.(?:js|css)(?:\?[^\"']*)?[\"']")
+EMBEDDED_STANDALONE_HTML_FILES = (
+    "home.html",
+    "en/home.html",
+    "versions.html",
+    "iframe-test.html",
+    "sw-debug.html",
+    "cdn-debug.html",
+)
+EMBEDDED_STANDALONE_MARKERS = (
+    "opentu.ai",
+    "github.com/ljquan/aitu",
+    "api.tu-zi.com",
+    "wiki.tu-zi.com",
+    "aitu-app",
+    "product_showcase",
+    "user-manual",
+    "OpenTu.ai",
+    "OpenTu",
+    "OpenTU",
+    "Opentu",
+    "API Key",
+    "GitHub Gist",
+    "GitHub Token",
+    "用户反馈群",
+    "用户手册",
+)
+EMBEDDED_FORBIDDEN_STATIC_PATHS = (
+    "product_showcase",
+    "user-manual",
+    "sw-debug",
+    "logo-tuzi.png",
+    "logo/group-qr.png",
+    "logo/cardid.jpg",
+)
+
+
+class EmbeddedIndexStructureParser(HTMLParser):
+    """Minimal generated-index structure guard.
+
+    The embedded cleanup rewrites static HTML after Vite emits it. A malformed
+    boot-card replacement can accidentally leave #root inside #app-boot-loading;
+    the boot script then removes the React root together with the loading shell.
+    This parser intentionally checks source nesting so the release gate fails
+    before Docker/staging smoke gets a blank page.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[tuple[str, str | None]] = []
+        self.root_seen = False
+        self.root_inside_boot = False
+        self.boot_seen = False
+        self.boot_title_seen = False
+        self.boot_progress_seen = False
+        self.new_api_boot_mark_seen = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr_map = dict(attrs)
+        node_id = attr_map.get("id")
+        class_name = attr_map.get("class") or ""
+
+        if node_id == "app-boot-loading":
+            self.boot_seen = True
+        if "data-app-boot-title" in attr_map:
+            self.boot_title_seen = True
+        if "data-app-boot-progress" in attr_map:
+            self.boot_progress_seen = True
+        if (
+            tag == "span"
+            and "app-boot-mark" in class_name.split()
+            and "data-official-site-link" in attr_map
+        ):
+            self.new_api_boot_mark_seen = True
+
+        if node_id == "root":
+            self.root_seen = True
+            if any(stacked_id == "app-boot-loading" for _, stacked_id in self.stack):
+                self.root_inside_boot = True
+
+        # Track regular elements closely enough for div/main/span/source nesting.
+        if tag not in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
+            self.stack.append((tag, node_id))
+
+    def handle_endtag(self, tag: str) -> None:
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index][0] == tag:
+                del self.stack[index:]
+                return
 
 
 @dataclass(frozen=True)
@@ -145,11 +236,124 @@ def check_index_contract(layout: Layout) -> None:
             raise SystemExit(f"{label} index.html does not reference /creative/assets/*.js|css entries")
         if BAD_RELATIVE_ENTRY_PATTERN.search(body):
             raise SystemExit(f"{label} index.html contains ./assets entry refs; rebuild with VITE_BASE_URL=/creative/")
+        if BAD_ROOT_ENTRY_PATTERN.search(body):
+            raise SystemExit(f"{label} index.html contains root /assets entry refs; rebuild with VITE_BASE_URL=/creative/")
         has_js = any(ref.split("?", 1)[0].endswith(".js") for ref in refs)
         has_css = any(ref.split("?", 1)[0].endswith(".css") for ref in refs)
         if not has_js or not has_css:
             raise SystemExit(f"{label} index.html must reference at least one JS and one CSS entry under /creative/assets/")
+        parser = EmbeddedIndexStructureParser()
+        parser.feed(body)
+        if not parser.root_seen:
+            raise SystemExit(f"{label} index.html is missing #root; embedded app would not mount")
+        if parser.root_inside_boot:
+            raise SystemExit(
+                f"{label} index.html has #root nested inside #app-boot-loading; "
+                "the boot loader would remove the React root and produce a blank page"
+            )
+        if not parser.boot_seen or not parser.boot_title_seen or not parser.boot_progress_seen:
+            raise SystemExit(
+                f"{label} index.html boot shell is malformed; expected app boot title and progress nodes"
+            )
+        if not parser.new_api_boot_mark_seen:
+            raise SystemExit(
+                f"{label} index.html boot mark was not rewritten to New API Creative safely"
+            )
         print(f"[check] {label} embedded index refs: {len(refs)} /creative/assets entries")
+
+
+def iter_json_strings(value: object) -> Iterable[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from iter_json_strings(item)
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from iter_json_strings(item)
+
+
+def check_manifest_asset_contract(layout: Layout) -> None:
+    manifest_names = ["precache-manifest.json", "idle-prefetch-manifest.json"]
+    for label, dist in layout.all_dists:
+        for manifest_name in manifest_names:
+            manifest = dist / manifest_name
+            if not manifest.is_file():
+                continue
+            body = manifest.read_text(encoding="utf-8")
+            try:
+                parsed = json.loads(body)
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"{label} {manifest_name} is not valid JSON: {exc}") from exc
+            root_asset_refs = sorted(
+                {ref for ref in iter_json_strings(parsed) if ref.startswith("/assets/")}
+            )
+            if root_asset_refs:
+                raise SystemExit(
+                    f"{label} {manifest_name} contains root /assets refs; "
+                    f"embedded manifests must use /creative/assets. first refs: {root_asset_refs[:20]}"
+                )
+            creative_asset_refs = sum(
+                1 for ref in iter_json_strings(parsed) if ref.startswith("/creative/assets/")
+            )
+            if creative_asset_refs == 0:
+                raise SystemExit(
+                    f"{label} {manifest_name} contains no /creative/assets refs; "
+                    "embedded manifests must keep Creative asset URLs."
+                )
+            print(
+                f"[check] {label} {manifest_name}: {creative_asset_refs} /creative/assets refs"
+            )
+
+
+def check_embedded_static_brand_contract(layout: Layout) -> None:
+    for label, dist in layout.all_dists:
+        manifest_path = dist / "manifest.json"
+        if manifest_path.is_file():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"{label} manifest.json is not valid JSON: {exc}") from exc
+            if manifest.get("name") != "New API Creative" or manifest.get("short_name") != "Creative":
+                raise SystemExit(
+                    f"{label} manifest.json still exposes standalone app identity; "
+                    "embedded builds must use New API Creative metadata."
+                )
+
+        for relative in EMBEDDED_FORBIDDEN_STATIC_PATHS:
+            if (dist / relative).exists():
+                raise SystemExit(
+                    f"{label} contains standalone static path {relative!r}; "
+                    "embedded artifacts must not ship standalone docs/showcase/feedback assets."
+                )
+
+        text_files = [
+            "index.html",
+            "manifest.json",
+            "_headers",
+            "_redirects",
+            "robots.txt",
+            "sitemap.xml",
+            "cdn-config.js",
+            "changelog.json",
+            "sw.js",
+            *EMBEDDED_STANDALONE_HTML_FILES,
+        ]
+        for relative in text_files:
+            path = dist / relative
+            if not path.is_file():
+                continue
+            body = path.read_text(encoding="utf-8", errors="ignore")
+            lower_body = body.lower()
+            for marker in EMBEDDED_STANDALONE_MARKERS:
+                haystack = lower_body if marker.islower() else body
+                needle = marker if marker.islower() else marker
+                if needle in haystack:
+                    raise SystemExit(
+                        f"{label} {relative} contains standalone marker {marker!r}; "
+                        "embedded artifacts must not expose OpenTU/GitHub standalone surfaces."
+                    )
+        print(f"[check] {label} embedded static brand contract holds")
 
 
 def check_sourcemaps(layout: Layout, policy: str) -> None:
@@ -212,6 +416,8 @@ def check_all(layout: Layout, sourcemap_policy: str) -> None:
     for label, path in layout.all_dists:
         require_dir(path, f"{label} dist")
     check_index_contract(layout)
+    check_manifest_asset_contract(layout)
+    check_embedded_static_brand_contract(layout)
     check_identity(layout)
     check_sourcemaps(layout, sourcemap_policy)
     print("[ok] Creative embedded artifact contract holds")
