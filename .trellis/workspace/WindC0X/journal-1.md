@@ -838,3 +838,38 @@ Recorded user-fork push fallback commands, built the local new-api Creative Dock
 ### Next Steps
 
 - None - task complete
+
+
+## Session 23: Creative embedded cleanup and cloud sync verification
+
+**Date**: 2026-06-15
+**Task**: Creative embedded cleanup and cloud sync verification
+**Branch**: `master`
+
+### Summary
+
+Completed embedded Creative cleanup/model metadata/admin policy work, enabled local staging cloud sync, verified document and asset cloud sync smoke, rebuilt/synced embedded artifacts, and recorded release gates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8a47658` | (see git log) |
+| `bc938728` | (see git log) |
+| `bfef310` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
