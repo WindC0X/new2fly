@@ -873,3 +873,37 @@ Completed embedded Creative cleanup/model metadata/admin policy work, enabled lo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: Creative embedded push and local staging verification
+
+**Date**: 2026-06-15
+**Task**: Creative embedded push and local staging verification
+**Branch**: `master`
+
+### Summary
+
+Pushed OpenTU and new-api embedded Creative branches through host Git, verified remote refs, ran local staging route/header checks, embedded smoke, authenticated cloud-sync smoke, dynamic workflow review, and recorded new2fly push verification.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `08c498f` | (see git log) |
+| `ea43f23` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
