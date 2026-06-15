@@ -451,3 +451,27 @@ git diff --check
 ```
 
 Result: PASS after fixing a test OptionMap isolation issue. Targeted controller/service tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+## Phase C1 task metadata / price model verification
+
+Implemented after `0da5fd6`:
+
+- Split internal `creativeImageTaskMetadata` from public DTO metadata. Internal task data now persists `channelId`; public response metadata still omits `channelId` and other task internals.
+- Extended submit/fetch test to read the stored task row and assert versioned metadata includes binding/provider/price/preset/template/channel/userParams.
+- Extended test coverage for mock pricing context: `Task.PrivateData.BillingContext.OriginModelName` is the distinct `priceModelId`, with per-call/zero-quota C1 mock semantics.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w controller/creative_image_tasks.go controller/creative_test.go
+
+go test -count=1 ./controller -run 'TestCreativeImageTask|TestCreativeImageSyncRoute|TestCreativeListModels'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. Targeted controller tests, full controller+service tests, full Go build, and whitespace check exited 0.
