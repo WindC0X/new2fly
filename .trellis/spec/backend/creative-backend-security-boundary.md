@@ -203,6 +203,8 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
   - `PUT /api/creative/model-bindings` validates, normalizes, persists, and emits a sanitized audit log.
   - `POST /api/creative/model-bindings/validate` validates without persisting.
   - `POST /api/creative/model-bindings/dry-run` validates and returns a redacted mock/fixture preview without provider transport.
+- Public catalog helper:
+  - `GetStoredCreativeModelBindingsCatalogForGroup(userGroup string) []dto.CreativeModelCatalogItem` exposes enabled, canary-matched, mock-safe stored bindings to `/creative/api/models`.
 
 ### 3. Contracts
 
@@ -216,6 +218,8 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 - Dedicated admin binding endpoints require root dashboard session. API-token-only access is rejected by the handler, and unsafe methods (`PUT`, `POST validate`, `POST dry-run`) must also pass same-origin + Creative CSRF/nonce middleware.
 - Admin PUT audit logs must be sanitized: log actor and counts/status only, never raw binding JSON, provider URLs, keys, headers, signed URLs, object keys, CSRF/nonce, cookies, or raw provider response bodies.
 - Phase-B dry-run previews are diagnostic only. They may show binding/provider/price ids and sanitized request shape, but must redact dangerous keys and sensitive string values (provider URLs, signed URL markers, bearer/sk-like material, data/base64-like payloads, credentials, access-key markers, token markers) and must not read channel secrets or perform real provider calls.
+- Public `/creative/api/models` must include stored enabled mock-safe bindings only when the global adapter flag is enabled and the user's group matches `canaryGroups`. Disabled bindings, wrong-group bindings, non-image bindings, and non-mock/real-provider presets remain hidden from the browser catalog. Hidden schema fields are filtered from catalog responses and still rejected if submitted as `userParams`.
+- Stored binding catalog entries preserve `binding.id` as the executable model id and preserve distinct `providerModelId` / `priceModelId`; duplicate IDs from legacy/built-in preview sources are deduped before returning `/creative/api/models`.
 
 ### 4. Validation & Error Matrix
 
@@ -228,6 +232,7 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 - Raw JSON with unknown or forbidden admin keys such as `baseURL`, `headers`, `Authorization`, `callback`, `webhook`, or `notify` -> error before persistence.
 - `null` root, `bindings:null`, `parameterSchema:null`, or `options:null` -> error; arrays must be explicit arrays.
 - Direct `PUT /api/option/` for `creative.model_bindings` -> controlled error pointing to `/api/creative/model-bindings`.
+- Stored binding disabled, global adapter disabled, wrong canary group, unsupported preset/template, or hidden schema field -> binding omitted from `/creative/api/models`; submit still fails closed if attempted directly.
 - API-token-only request to `/api/creative/model-bindings*` -> `403` dashboard-session-required response.
 - Non-root dashboard user -> denied by `RootAuth`.
 - Missing/bad Creative CSRF/nonce on unsafe admin binding endpoints -> `403` before validation/persistence/dry-run.
@@ -247,6 +252,7 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 - Shared normalizer tests covering camelCase, snake_case, kebab-case, dotted headers, and whitespace variants.
 - Controller tests proving generic `/api/option` rejects `creative.model_bindings`.
 - Admin endpoint tests must reuse the same parser/normalizer and cover root/dashboard auth, API-token-only rejection, same-origin/nonce failures on unsafe methods, redaction, no-provider-call dry-run, normalized persistence, and sanitized audit assertions.
+- Catalog tests must prove stored enabled mock bindings appear for matching groups, disabled/global-off/wrong-group bindings are hidden, hidden schema fields are filtered, and duplicate built-in/stored binding IDs appear only once.
 
 ### 7. Wrong vs Correct
 

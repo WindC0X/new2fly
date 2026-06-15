@@ -424,3 +424,30 @@ Notes:
 
 - This closes C1 mock-route recovery/idempotency gates using scoped idempotency as the durable pending/replay record.
 - Real provider quota mutation, terminal settlement/refund, and task billing outbox remain intentionally blocked for C2+ provider-backed work.
+
+## Phase C1 stored binding catalog / kill-switch verification
+
+Implemented after `5fc0a51`:
+
+- Added `GetStoredCreativeModelBindingsCatalogForGroup(userGroup)` so enabled, canary-matched, mock-safe `creative.model_bindings` entries appear in `/creative/api/models`.
+- Catalog entries preserve `bindingId`, `providerModelId`, and `priceModelId`; hidden schema fields are filtered from public catalog responses.
+- `/creative/api/models` now dedupes stored and built-in preview binding IDs so the same executable binding does not appear twice.
+- Added tests proving stored bindings appear for matching users, hidden schema fields stay hidden, global-off/per-binding-disabled/wrong-group states hide bindings, and stored+built-in preview duplication is collapsed.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w service/creative_model_capability.go service/creative_model_capability_test.go controller/creative.go controller/creative_test.go
+
+go test -count=1 ./controller -run 'TestCreativeListModels|TestCreativeImageTask|TestCreativeImageSyncRoute|TestCreativeRelaySessionBroker|TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+
+go test -count=1 ./service -run 'TestCreativeForbiddenKey|TestParseCreativeModelBindingsConfig|TestCreativeModelBindingsRejectFakeSecretCorpus|TestNormalizeCreativeModelBindingsConfig|TestValidateCreativeParameterSchema|TestValidateCreativeUserParamsForSchema|TestResolveCreativeImageModelBinding|TestStoredCreativeModelBindingsCatalog|TestCreativePreview|TestValidateCreativeModelBindingsConfig|TestBuildCreativeModelBindingsDryRun'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS after fixing a test OptionMap isolation issue. Targeted controller/service tests, full controller+service tests, full Go build, and whitespace check exited 0.
