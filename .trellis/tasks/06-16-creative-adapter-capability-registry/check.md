@@ -392,3 +392,35 @@ git diff --check
 ```
 
 Result: PASS. Targeted controller tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+## Phase C1 idempotency / recovery hardening verification
+
+Additional hardening added after `295404c`:
+
+- Added controller test hooks for image task idempotency completion and accepted-task finalization.
+- `TestCreativeImageTaskAcceptedInsertFailureKeepsIdempotencyGuard` now also replays the failed request and proves the pending idempotency record prevents a second mock insert.
+- `TestCreativeImageTaskAcceptedFinalizeFailuresReplayExistingTask` covers:
+  - accepted task inserted, idempotency completion fails -> first response fails closed, retry returns the persisted task;
+  - accepted task inserted, finalization/settle-equivalent fails -> first response fails closed, retry returns the persisted task;
+  - both cases retain one task row for the idempotency key and do not second-submit.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w controller/creative_image_tasks.go controller/creative_test.go
+
+go test -count=1 ./controller -run 'TestCreativeImageTask|TestCreativeImageSyncRoute|TestCreativeRelaySessionBroker|TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. Targeted controller tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+Notes:
+
+- This closes C1 mock-route recovery/idempotency gates using scoped idempotency as the durable pending/replay record.
+- Real provider quota mutation, terminal settlement/refund, and task billing outbox remain intentionally blocked for C2+ provider-backed work.
