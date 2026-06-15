@@ -63,3 +63,14 @@ STAGING_BIND_ADDR=0.0.0.0 STAGING_PORT=39084 \
 ```
 
 Then re-run the route/header checks against the chosen host.
+
+## Production deployment
+
+Production deployment is intentionally separate from this local staging runbook. See:
+
+```text
+ops/newapi-opentu-production/README.md
+ops/newapi-opentu-production/env.production.example
+```
+
+Do not copy `.env.staging.local` into production.
