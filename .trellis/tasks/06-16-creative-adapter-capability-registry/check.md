@@ -616,3 +616,29 @@ git diff --check
 ```
 
 Result: PASS. Targeted controller/service tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+## Phase B locked channel validator verification
+
+Implemented after fake-secret corpus hardening:
+
+- `ValidateCreativeModelBindingsConfig` now validates positive `channelId` references against the database when present.
+- Missing locked channels fail closed.
+- Disabled locked channels fail closed.
+- Enabled locked channels pass validation.
+- Existing tests continue to cover duplicate IDs, unknown preset/template, wrong modality, invalid channel id, forbidden canary/schema/admin keys, raw option bypass, and hidden/forbidden user param handling through resolver tests.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w service/creative_model_capability.go service/creative_model_capability_test.go
+
+go test -count=1 ./service -run 'TestValidateCreativeModelBindingsConfig|TestParseCreativeModelBindingsConfig|TestCreativeModelBindingsRejectFakeSecretCorpus|TestBuildCreativeModelBindingsDryRun'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. Targeted service tests, full controller+service tests, full Go build, and whitespace check exited 0.
