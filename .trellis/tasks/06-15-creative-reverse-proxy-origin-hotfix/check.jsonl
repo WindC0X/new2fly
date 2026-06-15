@@ -1,0 +1,7 @@
+{"file":"/mnt/f/code/project/new-api/middleware/creative.go","reason":"Verify proxy scheme parsing preserves same-origin security."}
+{"file":"/mnt/f/code/project/new-api/middleware/creative_test.go","reason":"Verify regression tests for reverse proxy scheme behavior."}
+{"file":"/mnt/f/code/project/new-api/controller/creative_test.go","reason":"Check no Creative session/nonce regression."}
+{"file":"ops/newapi-opentu-production/creative-route-check.sh","reason":"Post-deploy route/header assertion helper."}
+{"file":".trellis/tasks/06-15-creative-reverse-proxy-origin-hotfix/prd.md","reason":"Task acceptance criteria."}
+{"file":".trellis/tasks/06-15-creative-reverse-proxy-origin-hotfix/design.md","reason":"Hotfix design/security constraints."}
+{"file":".trellis/tasks/06-15-creative-reverse-proxy-origin-hotfix/implement.md","reason":"Execution checklist."}

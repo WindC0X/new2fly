@@ -1,0 +1,5 @@
+{"file":"/mnt/f/code/project/new-api/middleware/creative.go","reason":"Creative same-origin validation and request origin inference."}
+{"file":"/mnt/f/code/project/new-api/middleware/creative_test.go","reason":"Target location for middleware origin validation tests if present or to create."}
+{"file":"/mnt/f/code/project/new-api/controller/creative_test.go","reason":"Existing Creative session/bootstrap/nonce tests for integration context."}
+{"file":".trellis/tasks/archive/2026-06/06-15-creative-embedded-production-deploy/check.md","reason":"Production deployment evidence and current running image to roll back to."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Production readiness and reverse-proxy route ownership contracts."}
