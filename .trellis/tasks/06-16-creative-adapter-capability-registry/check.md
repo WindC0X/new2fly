@@ -642,3 +642,39 @@ git diff --check
 ```
 
 Result: PASS. Targeted service tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+## Phase B GrsAI fixture-only dry-run completion
+
+Implemented after locked-channel validation:
+
+- Added `grsai_gpt_image_dryrun` + `grsai_gpt_image` as a fixture-only admin validation/dry-run pair.
+- The GrsAI dry-run preview is local-only: `transport=fixture`, no base URL, no provider endpoint, no `Authorization`, no API key, and no channel secret fields.
+- The preview shows only sanitized request shape: model, prompt placeholder, managed image placeholder, `aspectRatio`, and `replyType=json`.
+- Added a fixture response parser for GrsAI image status/result shape. It returns only id/status/result count/progress/sanitized error and never returns provider result URLs.
+- Stored/public catalog and C1 submit resolver remain mock-only. Even if a GrsAI fixture binding is enabled and canary-matched, it is hidden from `/creative/api/models` and rejected by the image task submit resolver.
+- Duomi remains intentionally blocked pending captured local fixtures for submit/poll/result/error semantics.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w service/creative_model_capability.go service/creative_model_capability_test.go
+
+go test -count=1 ./service -run 'TestParseCreativeModelBindingsConfig|TestBuildCreativeModelBindingsDryRun|TestParseCreativeGrsAIImageFixtureResponse|TestStoredCreativeModelBindingsCatalog|TestResolveCreativeImageModelBinding|TestValidateCreativeModelBindingsConfig'
+
+go test -count=1 ./controller -run 'TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite|TestCreativeForbiddenNormalizerMatrix'
+
+go test -count=1 ./service -run 'TestCreativeForbiddenKey|TestParseCreativeModelBindingsConfig|TestCreativeModelBindingsRejectFakeSecretCorpus|TestNormalizeCreativeModelBindingsConfig|TestValidateCreativeParameterSchema|TestValidateCreativeUserParamsForSchema|TestResolveCreativeImageModelBinding|TestStoredCreativeModelBindingsCatalog|TestCreativePreview|TestValidateCreativeModelBindingsConfig|TestBuildCreativeModelBindingsDryRun|TestParseCreativeGrsAIImageFixtureResponse'
+
+go test -count=1 ./controller ./service
+```
+
+Result: PASS.
+
+Full release/no-provider gate before this GrsAI fixture-only slice:
+
+```bash
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py check --source-diff-check --run-new-api-tests
+```
+
+Result after this fixture-only slice: PASS (`[done] no-secrets Creative release gate completed`).
