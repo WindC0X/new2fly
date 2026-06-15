@@ -326,7 +326,7 @@ POST /api/creative/model-bindings/dry-run -> validate -> redacted mock/fixture p
 
 - Good: browser submits `model=mock:gpt-image-2:preview`, typed `userParams`, same-origin nonce, and `Idempotency-Key`; backend creates a local `creative_image` mock task and returns a private DTO with `/content` URL only.
 - Base: replay of the same idempotency key and payload returns the same task id without a second local mock acceptance.
-- Bad: image task route enters `Distribute()` and reads a channel key; public DTO includes `channel_id`, `quota`, `mock://...token=secret`, or `PrivateData`; sync `/images/generations` accepts a managed binding and streams raw provider URLs to the browser.
+- Bad: image task route enters `Distribute()` and reads a channel key; public DTO includes `channel_id`, `quota`, `<private mock URL with signed-query marker>`, or `PrivateData`; sync `/images/generations` accepts a managed binding and streams raw provider URLs to the browser.
 
 ### 6. Tests Required
 

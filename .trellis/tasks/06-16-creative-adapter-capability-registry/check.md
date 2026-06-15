@@ -331,7 +331,7 @@ Implemented in new-api working tree after commit `69853ed`:
   - `GET /creative/relay/v1/images/tasks/:task_id`
   - `GET /creative/relay/v1/images/tasks/:task_id/content`
 - Added `ResolveCreativeImageModelBindingForGroup()` for mock-only image bindings. It fail-closes unless `creative.adapter.enabled=true`, the binding exists and is enabled, modality is `image`, preset/template are `mock_image_task`/`mock_gpt_image`, the user group matches the binding canary list, and typed `userParams` pass schema validation.
-- Added route-specific image task DTO and content proxy contract. The internal mock result URL (`mock://...?...token=secret`) stays in private task data and the public DTO returns only `/creative/relay/v1/images/tasks/:task_id/content`.
+- Added route-specific image task DTO and content proxy contract. The internal mock result URL (`<private mock URL with signed-query marker>`) stays in private task data and the public DTO returns only `/creative/relay/v1/images/tasks/:task_id/content`.
 - Added a sync image route gate so managed image binding IDs are rejected before `CreativeRelaySessionBroker()` / `Distribute()` / provider relay.
 - Added tests for submit/fetch/replay privacy, route boundary failures, sync-route rejection, owner/platform-scoped fetch, API-token-only handler rejection, accepted+insert-failure idempotency guard retention, typed `userParams`, hidden/forbidden field rejection, and mock/group-scoped binding resolution.
 
@@ -498,3 +498,37 @@ git diff --check
 ```
 
 Result: PASS. Targeted controller tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+## Phase C1 fake-secret public surface verification
+
+Implemented after `9c1f24d`:
+
+- Added `TestCreativeImageTaskPublicSurfacesDoNotLeakFakeSecretCorpus`, which stores fake-secret corpus material in private task fields (`UpstreamTaskID`, selected key, private result URL, fail reason, and billing context) and proves image task fetch/content responses do not expose it.
+- Cleaned current task/spec documentation to use placeholder descriptions for private mock URL / signed-query markers instead of embedding fake-secret literal values in Trellis artifacts.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w controller/creative_test.go
+
+go test -count=1 ./controller -run 'TestCreativeImageTask|TestCreativeImageSyncRoute|TestCreativeListModels'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. Targeted controller tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+Artifact check run from `/mnt/f/code/project/new2fly`:
+
+```bash
+# Run with the fake-secret corpus patterns kept outside Trellis artifacts.
+rg -n '<fake-secret-corpus-patterns>' \
+  .trellis/tasks/06-16-creative-adapter-capability-registry \
+  .trellis/spec/backend/creative-backend-security-boundary.md
+```
+
+Result after cleanup: no matches in current task/spec artifacts.
