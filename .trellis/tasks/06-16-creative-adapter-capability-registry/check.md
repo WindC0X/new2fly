@@ -369,3 +369,26 @@ Manual targeted review after workflow failure:
 - Idempotency uses scoped `CreativeVideoIdempotency` with `scope=image.task.submit`; replay with same hash returns the existing task, conflicting hash returns 409, and accepted+insert failure keeps the guard instead of deleting it.
 - Public DTO/fetch/content are owner-scoped and platform-scoped, and do not serialize generic task internals (`user_id`, `channel_id`/`channelId`, `quota`, `private_data`) or internal mock URL/signed-query material.
 - This slice remains intentionally partial for real billing/outbox/CAS/refund, real provider/channel selection, full query/form/multipart forbidden matrix, full fake-secret logs/metrics/build corpus, and a stronger AST/panic no-provider-host gate.
+
+## Phase C1 route-boundary / no-provider hardening verification
+
+Additional hardening added after `1fbfcde`:
+
+- `TestCreativeImageTaskRejectsBoundaryAliasesBeforeMockInsert` now covers no-session, bad nonce, forbidden header, forbidden query, forbidden multipart form field, and forbidden multipart file-part name for `/creative/relay/v1/images/tasks`; forbidden alias cases assert `creativeImageTaskInsert` is never reached.
+- `TestCreativeImageTaskSourceHasNoProviderTransportReferences` acts as a source gate for the C1 controller and rejects broker/distribute/provider transport/channel key/baseURL references.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w controller/creative_test.go
+
+go test -count=1 ./controller -run 'TestCreativeImageTask|TestCreativeImageSyncRoute|TestCreativeRelaySessionBroker|TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. Targeted controller tests, full controller+service tests, full Go build, and whitespace check exited 0.
