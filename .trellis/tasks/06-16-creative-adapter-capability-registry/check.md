@@ -532,3 +532,26 @@ rg -n '<fake-secret-corpus-patterns>' \
 ```
 
 Result after cleanup: no matches in current task/spec artifacts.
+
+## Phase C1 final verification sweep
+
+Final verification commands run after all C1 mock image task slices were committed.
+
+From `/mnt/f/code/project/new-api`:
+
+```bash
+go test -count=1 ./controller -run 'TestCreativeImageTask|TestCreativeImageSyncRoute|TestCreativeListModels|TestCreativeModelBindings|TestUpdateOptionRejectsCreativeModelBindingsGenericWrite'
+go test -count=1 ./service -run 'TestCreativeForbiddenKey|TestParseCreativeModelBindingsConfig|TestCreativeModelBindingsRejectFakeSecretCorpus|TestNormalizeCreativeModelBindingsConfig|TestValidateCreativeParameterSchema|TestValidateCreativeUserParamsForSchema|TestResolveCreativeImageModelBinding|TestStoredCreativeModelBindingsCatalog|TestCreativePreview|TestValidateCreativeModelBindingsConfig|TestBuildCreativeModelBindingsDryRun'
+go test -count=1 ./controller ./service
+go build ./...
+git diff --check
+```
+
+From `/mnt/f/code/project/new2fly`:
+
+```bash
+# fake-secret corpus grep executed with concrete patterns kept outside this artifact
+git diff --check
+```
+
+Result: PASS. Targeted controller/service tests, full controller+service tests, full Go build, new-api whitespace check, current-task/spec fake-secret artifact grep, and new2fly whitespace check all exited 0.
