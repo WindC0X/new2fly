@@ -907,3 +907,37 @@ Pushed OpenTU and new-api embedded Creative branches through host Git, verified 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: Creative embedded production deploy prep
+
+**Date**: 2026-06-15
+**Task**: Creative embedded production deploy prep
+**Branch**: `master`
+
+### Summary
+
+Added the VPS-A production deployment runbook for embedded Creative, placeholder-only production env checklist, route/header checker, authenticated cloud-sync smoke helper, data-preservation rehearsal/rollback guidance, dynamic workflow verification notes, and updated the embedded release artifact spec. No production deployment was executed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f94e86b` | (see git log) |
+| `f1cd71e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
