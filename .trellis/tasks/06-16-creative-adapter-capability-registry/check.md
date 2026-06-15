@@ -475,3 +475,26 @@ git diff --check
 ```
 
 Result: PASS. Targeted controller tests, full controller+service tests, full Go build, and whitespace check exited 0.
+
+## Phase C1 task fetch platform-scope verification
+
+Implemented after `b96735e`:
+
+- Extended image task fetch tests to cover same-user wrong-platform tasks and same-user unmanaged `creative_image` tasks. Both return not-found through `/creative/relay/v1/images/tasks/:task_id`.
+- C1 mock route is terminal/local and has no polling or selected-key fallback path; provider-backed poller/CAS/key-affinity tests remain with existing video/Suno/MJ contracts and future C2+ provider work.
+
+Verification commands run from `/mnt/f/code/project/new-api`:
+
+```bash
+gofmt -w controller/creative_test.go
+
+go test -count=1 ./controller -run 'TestCreativeImageTask|TestCreativeImageSyncRoute'
+
+go test -count=1 ./controller ./service
+
+go build ./...
+
+git diff --check
+```
+
+Result: PASS. Targeted controller tests, full controller+service tests, full Go build, and whitespace check exited 0.
