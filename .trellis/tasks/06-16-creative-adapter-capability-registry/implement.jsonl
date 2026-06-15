@@ -1,0 +1,15 @@
+{"file":"/mnt/f/code/project/new-api/controller/creative.go","reason":"Creative bootstrap, relay guards, model catalog and admin endpoints."}
+{"file":"/mnt/f/code/project/new-api/middleware/creative.go","reason":"Creative session broker, nonce/origin checks, resolver insertion point."}
+{"file":"/mnt/f/code/project/new-api/controller/relay.go","reason":"Task submit idempotency, billing settle, refund and channel selection path."}
+{"file":"/mnt/f/code/project/new-api/relay/image_handler.go","reason":"Current sync image response path and URL privacy interception risk."}
+{"file":"/mnt/f/code/project/new-api/relay/relay_task.go","reason":"Task fetch DTO builders and async task response behavior."}
+{"file":"/mnt/f/code/project/new-api/model/task.go","reason":"Task metadata storage fields and private/public data boundaries."}
+{"file":"/mnt/f/code/project/new-api/service/task_polling.go","reason":"Selected key affinity and background polling behavior."}
+{"file":"/mnt/f/code/project/new-api/dto/pricing.go","reason":"Creative model catalog DTO."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts","reason":"Runtime Creative model ingestion, selectionKey and catalog normalization."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/constants/model-config.ts","reason":"ModelConfig, ParamConfig and getCompatibleParams."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/AIInputBar.tsx","reason":"Parameter UI state and submit payload construction."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/ParametersDropdown.tsx","reason":"Parameter rendering and value typing."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/workflow-converter.ts","reason":"Image generation args and params propagation."}
+{"file":"/mnt/f/code/project/opentu/packages/drawnix/src/services/generation-api-service.ts","reason":"Adapter request params and internal callback mixing."}
+{"file":".trellis/workspace/WindC0X/creative-adapter-capability-v2-audit-report-2026-06-15.md","reason":"v2 codex-flow audit blockers that v3 must address."}

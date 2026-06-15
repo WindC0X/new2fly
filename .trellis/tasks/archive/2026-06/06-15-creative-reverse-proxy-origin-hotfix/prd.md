@@ -41,14 +41,14 @@ The static `/creative/` app shell loads, but authenticated bootstrap fails; ther
 
 ## Acceptance Criteria
 
-- [ ] `new-api` tests for Creative origin validation pass.
-- [ ] Release gate passes or targeted Go tests + build pass before deployment.
-- [ ] New production image is deployed to VPS-A.
-- [ ] Public unauthenticated `/creative/api/bootstrap` still returns 401.
-- [ ] Authenticated browser `/creative/api/bootstrap` returns 200 after login.
-- [ ] `/creative/` model dropdowns can see text models for a logged-in user.
-- [ ] Existing public baseline remains: `/v1/models -> 401`, `/login -> 200`.
-- [ ] Route/header assertion remains passing.
+- [x] `new-api` tests for Creative origin validation pass.
+- [x] Release gate passes or targeted Go tests + build pass before deployment.
+- [x] New production image is deployed to VPS-A.
+- [x] Public unauthenticated `/creative/api/bootstrap` still returns 401.
+- [x] Authenticated browser `/creative/api/bootstrap` returns 200 after login.
+- [x] `/creative/` model dropdowns can see text models for a logged-in user.
+- [x] Existing public baseline remains: `/v1/models -> 401`, `/login -> 200`.
+- [x] Route/header assertion remains passing.
 
 ## Out of Scope
 

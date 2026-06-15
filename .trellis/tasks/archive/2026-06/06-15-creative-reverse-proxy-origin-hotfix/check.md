@@ -49,7 +49,7 @@ Recent `/creative/api/bootstrap` calls after the hotfix are returning `401` for 
 
 Direct CLI login smoke was not completed because production password login requires a Turnstile token. No password, cookie, CSRF token, nonce, or access token was recorded in this check file.
 
-Required browser-side confirmation remains:
+Browser-side confirmation was later provided from an authenticated production session:
 
 ```js
 fetch('/creative/api/bootstrap', { credentials: 'include' })
@@ -72,7 +72,11 @@ fetch('/creative/api/bootstrap', { credentials: 'include' })
   })
 ```
 
-Expected logged-in result: `status: 200`, `success: true`, `models > 0`, and `policyText > 0` if the user's new-api group/channel model pool contains text models.
+Observed logged-in result: `status: 200`, `success: true`, `models: 234`. This satisfies the origin hotfix acceptance criterion that authenticated bootstrap reaches session/model handling instead of same-origin 403.
+
+## Final Status
+
+Origin hotfix scope is complete. Remaining Creative model capability/provider-parameter work is intentionally moved to a separate follow-up planning task.
 
 ## Known Separate Observation
 

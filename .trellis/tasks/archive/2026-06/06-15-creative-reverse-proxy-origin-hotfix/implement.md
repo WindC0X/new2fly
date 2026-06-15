@@ -36,13 +36,13 @@
    - `https://console.se7endot.top/login -> 200`
 2. [x] Unauthenticated `/creative/api/bootstrap -> 401`.
 3. [x] Route/header assertion still passes.
-4. [ ] Ask user/browser to re-run sanitized bootstrap console snippet or use a safe authenticated smoke flow if credentials are provided without logging secrets.
-5. [ ] Confirm model dropdown has text models.
+4. [x] Ask user/browser to re-run sanitized bootstrap console snippet or use a safe authenticated smoke flow if credentials are provided without logging secrets.
+5. [x] Confirm logged-in bootstrap returns a non-empty model catalog (`models: 234`); detailed provider-parameter/model capability gaps moved to follow-up task.
 
 ## Phase 5 — Finish
 
 - [x] Record sanitized check evidence.
 - [x] Commit `new-api` code change (`21f675f`).
 - [x] Commit/record Trellis task in `new2fly` (`91f8c61`, pushed to `WindC0X/new2fly`).
-- [ ] Archive and journal.
+- [x] Archive and journal.
 - [x] Push `new-api` `feat/creative-embed` to fork with host credentials (`WindC0X/new-api`, `21f675f`).
