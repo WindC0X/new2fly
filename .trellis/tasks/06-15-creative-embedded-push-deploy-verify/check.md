@@ -51,7 +51,13 @@ bc938728754f7acbfbe8043a717c823bcedcacf0 refs/heads/feat/creative-embed  # WindC
 bfef3101603837088f011112101038bbcde01b14 refs/heads/feat/creative-embed  # WindC0X/new-api
 ```
 
-`new2fly` final push is intentionally deferred until this task record is committed.
+`new2fly` final work-record push was completed after this task record commit:
+
+```text
+08c498f6e555e6d4feb3195809fd575c2ff3e359 refs/heads/master  # WindC0X/new2fly, work-record commit
+```
+
+Follow-up archive/journal commits may move `origin/master` again after this check record, but this verifies the task work-record commit was published.
 
 ## Local staging route/header matrix
 
