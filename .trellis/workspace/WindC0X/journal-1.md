@@ -941,3 +941,36 @@ Added the VPS-A production deployment runbook for embedded Creative, placeholder
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: Creative embedded production deploy
+
+**Date**: 2026-06-15
+**Task**: Creative embedded production deploy
+**Branch**: `master`
+
+### Summary
+
+Executed VPS-A Phase 1 deployment for embedded Creative /creative/: built and stream-loaded candidate image, backed up production compose/env/SQLite, ran DB-copy rehearsal, switched production compose to the candidate image with Creative cloud-sync disabled, verified existing baseline, route/header assertion, embedded browser smoke, live DB row-count non-decrease, and recorded sanitized evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1eafcb6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
