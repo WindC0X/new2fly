@@ -68,7 +68,7 @@
 - The embedded `index.html` must reference entry JS/CSS under `/creative/assets/...`.
 - `opentu/dist/apps/web/`, `new-api/web/creative/dist/`, and `new-api/router/web/creative/dist/` must contain the same relative files with the same bytes after sync.
 - `new-api/web/creative/dist/index.html`, `sw.js`, and `version.json` must match `new-api/router/web/creative/dist/*`.
-- `sw.js` must register and run from `/creative/sw.js` when loaded from `/creative/`; runtime metadata (`version.json`, manifests, `sw.js`) stays same-origin.
+- Embedded `/creative/` must serve `/creative/sw.js` same-origin for explicit diagnostics and opt-in testing, but the embedded app shell must default service-worker registration **off**. Only `?sw=1` may opt into early/main service-worker registration; `?sw=0` and the default embedded path must unregister any existing registration for the current scope and avoid reload loops. Runtime metadata (`version.json`, manifests, `sw.js`) stays same-origin.
 - Generated artifact files may contain build-tool whitespace or sourcemaps; release gates must either accept generated-artifact policy exceptions or enforce normalization at the Opentu build-output source, not by manually editing only `new-api` copies.
 - Embedded final-artifact postprocess is part of the Opentu artifact source contract. It must run after `build-sw` and normalize final metadata files such as `sw.js` and `changelog.json`, remove stale `sw.js.map` when embedded policy forbids maps, and keep the source dist ready to sync byte-for-byte into both `new-api` targets.
 - Static standalone marker scans must include final generated metadata, not just `index.html`/manifest/chunks. At minimum scan `changelog.json` and `sw.js` for standalone OpenTU/Tuzi/GitHub/API-key markers because they are easy to miss in visual smoke tests but still ship to browsers.
@@ -97,6 +97,9 @@
 - `pnpm e2e:smoke` cold-start fails before app readiness but prewarmed/long-wait runtime succeeds -> classify as E2E harness/readiness risk, not as proof of runtime failure.
 - `sw.js.map` or other generated maps are emitted -> decide by production sourcemap policy; if forbidden, disable/strip at the Opentu artifact source and keep all embedded copies identical.
 - `build-app` postprocess passes but `build-sw` later writes a new `sw.js` with standalone package/CDN markers -> fail; move or repeat postprocess after `build-sw` and add `sw.js` to the release-gate marker scan.
+- Embedded app shell waits forever at the 82% boot-shell progress ceiling because `cdn-config.js` or a startup static request neither loads nor errors -> fail; the managed boot script gate must have a bounded timeout that proceeds to local bootstrap, and service-worker static fetch helpers must use bounded fetch/abort behavior.
+- A built chunk references `./__vite-browser-external-*.js` but the referenced file is absent from `dist/apps/web/assets` or either `new-api` embedded dist target -> fail; the embedded postprocess must create a browser-safe shim or the build must otherwise eliminate the reference.
+- A production hotfix requires serving a stale Vite entry requested by already-controlled clients (for example `index-CeAw2BfZ.js`) -> add the alias in the OpenTU final artifact postprocess, then rebuild and sync both `new-api` dist targets; do not manually patch only production or only one target.
 - `changelog.json` still contains standalone OpenTU release notes or API-key/feedback copy -> fail; rewrite it at the Opentu source dist during embedded postprocess and scan it before syncing/packaging.
 - RC verification relies only on local remote-tracking refs -> warn; use `git ls-remote` to prove the pushed branch still points at the verified commit.
 - Temporary embedded smoke server started with the ambient shell environment -> warn/fail no-secrets hygiene; rerun with `env -i` and a temporary SQLite DB before claiming no-secrets verification.
@@ -129,6 +132,9 @@
 
 - Opentu build check: assert rebuilt `dist/apps/web/index.html` contains `/creative/assets/` entry JS/CSS and no `./assets/` entry refs for embedded releases.
 - Final metadata check: assert `dist/apps/web/changelog.json` and `dist/apps/web/sw.js` contain no standalone OpenTU/Tuzi/GitHub/API-key markers and no stale `sw.js.map` remains when the embedded policy strips maps.
+- Startup guard: assert embedded source contains a bounded managed-script timeout, defaults `/creative/` service-worker registration off unless `?sw=1`, and unregisters stale registrations without an infinite reload loop.
+- Generated browser-external guard: assert every `dist/apps/web/assets/*.js` reference to `./__vite-browser-external-*.js` has a corresponding file before syncing to `new-api`.
+- Legacy-entry compatibility guard: when production logs show a stale hashed entry 404, assert the compatibility alias exists in `opentu/dist/apps/web/assets` and both `new-api` dist targets before building a Docker image.
 - Cross-repo artifact check: assert source and both `new-api` target dist trees have identical relative path lists and hashes.
 - `new-api` tests: run root Creative dist contract test and router static/API boundary tests after syncing artifacts.
 - Browser smoke: run official smoke with a documented readiness strategy; cold readiness must use the shared Drawnix readiness wait instead of duplicated hardcoded 10s waits. Embedded browser smoke runs with `CREATIVE_EMBEDDED_BASE_URL=http://localhost:<port>/creative/ pnpm e2e:creative-embedded` or through the release gate script's `--embedded-smoke-url`.
