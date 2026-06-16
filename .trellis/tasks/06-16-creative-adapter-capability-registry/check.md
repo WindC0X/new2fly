@@ -1202,3 +1202,142 @@ remote disk after deploy: ~7.1G available
 ```
 
 Result: PASS.
+
+## Final goal-attainment audit follow-up fixes
+
+Date: 2026-06-17
+
+Reason:
+
+- A dynamic final audit was run with the intended goal "do not depend on previous reports; audit whether the current project achieves the development goal and whether material issues remain".
+- The first workflow completed 3/4 branches; the broad frontend branch timed out. A focused frontend supplement found one real frontend safety-copy issue.
+- This exposed that the previous "final audit" was too narrowly Creative-focused and lacked a whole-console route smoke matrix. A production route matrix smoke was added after the user reported `/channels` showing a 500 in their browser.
+
+Dynamic workflow runs:
+
+```text
+codex-flow run .codex-flow/generated/creative-goal-attainment-final-audit-20260617.workflow.ts
+journal: .codex-flow/journal/creative-goal-attainment-final-audit-20260617.jsonl
+result: 3/4 branches completed, frontend branch timed out
+verdict: pass_with_risks
+
+codex-flow run .codex-flow/generated/creative-frontend-final-audit-supplement-20260617.workflow.ts
+journal: .codex-flow/journal/creative-frontend-final-audit-supplement-20260617.jsonl
+result: 0/2 branches completed, both timed out
+
+codex-flow run .codex-flow/generated/creative-frontend-final-audit-focused-20260617.workflow.ts
+journal: .codex-flow/journal/creative-frontend-final-audit-focused-20260617.jsonl
+result: 1/2 branches completed
+verdict: pass_with_risks
+```
+
+Material findings selected for immediate fix:
+
+- Frontend dry-run `success=true` but `noProviderCall=false` still displayed the success copy "without provider calls". Save remained disabled, but the safety feedback was wrong.
+- `GET /api/creative/model-bindings` business failure / missing data could render a blank page instead of an actionable error/retry state.
+- Backend `PUT /api/creative/model-bindings` validated but did not internally require dry-run `noProviderCall=true`, so a custom client could bypass the UI's validate+dry-run gate.
+- Admin Creative API responses did not consistently set `private, no-store` outside `/creative/api` and `/creative/relay`.
+- Sensitive `canaryGroups` validation errors could echo the raw group value.
+- Dry-run preview did not expose locked channel / final provider model mapping diagnostics for admin review.
+
+Implemented in new-api commit:
+
+```text
+a9a2cec fix(creative): harden model bindings admin gate
+```
+
+Files changed:
+
+```text
+controller/creative_model_bindings.go
+controller/creative_model_bindings_test.go
+router/api-router.go
+service/creative_model_capability.go
+service/creative_model_capability_test.go
+web/default/src/features/system-settings/models/creative-model-bindings-section.tsx
+web/default/src/features/system-settings/types.ts
+```
+
+Fix summary:
+
+- Frontend now treats `noProviderCall=false` as an error/warning and keeps save disabled.
+- Frontend now renders a destructive load error with Retry when model-bindings response is `success=false` or has no `data`.
+- `/api/creative/*` admin routes now use no-store cache middleware; model-bindings controllers also set `Cache-Control: private, no-store` and `Pragma: no-cache`.
+- `PUT /api/creative/model-bindings` now builds the dry-run preview and requires `noProviderCall=true` before persisting.
+- `canaryGroups` sensitive/forbidden validation errors now reference `canaryGroups[index]` without echoing the raw value.
+- Dry-run preview now includes safe diagnostics for `lockedChannelId`, `finalProviderModelId`, and `channelModelId` when a locked channel/model mapping is involved.
+
+Verification before commit:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./service ./controller ./router
+
+cd /mnt/f/code/project/new-api/web/default
+pnpm exec eslint src/features/system-settings/models/creative-model-bindings-section.tsx src/features/system-settings/types.ts
+pnpm typecheck
+pnpm build:check
+```
+
+Result: PASS.
+
+Trellis check sub-agent:
+
+- Reviewed the final-audit fix diff.
+- Re-ran targeted eslint, `git diff --check`, `pnpm typecheck`, and `go test -count=1 ./service ./controller ./router`.
+- Result: PASS; no remaining findings.
+
+## Production `/channels` report investigation and route-matrix smoke
+
+Date: 2026-06-17
+
+User report:
+
+- User screenshot showed `https://console.se7endot.top/channels` rendering the generic `500` error page.
+
+Investigation result:
+
+- This was **not** covered by the previous Creative-focused production smoke or final audit.
+- Local temporary SQLite smoke against `/channels` passed.
+- Read-only production DB inspection showed 5 channels and no server panic/fatal around `/api/channel`.
+- A production temporary root smoke user accessed `/channels` successfully with real Chromium and the production channel data; no browser `pageerror`, no console error, and `/api/channel/?tag_mode=false&id_sort=false&p=1&page_size=20` returned 200.
+- The stored `.admin_user` / `.admin_pass` files on VPS-A did not successfully authenticate, so real-admin repro via those files was not usable.
+
+Temporary production smoke cleanup:
+
+```text
+TurnstileCheckEnabled=true
+smoke_users=0
+container=new-api-creative-embed:ac65d7f-creative-bindings-ui running restart=0
+```
+
+Production route-matrix smoke added after the report:
+
+- Used a temporary root smoke user with random password.
+- Temporarily disabled Turnstile, then restored it and deleted the smoke user.
+- Real Chromium visited the core authenticated routes.
+
+Routes checked:
+
+```text
+/dashboard -> OK, redirected/rendered /dashboard/overview
+/channels -> OK
+/models -> OK, redirected/rendered /models/metadata
+/users -> OK
+/system-settings -> OK, redirected/rendered /system-settings/site/system-info
+/system-settings/models/creative-model-bindings -> OK
+/creative/ -> OK
+```
+
+Final cleanup after route-matrix smoke:
+
+```text
+TurnstileCheckEnabled=true
+smoke_users=0
+container=new-api-creative-embed:ac65d7f-creative-bindings-ui running restart=0
+```
+
+Conclusion:
+
+- The reported `/channels` 500 was not reproduced with a fresh production root browser session and appears likely tied to the reporter's current browser/session/localStorage/cache state rather than a globally failing route.
+- The audit process gap is real: final audit must include both goal-attainment review and a whole-console route smoke matrix, not only the Creative target surfaces.
