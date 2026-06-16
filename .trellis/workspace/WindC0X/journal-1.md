@@ -974,3 +974,7 @@ Executed VPS-A Phase 1 deployment for embedded Creative /creative/: built and st
 ### Next Steps
 
 - None - task complete
+
+### 2026-06-16 — Creative adapter final audit closure
+
+Closed retry3/retry4 dynamic final audit findings for Creative adapter capability registry. Fixed OpenTU managed image reference-image fail-fast, exact task-bound content URL fallback, empty `userParams:{}` legacy-adapter misclassification, and new-api locked-channel direct model_mapping rewrite validation. Reran targeted OpenTU Vitest, OpenTU typecheck, new-api controller/service tests, and full `creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests`; all passed. Dynamic closure workflows for frontend empty-userParams and backend model_mapping returned `pass_with_notes` with no Critical/High.

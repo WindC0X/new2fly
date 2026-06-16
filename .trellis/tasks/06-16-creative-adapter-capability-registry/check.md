@@ -678,3 +678,55 @@ python3 scripts/creative_release_gate.py check --source-diff-check --run-new-api
 ```
 
 Result after this fixture-only slice: PASS (`[done] no-secrets Creative release gate completed`).
+
+## Final goal-attainment audit closure — managed image task / channel mapping / empty userParams
+
+Implemented after the retry3/retry4 dynamic final audit findings:
+
+- OpenTU schema-backed managed image task route now fails fast before submit when `referenceImages` are present, matching the C1 backend policy that reference images are unsupported instead of silently dropping them.
+- OpenTU managed image task content download now accepts only the exact same-origin content route for the current remote task id; any DTO-provided mismatched content URL falls back to `/creative/relay/v1/images/tasks/{taskId}/content`.
+- OpenTU introduced `hasCreativeUserParams()` so an explicit empty `userParams: {}` no longer causes ordinary legacy image adapters to be treated as schema-backed, while runtime schema-backed models with empty params still route through the managed task path.
+- new-api locked channel validation now rejects direct `model_mapping` rewrites such as `{"gpt-image-2":"other-upstream-model"}` when the binding claims `providerModelId=gpt-image-2`; identity mapping and logical-model-to-provider mapping remain allowed.
+- new-api creative model capability code uses `common.Unmarshal` rather than direct `encoding/json.Unmarshal` calls for new business-code unmarshal paths.
+
+Dynamic workflow audits used during closure:
+
+```bash
+codex-flow run .codex-flow/generated/creative-goal-attainment-final-audit-2026-06-16-retry3.workflow.ts
+codex-flow run .codex-flow/generated/creative-goal-attainment-final-audit-2026-06-16-retry4-focused.workflow.ts
+codex-flow run .codex-flow/generated/creative-frontend-closure-retry6.workflow.ts
+codex-flow run .codex-flow/generated/creative-backend-closure-retry6.workflow.ts
+```
+
+Results:
+
+- `retry3` integration branch returned `pass_with_notes`; backend/frontend/security timed out, but the completed integration branch found no Critical/High release blocker and identified medium hardening items.
+- `retry4-focused` found two true Highs: direct `model_mapping` rewrite and ordinary adapter empty `userParams` misclassification. Both were fixed.
+- `creative-frontend-closure-retry6` returned `pass_with_notes`: no Critical/High, empty `userParams:{}` no longer breaks ordinary legacy image adapters, and runtime schema-backed empty params still route through managed tasks.
+- `creative-backend-closure-retry6` returned `pass_with_notes`: no Critical/High, direct `model_mapping` rewrite is rejected and covered by tests.
+
+Verification commands run:
+
+```bash
+cd /mnt/f/code/project/opentu
+pnpm vitest run \
+  packages/drawnix/src/services/__tests__/image-generation-service.test.ts \
+  packages/drawnix/src/services/__tests__/generation-api-service.creative-embedded.test.ts \
+  packages/drawnix/src/services/__tests__/task-queue-service-image-retry.test.ts \
+  packages/drawnix/src/services/__tests__/media-executor.test.ts
+pnpm typecheck
+
+cd /mnt/f/code/project/new-api
+go test -count=1 ./controller ./service
+
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests
+```
+
+Results: PASS.
+
+Notes:
+
+- The OpenTU Vitest run has existing non-blocking noise (`.npmrc ${NPM_TOKEN}` warnings, localStorage crypto warnings, sourcemap warning), but all test files passed.
+- The build/release gate has existing Sass/Browserslist/Vite chunk-size warnings, but build, dist sync, no-sourcemap policy, source diff checks, new-api tests, and `go build ./...` all passed.
+- No real Duomi/GrsAI/provider calls were made; C1 remains mock-first and fixture/dry-run only.
