@@ -924,3 +924,77 @@ Final public/local checks after restore:
 Reviewer note:
 
 - A read-only `trellis-check` sub-agent confirmed the smoke plan: `TurnstileCheckEnabled=false` is the correct temporary key; `SESSION_SECRET` rotation invalidates dashboard sessions but not API access tokens; GET bootstrap/policy/bindings are no-provider; validate/dry-run are local no-provider admin checks; relay generation endpoints were intentionally not called.
+
+## Phase B/C admin UI — Creative model bindings management page
+
+Implemented in new-api working tree:
+
+- Added TypeScript DTOs for `CreativeParameterSchemaItem`, `CreativeModelBindingsConfig`, admin state, validate response, and dry-run response in `web/default/src/features/system-settings/types.ts`.
+- Added dedicated API client functions in `web/default/src/features/system-settings/api.ts`:
+  - `GET /api/creative/model-bindings`
+  - `POST /api/creative/model-bindings/validate`
+  - `POST /api/creative/model-bindings/dry-run`
+  - `PUT /api/creative/model-bindings`
+- Validate/dry-run/PUT all reuse the existing Creative nonce bootstrap helper and send `X-Creative-CSRF` / `X-Creative-Nonce`.
+- Added `web/default/src/features/system-settings/models/creative-model-bindings-section.tsx` as a root-only System Settings -> Models & Routing section.
+- Registered the section as `/system-settings/models/creative-model-bindings` through the existing model section registry.
+- UI is JSON-first and mock-first:
+  - no `/api/option` write path;
+  - Duomi live adapters are explicitly unavailable;
+  - GrsAI template is disabled and dry-run/fixture-only;
+  - dry-run preview displays `noProviderCall` and redacted request preview;
+  - Save is disabled unless the current exact editor draft has both validate success and dry-run `noProviderCall=true`.
+- Fixed review-found async race: validate/dry-run mutation variables now carry the submitted draft; late responses for stale drafts are ignored and cannot mark a changed editor as save-ready.
+
+Verification after final async-race fix:
+
+```bash
+cd /mnt/f/code/project/new-api/web/default
+pnpm exec eslint \
+  src/features/system-settings/api.ts \
+  src/features/system-settings/types.ts \
+  src/features/system-settings/models/section-registry.tsx \
+  src/features/system-settings/models/creative-model-bindings-section.tsx
+pnpm typecheck
+pnpm build:check
+```
+
+Result: PASS. Full `pnpm lint` was also attempted earlier and failed on 99 existing React lint errors outside this change set, so targeted lint was used for the modified files.
+
+Backend contract smoke:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test ./controller ./service -run 'CreativeModelBindings|UpdateOptionRejectsCreativeModelBindingsGenericWrite'
+```
+
+Result: PASS.
+
+Trellis check sub-agent result:
+
+- Found one Medium issue: UI copy required validate/dry-run before save, but initial Save path only called PUT. The check agent patched the UI to require same-draft validate + dry-run `noProviderCall=true` before save.
+- No remaining High/Low findings from that check after the patch.
+
+Dynamic workflow final review:
+
+1. `codex-flow run .codex-flow/generated/creative-bindings-ui-final-audit.workflow.ts`
+   - Result: found the same stale pre-fix save-gate issue; one branch timed out. Superseded by later fixes.
+2. `codex-flow run .codex-flow/generated/creative-bindings-ui-final-audit-v2.workflow.ts`
+   - Result: found a real High async race: pending validate/dry-run responses could mark a changed draft as save-ready. Also raised a `channelId` concern.
+   - Resolution: async race fixed. `channelId` was classified as non-blocking because current v3 design explicitly allows root-admin backend-owned locked channel config; it remains forbidden to OpenTU/userParams and is backend-validated.
+3. `codex-flow run .codex-flow/generated/creative-bindings-ui-final-audit-v3.workflow.ts`
+   - Result: both branches timed out; no conclusion used.
+4. `codex-flow run .codex-flow/generated/creative-bindings-ui-final-audit-v4.workflow.ts`
+   - Result: failed because the selected model override was not supported by the runtime; no conclusion used.
+5. `codex-flow run .codex-flow/generated/creative-bindings-ui-final-audit-v5.workflow.ts`
+   - Result: PASS in two focused read-only branches.
+   - Branch A confirmed validate/dry-run results bind to the submitted draft and stale responses are ignored; Save requires current draft validate + dry-run `noProviderCall=true`.
+   - Branch B confirmed dedicated `/api/creative/model-bindings*` endpoints, nonce on unsafe requests, no `/api/option` write use from the section, and no real Duomi/GrsAI calls or credential/baseURL/header/callback fields in templates.
+
+Spec update:
+
+- Updated `.trellis/spec/backend/creative-backend-security-boundary.md` to capture the admin UI same-draft validate+dry-run save gate, stale async result handling, and required future UI test assertions.
+
+Remaining release risk:
+
+- `web/default` currently has little/no system-settings UI test harness and no package test script for this section. The contract is recorded in spec; future work should add component/API tests for the same-draft gate if a suitable frontend test harness is introduced.

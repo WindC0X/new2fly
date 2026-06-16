@@ -216,6 +216,7 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 - The same forbidden-key normalizer must be used for binding IDs, parameter schema IDs, hidden/admin fields, relay body/query/form/multipart checks, and dry-run previews as those paths are wired.
 - The parser/validator must not contact provider endpoints; dry-run and fixture phases remain no-provider-call.
 - Dedicated admin binding endpoints require root dashboard session. API-token-only access is rejected by the handler, and unsafe methods (`PUT`, `POST validate`, `POST dry-run`) must also pass same-origin + Creative CSRF/nonce middleware.
+- Admin UI saves for `creative.model_bindings` must be gated by both `POST /api/creative/model-bindings/validate` and `POST /api/creative/model-bindings/dry-run` for the same exact editor draft, with `dryRun.noProviderCall == true`, before enabling or executing `PUT /api/creative/model-bindings`. Async validate/dry-run responses must carry the submitted draft string or hash and must be ignored if the editor has changed before the response returns.
 - Admin PUT audit logs must be sanitized: log actor and counts/status only, never raw binding JSON, provider URLs, keys, headers, signed URLs, object keys, CSRF/nonce, cookies, or raw provider response bodies.
 - Phase-B dry-run previews are diagnostic only. They may show binding/provider/price ids and sanitized request shape, but must redact dangerous keys and sensitive string values (provider URLs, signed URL markers, bearer/sk-like material, data/base64-like payloads, credentials, access-key markers, token markers) and must not read channel secrets or perform real provider calls.
 - Public `/creative/api/models` must include stored enabled mock-safe bindings only when the global adapter flag is enabled and the user's group matches `canaryGroups`. Disabled bindings, wrong-group bindings, non-image bindings, and non-mock/real-provider presets remain hidden from the browser catalog. Hidden schema fields are filtered from catalog responses and still rejected if submitted as `userParams`.
@@ -237,14 +238,18 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 - Non-root dashboard user -> denied by `RootAuth`.
 - Missing/bad Creative CSRF/nonce on unsafe admin binding endpoints -> `403` before validation/persistence/dry-run.
 - Admin dry-run preview containing `Authorization`, `baseURL`, callback/webhook/notifyHook, API-key, or signed URL material -> redacted before response/logging.
+- Admin UI editor changes after validate/dry-run has started but before the response returns -> stale response is ignored and cannot mark the new draft as save-ready.
+- Admin UI save clicked before current draft has both validate success and dry-run `noProviderCall=true` -> local error, no `PUT /api/creative/model-bindings`.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: parse disabled mock binding with `id=mock:gpt-image-2:preview`, `providerModelId=gpt-image-2`, and `priceModelId=mock-gpt-image-2-price`; no provider call occurs.
 - Good: `POST /api/creative/model-bindings/dry-run` for a mock binding returns `noProviderCall=true` and `transport=mock` without channel key/base URL material.
+- Good: admin edits the JSON, validates that exact draft, dry-runs that exact draft, sees `noProviderCall=true`, then `PUT /api/creative/model-bindings` is enabled.
 - Base: empty option during startup parses as empty v1 config.
 - Bad: administrator writes arbitrary `creative.model_bindings` JSON through `/api/option`, bypassing schema/forbidden validation and dry-run redaction.
 - Bad: dry-run contacts Duomi/GrsAI or emits raw `Authorization`, `baseURL`, signed object URL query, cookie, CSRF, nonce, or raw provider body.
+- Bad: admin validates draft A, edits the textarea to draft B while the request is pending, and draft A's late response marks draft B as save-ready.
 
 ### 6. Tests Required
 
@@ -253,6 +258,7 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 - Controller tests proving generic `/api/option` rejects `creative.model_bindings`.
 - Admin endpoint tests must reuse the same parser/normalizer and cover root/dashboard auth, API-token-only rejection, same-origin/nonce failures on unsafe methods, redaction, no-provider-call dry-run, normalized persistence, and sanitized audit assertions.
 - Catalog tests must prove stored enabled mock bindings appear for matching groups, disabled/global-off/wrong-group bindings are hidden, hidden schema fields are filtered, and duplicate built-in/stored binding IDs appear only once.
+- Admin UI type/component tests should prove the client uses dedicated `/api/creative/model-bindings*` endpoints, attaches Creative nonce headers to validate/dry-run/PUT, never writes this key through `/api/option`, disables save until the current exact draft has validate success and dry-run `noProviderCall=true`, clears the gate on edits/reload/template/format changes, and ignores stale async validate/dry-run responses for older drafts.
 
 ### 7. Wrong vs Correct
 
@@ -269,6 +275,7 @@ POST /api/creative/model-bindings/dry-run -> real provider HTTP request to prove
 PUT /api/option/ { key: "creative.model_bindings", value: "..." } -> rejected
 POST /api/creative/model-bindings/validate -> ParseCreativeModelBindingsConfig -> no provider call
 POST /api/creative/model-bindings/dry-run -> validate -> redacted mock/fixture preview, no provider call
+Admin UI save -> only after same-draft validate + dry-run(noProviderCall=true) -> PUT dedicated endpoint
 ```
 
 ## Scenario: Creative mock image task route contract
