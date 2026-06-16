@@ -1035,10 +1035,62 @@ web/default/dist/static/js/* contains Creative Model Bindings / model-bindings /
 
 Browser automation note:
 
-- Playwright, Selenium, pyppeteer, and system Chromium/Chrome were not available in this WSL environment, so a real DOM/browser click-through smoke was not run locally.
-- The local HTTP/API/static smoke still verifies the committed dashboard bundle contains the new section and that the dedicated admin API chain works with session + `New-Api-User` + Creative nonce.
+- Superseded by the 2026-06-17 Playwright browser smoke below after Chromium was installed.
 
 Operational note:
 
 - The first isolated `HOME` attempt failed because Go module downloads timed out against `proxy.golang.org`; the successful run used the existing local Go module/build cache while still using the temporary SQLite database and local-only environment.
 - An attempted `SYNC_FREQUENCY=0` value caused excessive option-sync logging; future local smoke should use the default or a large positive interval instead of `0`.
+
+## Local browser smoke — Creative model bindings admin UI
+
+Date: 2026-06-17
+
+Scope: local-only Playwright smoke for `new-api` commit `ac65d7f`. No production data, production endpoint, or real provider endpoint was used.
+
+Setup:
+
+- Started `new-api` locally on `127.0.0.1:3017` with a temporary SQLite database under `/tmp/newapi-creative-browser-smoke.*`.
+- Initialized a temporary local root account through `/api/setup`.
+- Logged in through `/api/user/login`.
+- Used a temporary Playwright runner under `/tmp/playwright-smoke-runner` so repository `package.json` / lockfiles were not changed.
+- Stopped the local process after smoke.
+
+Browser smoke assertions:
+
+```text
+GET /system-settings/models/creative-model-bindings -> real Chromium page load succeeds
+Page renders "Creative Model Bindings"
+Page renders the safety copy:
+  - "Duomi live adapters are unavailable"
+  - "GrsAI is dry-run/fixture only here"
+Page renders buttons:
+  - Format JSON
+  - Load mock template
+  - Load GrsAI dry-run template
+  - Validate
+  - Dry Run
+  - Save Bindings
+Save Bindings is disabled on initial load
+Load mock template keeps Save Bindings disabled
+Validate calls POST /api/creative/model-bindings/validate and returns valid=true
+Save Bindings remains disabled after validate alone
+Dry Run calls POST /api/creative/model-bindings/dry-run and returns noProviderCall=true
+Page renders "Dry-run preview" and "noProviderCall=true"
+Save Bindings becomes enabled only after same-draft validate + dry-run
+Save calls PUT /api/creative/model-bindings successfully
+Unsafe Creative admin requests include New-Api-User=1, X-Creative-CSRF, and X-Creative-Nonce
+No external/provider HTTP requests are observed by the browser context
+```
+
+Recorded Creative admin browser requests:
+
+```text
+GET  /api/creative/model-bindings
+POST /api/creative/model-bindings/validate
+POST /api/creative/model-bindings/dry-run
+PUT  /api/creative/model-bindings
+GET  /api/creative/model-bindings
+```
+
+Result: PASS.
