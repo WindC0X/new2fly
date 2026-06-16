@@ -1341,3 +1341,90 @@ Conclusion:
 
 - The reported `/channels` 500 was not reproduced with a fresh production root browser session and appears likely tied to the reporter's current browser/session/localStorage/cache state rather than a globally failing route.
 - The audit process gap is real: final audit must include both goal-attainment review and a whole-console route smoke matrix, not only the Creative target surfaces.
+
+## VPS-A redeploy — final-audit hardening fixes
+
+Date: 2026-06-17
+
+Reason:
+
+- Deploy `a9a2cec fix(creative): harden model bindings admin gate` after final-audit follow-up fixes.
+
+Deployment target:
+
+- Host: VPS-A `47.80.71.35`
+- App path: `/home/admin/apps/new-api`
+- Previous image: `new-api-creative-embed:ac65d7f-creative-bindings-ui`
+- Deployed image: `new-api-creative-embed:a9a2cec-final-gate`
+- Data mount preserved: `./data:/data`, existing SQLite/users/channels preserved.
+
+Backup:
+
+- Created remote backup directory: `/home/admin/apps/new-api/backups/pre-a9a2cec-final-gate-20260617-020549`
+- Contents: compose/env backups, container/image inspect JSON, online SQLite backup, checksums.
+- Disk before deploy: ~6.9G available.
+
+Build/load/deploy:
+
+```bash
+cd /mnt/f/code/project/new-api
+docker build --pull=false --progress=plain -t new-api-creative-embed:a9a2cec-final-gate .
+docker save new-api-creative-embed:a9a2cec-final-gate | gzip -1 | \
+  ssh -i ~/.ssh/id_ed25519 admin@47.80.71.35 'gunzip | docker load'
+ssh -i ~/.ssh/id_ed25519 admin@47.80.71.35 \
+  'cd /home/admin/apps/new-api && update docker-compose.yml image && docker compose up -d'
+```
+
+Result:
+
+```text
+local image id: sha256:03b8bfb7a2b91dbc4945a4c00e8a2f2bbc8a866f94802af738ccea1bdd7ea6f7
+loaded image: new-api-creative-embed:a9a2cec-final-gate
+container after deploy: new-api-creative-embed:a9a2cec-final-gate running restart=0
+```
+
+Production smoke after redeploy:
+
+- Used a temporary root smoke user with random password.
+- Temporarily disabled Turnstile for the smoke window, then restored it to `true` and deleted the smoke user.
+- Real Chromium visited both the Creative admin flow and whole-console route matrix.
+
+Creative admin assertions:
+
+```text
+/system-settings/models/creative-model-bindings page renders
+Save Bindings starts disabled
+POST /api/creative/model-bindings/validate -> success, valid=true
+validate response Cache-Control includes private, no-store; Pragma no-cache
+Save remains disabled after validate alone
+POST /api/creative/model-bindings/dry-run -> success, noProviderCall=true
+dry-run response Cache-Control includes private, no-store
+page renders noProviderCall=true
+Save becomes enabled after same-draft validate + dry-run
+GET /api/creative/model-bindings response Cache-Control includes private, no-store
+No PUT /api/creative/model-bindings was sent during production smoke
+```
+
+Whole-console route matrix:
+
+```text
+/dashboard -> OK, rendered /dashboard/overview
+/channels -> OK
+/models -> OK, rendered /models/metadata
+/users -> OK
+/system-settings -> OK, rendered /system-settings/site/system-info
+/system-settings/models/creative-model-bindings -> OK
+/creative/ -> OK
+```
+
+Final cleanup/status:
+
+```text
+container=new-api-creative-embed:a9a2cec-final-gate running restart=0
+TurnstileCheckEnabled=true
+smoke_users=0
+recent log scan: no panic/fatal/traceback/[ERR]/error lines
+remote disk after deploy: ~6.8G available
+```
+
+Result: PASS.
