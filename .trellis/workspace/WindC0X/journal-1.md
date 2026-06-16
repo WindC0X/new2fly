@@ -987,3 +987,7 @@ Closed retry3/retry4 dynamic final audit findings for Creative adapter capabilit
 - Rebuilt/synced embedded Creative dist and built the default dashboard frontend.
 - Verification passed: OpenTU targeted vitest/typecheck, new-api controller/service and service tests, dashboard typecheck/build, and full `creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests`.
 - Commits recorded: opentu `2f397c31`, new-api `de74021`.
+
+### 2026-06-16 — Creative adapter registry VPS-A deploy
+
+Deployed `new-api-creative-embed:de74021-creative-registry` to VPS-A `/home/admin/apps/new-api` after local Docker build and stream-load. Preserved existing data mounts and created pre-deploy backup `backups/pre-creative-registry-20260616-175958` with compose/env/inspect files and online SQLite backup. Production compose now points to the new image; container is running with restart count 0. Unauthenticated no-provider smoke passed for `/creative/`, `/creative/version.json`, `/creative/api/bootstrap`, `/creative/api/models`, and `/creative/relay/v1/images/tasks`; protected Creative API/relay endpoints return 401 + private/no-store when logged out; public console results match local. Authenticated smoke via raw password is blocked by production Turnstile, so use a real browser session for dashboard/model-policy checks. Operational follow-up: rotate SESSION_SECRET in a maintenance window because a synthetic-session debug attempt accidentally printed session material in the tool transcript.

@@ -785,3 +785,83 @@ Commits:
 
 - opentu `2f397c31 fix(creative): preserve managed image tasks with empty params`
 - new-api `de74021 fix(creative): close adapter registry hardening gaps`
+
+## VPS-A production deployment — creative registry candidate
+
+Date: 2026-06-16
+
+Deployment target:
+
+- Host: VPS-A `47.80.71.35`
+- App path: `/home/admin/apps/new-api`
+- Compose service/container: `new-api` / `new-api-relay`
+- Previous image: `new-api-creative-embed:bfef310-originfix`
+- Deployed image: `new-api-creative-embed:de74021-creative-registry`
+- Data mount preserved: `./data:/data`, `SQLITE_PATH=/data/new-api.db`
+
+Pre-deploy state:
+
+```bash
+cd /mnt/f/code/project/opentu && git status --short --branch
+cd /mnt/f/code/project/new-api && git status --short --branch
+cd /mnt/f/code/project/new2fly && git status --short --branch
+```
+
+Result: opentu/new-api clean on `feat/creative-embed`; new2fly clean except pre-existing `.codex/config.toml`.
+
+Read-only VPS-A preflight:
+
+```bash
+ssh -i ~/.ssh/id_ed25519 admin@47.80.71.35 'cd /home/admin/apps/new-api && docker compose ps && docker inspect new-api-relay ... && df -h ...'
+```
+
+Result: production was running `new-api-creative-embed:bfef310-originfix`, host-network port `13000`, disk had ~8.1G available before deploy.
+
+Backup:
+
+- Created remote backup directory: `/home/admin/apps/new-api/backups/pre-creative-registry-20260616-175958`
+- Contents: `docker-compose.yml`, env backup, container/image inspect JSON, online SQLite backup `new-api.db`, `SHA256SUMS.txt`
+- SQLite backup mode: online `.backup`
+
+Build/load/deploy:
+
+```bash
+cd /mnt/f/code/project/new-api
+docker build -t new-api-creative-embed:de74021-creative-registry .
+docker save new-api-creative-embed:de74021-creative-registry | gzip -1 | \
+  ssh -i ~/.ssh/id_ed25519 admin@47.80.71.35 'gunzip | docker load'
+ssh -i ~/.ssh/id_ed25519 admin@47.80.71.35 \
+  'cd /home/admin/apps/new-api && update docker-compose.yml image && docker compose up -d'
+```
+
+Result: image built locally, loaded on VPS-A, compose recreated `new-api-relay` successfully.
+
+Unauthenticated no-provider smoke:
+
+```bash
+# local on VPS-A and public console/API endpoints
+GET  /creative/
+GET  /creative/version.json
+GET  /creative/api/bootstrap
+GET  /creative/api/models
+POST /creative/relay/v1/images/tasks
+```
+
+Result:
+
+- `/creative/` returns `200`, `Cache-Control: no-cache`, no redirect.
+- `/creative/version.json` returns `200`, buildTime `2026-06-16T03:06:34.268Z`.
+- `/creative/api/bootstrap`, `/creative/api/models`, and `/creative/relay/v1/images/tasks` return `401` with `Cache-Control: private, no-store` when not logged in.
+- Public `https://console.se7endot.top/creative/*` results match local smoke.
+- Embedded index asset references checked: no `__vite-browser-external` reference remained; referenced Creative asset `index-DNVo0rPB.js` returned `200`.
+- Container remained running with `restart=0`; no panic/fatal crash found in recent logs. The only recent `[ERR]` was expected invalid-token noise from unauthenticated smoke.
+
+Authenticated dashboard smoke status:
+
+- Direct password login smoke is blocked by production Turnstile (`Turnstile token 为空`) unless a real browser/Turnstile session is used.
+- No provider calls were made.
+- Do not use synthetic session-cookie generation for further smoke; use a real browser dashboard session or a dedicated temporary non-Turnstile smoke path if one is later added.
+
+Operational note:
+
+- During a synthetic-session experiment, shell tracing was accidentally enabled once and printed sensitive session material in the local tool transcript. It was not written into repository files. Recommended follow-up: rotate `SESSION_SECRET` during an agreed maintenance window; this will invalidate current dashboard sessions but should not affect SQLite data, channel config, or API tokens.
