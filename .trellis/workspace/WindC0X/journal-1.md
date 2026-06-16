@@ -978,3 +978,12 @@ Executed VPS-A Phase 1 deployment for embedded Creative /creative/: built and st
 ### 2026-06-16 — Creative adapter final audit closure
 
 Closed retry3/retry4 dynamic final audit findings for Creative adapter capability registry. Fixed OpenTU managed image reference-image fail-fast, exact task-bound content URL fallback, empty `userParams:{}` legacy-adapter misclassification, and new-api locked-channel direct model_mapping rewrite validation. Reran targeted OpenTU Vitest, OpenTU typecheck, new-api controller/service tests, and full `creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests`; all passed. Dynamic closure workflows for frontend empty-userParams and backend model_mapping returned `pass_with_notes` with no Critical/High.
+
+### 2026-06-16 — Creative adapter final-audit Medium closure
+
+- Ran focused dynamic security closure after initial final-gate commits; no Critical/High findings remained, but Medium/hardening gaps were found around empty `userParams` managed retries, relay body Content-Type handling, model-policy nonce/admin-state consistency, binding ID collisions, dashboard nonce compatibility, and chained `model_mapping` validation.
+- Implemented OpenTU local-only `creativeManaged` marker so schema-backed managed image tasks with empty defaults keep fail-closed managed routing across retry/resume, while ordinary legacy adapter `userParams: {}` remains legacy.
+- Hardened new-api relay forbidden body handling, model-policy admin nonce/session guard and dashboard nonce header acquisition, policy pool inclusion of stored bindings, binding ID collision checks, and chained model_mapping validation with cycle regression coverage.
+- Rebuilt/synced embedded Creative dist and built the default dashboard frontend.
+- Verification passed: OpenTU targeted vitest/typecheck, new-api controller/service and service tests, dashboard typecheck/build, and full `creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests`.
+- Commits recorded: opentu `2f397c31`, new-api `de74021`.

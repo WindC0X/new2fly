@@ -730,3 +730,58 @@ Notes:
 - The OpenTU Vitest run has existing non-blocking noise (`.npmrc ${NPM_TOKEN}` warnings, localStorage crypto warnings, sourcemap warning), but all test files passed.
 - The build/release gate has existing Sass/Browserslist/Vite chunk-size warnings, but build, dist sync, no-sourcemap policy, source diff checks, new-api tests, and `go build ./...` all passed.
 - No real Duomi/GrsAI/provider calls were made; C1 remains mock-first and fixture/dry-run only.
+
+## 2026-06-16 Post-final-audit Medium Closure
+
+After the focused dynamic security closure reported no Critical/High findings but several Medium/hardening notes, the following closure fixes were implemented and verified:
+
+- OpenTU preserves schema-backed/managed image tasks with empty `userParams` using a local-only `creativeManaged` marker, without reclassifying ordinary legacy adapter calls that explicitly pass `userParams: {}`.
+- new-api relay forbidden-body guard now inspects JSON-looking bodies even when `Content-Type` is not JSON, and rejects unsupported opaque unsafe relay bodies instead of pass-through.
+- new-api model-policy admin writes require dashboard session plus Creative nonce; the dashboard API client now fetches `/creative/api/bootstrap` and attaches `X-Creative-CSRF` / `X-Creative-Nonce` before saving policy.
+- Creative model policy admin state now includes enabled stored managed bindings in model pools, modality buckets, effective policy, and cleaned-policy diagnostics.
+- Enabled Creative binding IDs now fail validation if they collide with an enabled channel model ID.
+- Locked-channel provider-model validation now accepts runtime-compatible chained `model_mapping` while still rejecting direct rewrites and cycles.
+
+Dynamic workflow evidence:
+
+- `.codex-flow/generated/creative-security-closure-2026-06-16.workflow.ts` / journal `.codex-flow/journal/creative-security-closure-2026-06-16.jsonl`: no Critical/High; surfaced Medium closure items.
+- `.codex-flow/generated/creative-medium-closure-postfix-2026-06-16.workflow.ts` / journal `.codex-flow/journal/creative-medium-closure-postfix-2026-06-16.jsonl`: confirmed empty-userParams managed marker and primary backend closures; surfaced the dashboard nonce and chained mapping follow-ups.
+- `.codex-flow/generated/creative-last-two-medium-closure-2026-06-16.workflow.ts` / journal `.codex-flow/journal/creative-last-two-medium-closure-2026-06-16.jsonl`: confirmed dashboard nonce source path and chained mapping behavior; remaining notes were reduced to build/test hygiene and addressed with dashboard build plus explicit cycle regression test.
+
+Verification commands run:
+
+```bash
+# OpenTU targeted regression
+cd /mnt/f/code/project/opentu
+pnpm vitest run \
+  packages/drawnix/src/services/__tests__/task-queue-service-image-retry.test.ts \
+  packages/drawnix/src/services/__tests__/media-executor.test.ts
+pnpm typecheck
+
+# new-api backend and dashboard checks
+cd /mnt/f/code/project/new-api
+go test -count=1 ./controller ./service
+go test -count=1 ./service
+cd /mnt/f/code/project/new-api/web/default
+bun run typecheck
+bun run build
+
+# full embedded/no-provider gate
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests
+```
+
+Results:
+
+- OpenTU targeted vitest: 2 files passed, 24 tests passed.
+- OpenTU typecheck: 5 projects passed.
+- new-api `go test -count=1 ./controller ./service`: passed.
+- new-api service cycle/collision regression: passed.
+- new-api dashboard `bun run typecheck`: passed.
+- new-api dashboard `bun run build`: passed; non-blocking Rspack persistent cache save warning observed.
+- full release gate: passed; embedded dist synchronized, no sourcemaps, source diff checks passed, Go tests/build passed.
+
+Commits:
+
+- opentu `2f397c31 fix(creative): preserve managed image tasks with empty params`
+- new-api `de74021 fix(creative): close adapter registry hardening gaps`
