@@ -1094,3 +1094,111 @@ GET  /api/creative/model-bindings
 ```
 
 Result: PASS.
+
+## VPS-A production deployment — Creative model bindings admin UI
+
+Date: 2026-06-17
+
+Deployment target:
+
+- Host: VPS-A `47.80.71.35`
+- App path: `/home/admin/apps/new-api`
+- Compose service/container: `new-api` / `new-api-relay`
+- Previous image: `new-api-creative-embed:3fb17f1-creative-startup`
+- Deployed image: `new-api-creative-embed:ac65d7f-creative-bindings-ui`
+- Data mount preserved: `./data:/data`, SQLite database preserved at `/home/admin/apps/new-api/data/new-api.db`
+
+Pre-deploy state:
+
+```text
+local new-api branch: feat/creative-embed
+local new-api commit: ac65d7f feat(creative): add model bindings admin UI
+remote container before deploy: new-api-creative-embed:3fb17f1-creative-startup, running, restart=0
+remote disk before deploy: ~7.4G available
+```
+
+Backup:
+
+- Created remote backup directory: `/home/admin/apps/new-api/backups/pre-creative-bindings-ui-20260617-002541`
+- Contents: `docker-compose.yml`, `.env`, container/image inspect JSON, online SQLite backup `new-api.db`, `SHA256SUMS.txt`
+- SQLite backup mode: online `sqlite3 .backup`
+- Backup DB size: `191M`
+
+Build/load/deploy:
+
+```bash
+cd /mnt/f/code/project/new-api
+docker build --pull=false --progress=plain -t new-api-creative-embed:ac65d7f-creative-bindings-ui .
+docker save new-api-creative-embed:ac65d7f-creative-bindings-ui | gzip -1 | \
+  ssh -i ~/.ssh/id_ed25519 admin@47.80.71.35 'gunzip | docker load'
+ssh -i ~/.ssh/id_ed25519 admin@47.80.71.35 \
+  'cd /home/admin/apps/new-api && update docker-compose.yml image && docker compose up -d'
+```
+
+Result:
+
+```text
+local image id: sha256:1efcab7b9d95103ad668561841c40bc871c78d6f8e1e6fab304b8c75d334690f
+loaded image: new-api-creative-embed:ac65d7f-creative-bindings-ui
+container after deploy: new-api-creative-embed:ac65d7f-creative-bindings-ui running restart=0
+```
+
+Unauthenticated/public smoke after deploy:
+
+```text
+https://console.se7endot.top/creative/ -> 200, Cache-Control: no-cache
+https://console.se7endot.top/creative/version.json -> 200, Cache-Control: no-cache, buildTime 2026-06-16T12:05:44.669Z
+https://console.se7endot.top/creative/api/bootstrap while logged out -> 401, Cache-Control: private, no-store
+https://console.se7endot.top/system-settings/models/creative-model-bindings -> 200, Cache-Control: no-cache, SPA shell served
+https://api.se7endot.top/v1/models without token -> 401
+```
+
+Authenticated browser smoke:
+
+- Used a temporary root smoke user with random password and no persisted credential output.
+- Temporarily set `TurnstileCheckEnabled=false` for the smoke window only, then restored it to `true` and restarted the container.
+- First attempt with non-sudo SQLite writes failed with `attempt to write a readonly database`; it made no DB changes. Retried with `sudo -n sqlite3`.
+- Browser automation used real Chromium against `https://console.se7endot.top`.
+- No provider generation endpoint was called and no external browser request was observed.
+- Production smoke intentionally did **not** click `Save Bindings` / `PUT`; it only exercised GET, validate, and dry-run for the current server config.
+
+Browser smoke assertions:
+
+```text
+POST /api/user/login -> success, role=100
+GET  /api/user/self -> success, role=100
+GET  /system-settings/models/creative-model-bindings -> real Chromium page load succeeds
+Page renders "Creative Model Bindings"
+Page renders safety copy for Duomi unavailable and GrsAI dry-run/fixture only
+Save Bindings starts disabled
+POST /api/creative/model-bindings/validate -> success, valid=true
+Save Bindings remains disabled after validate alone
+POST /api/creative/model-bindings/dry-run -> success, noProviderCall=true
+Page renders "Dry-run preview" and "noProviderCall=true"
+Save Bindings becomes enabled after same-draft validate + dry-run
+Unsafe Creative admin requests include New-Api-User, X-Creative-CSRF, and X-Creative-Nonce
+No PUT /api/creative/model-bindings was sent
+No external/provider browser requests were observed
+```
+
+Recorded Creative admin browser requests:
+
+```text
+GET  /api/creative/model-bindings
+POST /api/creative/model-bindings/validate
+POST /api/creative/model-bindings/dry-run
+```
+
+Final state after cleanup:
+
+```text
+container: new-api-creative-embed:ac65d7f-creative-bindings-ui running restart=0
+TurnstileCheckEnabled=true
+smoke_users=0
+public creative shell/version OK
+logged-out bootstrap still 401 private/no-store
+recent log scan: no panic/fatal/traceback; one expected invalid-token line from unauthenticated /v1/models smoke
+remote disk after deploy: ~7.1G available
+```
+
+Result: PASS.
