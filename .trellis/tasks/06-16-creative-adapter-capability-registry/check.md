@@ -865,3 +865,62 @@ Authenticated dashboard smoke status:
 Operational note:
 
 - During a synthetic-session experiment, shell tracing was accidentally enabled once and printed sensitive session material in the local tool transcript. It was not written into repository files. Recommended follow-up: rotate `SESSION_SECRET` during an agreed maintenance window; this will invalidate current dashboard sessions but should not affect SQLite data, channel config, or API tokens.
+
+## VPS-A post-deploy secret rotation and authenticated smoke
+
+Date: 2026-06-16
+
+Reason:
+
+- Rotated `SESSION_SECRET` after the earlier synthetic-session debug attempt exposed session material in the tool transcript.
+- User authorized temporary root smoke user creation because production root credentials were not available in this session; previously supplied credentials were for local staging.
+
+Pre-change backup:
+
+- Created backup directory: `/home/admin/apps/new-api/backups/pre-secret-turnstile-20260616-183628`
+- Contents: compose/env backups, container inspect, online SQLite backup, `TurnstileCheckEnabled` original value, checksums.
+- Original `TurnstileCheckEnabled`: `true`.
+
+Actions:
+
+- Updated `.env` with a new random `SESSION_SECRET` without printing it.
+- Restarted `new-api-relay` so the new session secret took effect.
+- Temporarily set DB option `TurnstileCheckEnabled=false` and restarted for login smoke.
+- Created a temporary root smoke user with a random password and no API token, used only for dashboard-session smoke.
+- Deleted the temporary smoke user after smoke.
+- Restored `TurnstileCheckEnabled=true` and restarted.
+
+Authenticated no-provider smoke results:
+
+```text
+temp_user_created id_present=true
+turnstile_during_smoke=false
+login_http=200 success=True role=100 user_id_present=True
+self_http=200 success=True role=100 group=admin
+bootstrap_http=200 success=True models=19 csrf_present=True nonce_present=True asset_sync=False video_relay=False
+models_http=200 success=True count=19
+admin_policy_http=200 success=True keys=allowedModalities,cleanedPolicy,cleanedPolicyJSON,diagnostics,key,modelPools,policy,policyJSON
+admin_bindings_http=200 success=True bindings=0 keys=config,configJSON
+validate_no_nonce_http=403 success=False message=creative session auth is invalid
+validate_with_nonce_http=200 success=True message=
+dry_run_with_nonce_http=200 success=True message=
+temp_user_remaining=0
+turnstile_after_restore=true
+final status=running restart=0 image=new-api-creative-embed:de74021-creative-registry
+```
+
+Model sample returned by Creative bootstrap included 19 production channel models, including text models and `grok-imagine-image-lite`; no provider generation endpoint was called.
+
+Final public/local checks after restore:
+
+- `https://console.se7endot.top/creative/` → `200`, `Cache-Control: no-cache`.
+- `https://console.se7endot.top/creative/version.json` → `200`, buildTime `2026-06-16T03:06:34.268Z`.
+- `https://console.se7endot.top/creative/api/bootstrap` while logged out → `401`, `Cache-Control: private, no-store`.
+- `TurnstileCheckEnabled=true`.
+- `smoke_users=0`.
+- `new-api-relay` is running `new-api-creative-embed:de74021-creative-registry` with restart count `0` after final restart.
+- No panic/fatal/traceback/recent `[ERR]` lines were found in the final 3-minute log scan.
+
+Reviewer note:
+
+- A read-only `trellis-check` sub-agent confirmed the smoke plan: `TurnstileCheckEnabled=false` is the correct temporary key; `SESSION_SECRET` rotation invalidates dashboard sessions but not API access tokens; GET bootstrap/policy/bindings are no-provider; validate/dry-run are local no-provider admin checks; relay generation endpoints were intentionally not called.
