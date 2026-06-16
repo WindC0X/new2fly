@@ -998,3 +998,47 @@ Spec update:
 Remaining release risk:
 
 - `web/default` currently has little/no system-settings UI test harness and no package test script for this section. The contract is recorded in spec; future work should add component/API tests for the same-draft gate if a suitable frontend test harness is introduced.
+
+## Local smoke — Creative model bindings admin UI before deployment
+
+Date: 2026-06-16
+
+Scope: local-only smoke for `new-api` commit `ac65d7f` before any production deployment. No production data or provider endpoint was used.
+
+Setup:
+
+- Started `new-api` locally on `127.0.0.1:3017` with a temporary SQLite database under `/tmp/newapi-creative-bindings-smoke/`.
+- Initialized a temporary local root account through `/api/setup`.
+- Logged in through `/api/user/login` with a cookie jar.
+- Stopped the local process after smoke.
+
+API smoke:
+
+```text
+GET  /api/setup -> success, sqlite, uninitialized before setup
+POST /api/setup -> success
+POST /api/user/login -> success, role=100
+GET  /api/user/self with New-Api-User: 1 -> success, role=100
+GET  /api/creative/model-bindings with New-Api-User: 1 -> success, {version:1, bindings:[]}
+GET  /creative/api/bootstrap -> success, csrfToken present, nonce present
+POST /api/creative/model-bindings/validate with Creative nonce + New-Api-User -> success, valid=true
+POST /api/creative/model-bindings/dry-run with Creative nonce + New-Api-User -> success, noProviderCall=true, bindings=0
+PUT  /api/creative/model-bindings with Creative nonce + New-Api-User -> success
+```
+
+Frontend/static smoke:
+
+```text
+GET /system-settings/models/creative-model-bindings -> 200, SPA root HTML served
+web/default/dist/static/js/* contains Creative Model Bindings / model-bindings / noProviderCall strings
+```
+
+Browser automation note:
+
+- Playwright, Selenium, pyppeteer, and system Chromium/Chrome were not available in this WSL environment, so a real DOM/browser click-through smoke was not run locally.
+- The local HTTP/API/static smoke still verifies the committed dashboard bundle contains the new section and that the dedicated admin API chain works with session + `New-Api-User` + Creative nonce.
+
+Operational note:
+
+- The first isolated `HOME` attempt failed because Go module downloads timed out against `proxy.golang.org`; the successful run used the existing local Go module/build cache while still using the temporary SQLite database and local-only environment.
+- An attempted `SYNC_FREQUENCY=0` value caused excessive option-sync logging; future local smoke should use the default or a large positive interval instead of `0`.
