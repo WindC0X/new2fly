@@ -1577,3 +1577,57 @@ git diff --check
 ```
 
 Result: PASS. No real Duomi/GrsAI provider calls were made.
+
+## 2026-06-17 — Local staging deploy and browser smoke after channel-summary hardening
+
+Post-push local staging verification for `new-api` commit `627918d`:
+
+```bash
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py check --source-diff-check --run-new-api-tests
+
+docker build --pull=false --progress=plain \
+  -t new-api-creative-embed:staging-current \
+  /mnt/f/code/project/new-api
+
+STAGING_BIND_ADDR=127.0.0.1 STAGING_PORT=39084 \
+  docker compose -f ops/newapi-opentu-staging/docker-compose.yml \
+  -p newapi-opentu-staging up -d
+
+bash ops/newapi-opentu-production/creative-route-check.sh --assert \
+  http://127.0.0.1:39084 http://127.0.0.1:39084
+```
+
+Result: PASS.
+
+- Release gate passed: embedded dist/artifact contract, diff checks, Go tests, and `go build ./...`.
+- Docker image built locally as `new-api-creative-embed:staging-current` (`sha256:37974c41...`).
+- Local staging container `newapi-opentu-staging-new-api` became healthy.
+- Route/header smoke passed for `/creative/`, `/creative/sw.js`, `/creative/version.json`, real asset, missing asset, logged-out Creative bootstrap/relay boundary, `/v1/models` unauth baseline, and `/login`.
+
+Authenticated API smoke used a temporary local-only root smoke user inserted into the stopped staging SQLite DB, then deleted after verification. The temporary password was random and was not printed or persisted outside the temp directory.
+
+Authenticated result: PASS.
+
+- `/api/user/login` success.
+- `/creative/api/bootstrap` success with CSRF + nonce.
+- `/api/creative/channel-summaries?p=0&page_size=20` returned 200 with 1 item.
+- Channel summary response leaked 0 sensitive fields among `key`, `base_url`, `header_override`, `param_override`, `settings`, `other`.
+- Smoke user cleanup deleted 1 temp user and staging returned healthy.
+
+Browser smoke used Python Playwright with the same temp-user pattern and `add_init_script` for frontend local user state.
+
+Browser result: PASS.
+
+- `/creative/` loaded and rendered Creative UI.
+- `/system-settings/models/creative-model-bindings` loaded.
+- Model binding page called `/api/creative/channel-summaries` once with status 200.
+- Model binding page made 0 generic `/api/channel` calls.
+- Browser `requestfailed`: 0.
+- Browser console errors: 0.
+- Browser page errors: 0.
+- Smoke user cleanup deleted 1 temp user and staging returned healthy.
+
+Observation:
+
+- Local staging `.env.staging.local` currently has `CREATIVE_ASSET_SYNC_ENABLED=true`, `CREATIVE_ASSET_ROLLOUT_MODE=local`, and `CREATIVE_ASSET_STORAGE=database`; this is a local staging setting, not a production recommendation. Production Phase 1 should keep Creative 云同步 disabled as documented in the production runbook.
