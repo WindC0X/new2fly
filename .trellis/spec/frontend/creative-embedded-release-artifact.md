@@ -276,12 +276,14 @@ if (isCreativeEmbeddedMode()) {
 - `buildCreativeUserParams()` may collect only IDs that survived `normalizeCreativeParameterSchema()`; unsafe/control schema IDs are dropped before they become UI params.
 - Existing standalone/default image adapters are not schema-backed adapters. A schema-backed request may call an adapter only when that adapter explicitly sets `supportsCreativeUserParams: true` and implements the managed new-api contract.
 - If no adapter explicitly supports typed `userParams`, schema-backed image generation fails locally before provider/network calls. This is intentional for Phase A/B/C1 no-provider-call gates.
+- `creativeManaged=true` is a semantic marker, not a convenience flag. If a schema-backed binding produces an empty typed payload, OpenTU must still preserve `creativeManaged=true` and an empty `userParams: {}` through parse → workflow → retry → queue → executor; do not collapse it back to legacy `params` or drop it because the object is empty.
 
 ### 4. Validation & Error Matrix
 
 - Runtime schema contains forbidden ID such as `baseUrl`, `endpoint`, `url`, `headers`, `provider`, `channel`, `modelRef`, `sourceProfileId`, `idempotencyKey`, `onProgress`, `onSubmitted`, `callback`, `webhook`, or `notifyHook` -> drop the field from runtime params and from submitted `userParams`.
 - Schema-backed model has `options.params.size` or prompt `-size=` -> do not legacy-normalize into `size`; keep provider-specific size only as a typed schema field when schema ID allows it.
 - Schema-backed request reaches an adapter without `supportsCreativeUserParams === true` -> throw a local error before image preprocessing, adapter `generateImage`, or provider relay.
+- Async MCP image execution follows the same gate: managed/schema-backed image requests must stop before a non-managed adapter's `generateImage()` runs, even if the call path is not queue-based.
 - Non-schema standalone image model -> keep existing static params/default behavior.
 - Schema-backed binding has no exact scoped preference entry -> rebuild from that binding schema defaults; do not fall back to a previous binding's global image tool params.
 
