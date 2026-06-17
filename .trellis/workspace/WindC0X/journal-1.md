@@ -1011,3 +1011,59 @@ Implemented and verified fixes for codex-flow review findings: sanitized `/api/c
 ### 2026-06-17 — Creative bindings hardening pushed and local staging smoked
 
 Pushed `new-api` `feat/creative-embed` to `627918d` and `new2fly` `master` to `bf9d81b`. Ran release gate (`creative_release_gate.py check --source-diff-check --run-new-api-tests`), built local staging image `new-api-creative-embed:staging-current` (`sha256:37974c41...`), restarted local staging, and verified route/header boundaries. Authenticated API smoke used a temporary local staging root user with random password, verified bootstrap and sanitized `/api/creative/channel-summaries` with no sensitive field leakage, then deleted the temp user. Browser smoke via Python Playwright verified `/creative/` and `/system-settings/models/creative-model-bindings`: channel summary endpoint called once, old generic `/api/channel` not called, no request failures, no console errors, no page errors. Local staging is healthy. Noted that local `.env.staging.local` currently enables database-backed Creative cloud sync for local testing; production Phase 1 should keep 云同步 disabled.
+
+### 2026-06-17 — Corrected final audit synthesis-only run
+
+After user correction, separated synthesis from verification instead of treating the combined `final-synthesis-verify` node as the whole process. Ran `.codex-flow/generated/creative-goal-attainment-final-audit-synthesis-only-20260617.workflow.ts`; journal `.codex-flow/journal/creative-goal-attainment-final-audit-synthesis-only-20260617.jsonl`. Result: `overallVerdict=partial`, `canDeployBeforeFixes=false`, `mustFixBeforeProduction=true`, `changedHighFindings=false`, `changedDeploymentVerdict=false`. The 8 High blockers remain unchanged: channelId metadata, SW Creative debug redaction, embedded ChatDrawer API-key assumption, asset delete TOCTOU, asset rollout/S3 HTTPS gate, stale production runbook refs, current-candidate DB-copy rehearsal evidence, and Phase1 document mutation disabled gate.
+
+### 2026-06-17 — Main-session confirmation before High-blocker implementation
+
+Confirmed the corrected final-audit process before restarting implementation: branch audits -> combined verify/synthesis -> dedicated synthesis-only -> main-session confirmation. Synthesis-only left High findings and deployment verdict unchanged. Decided to fix code-class High blockers first in `new-api` and `opentu`, while deferring runbook refs, DB-copy rehearsal, production-like staging, and full route matrix until a final candidate commit/image exists, to avoid stale deployment evidence.
+
+### 2026-06-17 — Code-class High blockers implemented; entering Trellis check
+
+`fix_newapi_code_highs` and `fix_opentu_code_highs` completed the code-class High blocker fixes. Main-session spot checks confirmed the intended seams: new-api channelId metadata propagation, pending-delete ref barrier/recheck, rollout enum/HTTPS production gate, backend document mutation disabled gate; OpenTU Creative private SW/debugFetch bypass, embedded ChatDrawer managed readiness, and disabled document-sync local-only behavior. Deployment/evidence blockers remain for after final candidate build. Next step: Trellis check agents.
+
+### 2026-06-17 — Trellis check PASS for code-class High blockers
+
+Trellis check agents passed for both repos. `check_newapi_code_highs` verified channelId metadata, asset delete TOCTOU, rollout/S3 HTTPS gate, and backend disabled document mutation gate. `check_opentu_code_highs` verified SW/debugFetch Creative privacy, embedded ChatDrawer no-local-key readiness, and disabled document sync local-only behavior, self-fixing a stale callback dependency and adding relative URL debugFetch coverage. Next: main-session verification, OpenTU build/dist sync into new-api, release gate, then remaining deployment evidence gates.
+
+### 2026-06-17 — Main-session verification passed; post-fix workflow review requested
+
+Main-session independent verification passed for new-api (`go test` model/service/controller, middleware/relay, `go build ./...`) and OpenTU targeted tests/typechecks (31 Drawnix tests, 7 SW tests, drawnix/web typecheck). User requested a post-fix workflow review; next is build/sync + release gate, then real codex-flow re-audit of the fixes/regressions.
+
+### 2026-06-17 — Build/sync release gate passed after code-class High fixes
+
+Ran `python3 scripts/creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests`. OpenTU web build/typecheck/app/SW build completed, embedded dist synced into both new-api locations, artifact contract passed (175 files each, /creative/assets refs, no sourcemaps), source diff checks passed, and new-api tests/build passed. Proceeding to user-requested codex-flow post-fix workflow review.
+
+### 2026-06-17 — Post-fix codex-flow re-audit found two Highs
+
+Ran real codex-flow re-audit `.codex-flow/generated/creative-code-high-fixes-reaudit-20260617.workflow.ts`; journal `.codex-flow/journal/creative-code-high-fixes-reaudit-20260617.jsonl`. Verdict fail for code closure. Must fix before commit: `PF-HIGH-001` generic `/api/task/self` raw creative image task Data exposes `channelId`; `REG-HIGH-001` document sync badge/hook may initialize singleton disabled before bootstrap true. Also track staging untracked source/dist and exclude `.codex/config.toml` from commit unless explicitly intended.
+
+### 2026-06-17 — Re-audit High follow-ups implemented and targeted verification passed
+
+Fixed `PF-HIGH-001` by redacting Creative image `channelId/channel_id` from generic user-facing task DTO data while preserving internal Task.ChannelId/stored data. Fixed `REG-HIGH-001` by making the document sync singleton update runtime `assetSyncEnabled` after bootstrap and resume pending flush when enabled. Targeted main-session verification passed: `go test -count=1 ./controller ./relay`, Drawnix document sync/hook tests (29 tests), and `pnpm nx run drawnix:typecheck`. Next: narrow codex-flow closure review for these two Highs.
+
+### 2026-06-17 — Narrow closure workflow: PF closed, REG still has cold-start delete High
+
+Ran `.codex-flow/generated/creative-postfix-high-closure-20260617.workflow.ts`; journal `.codex-flow/journal/creative-postfix-high-closure-20260617.jsonl`. Result partial: `PF-HIGH-001` closed, but `REG-HIGH-001` remains open via `REG-HIGH-001-COLDSTART-PENDING-DELETE`: enabling a pre-bootstrap disabled singleton may cold-start hydrate a board before pending delete flush, resurrecting a locally deleted board. Need OpenTU fix and targeted closure rerun.
+
+### 2026-06-17 — REG cold-start pending-delete follow-up fixed
+
+Fixed the remaining closure High `REG-HIGH-001-COLDSTART-PENDING-DELETE`: cold-start now skips board IDs that were pending at start or are still pending during iteration, preventing pre-bootstrap local deletes from being resurrected by stale remote summaries. Targeted new-api controller/relay tests, Drawnix document-sync/hook tests, and drawnix typecheck passed. Next: fresh closure workflow with new node keys.
+
+### 2026-06-17 — Closure round2 found cold-start lifecycle tombstone race
+
+Fresh closure round2 (`creative-postfix-high-closure-round2-20260617`) confirmed `PF-HIGH-001` closed, but kept `REG-HIGH-001` open due a narrower race: delete during an in-flight cold-start list can flush and clear pendingDeletes before stale list returns, allowing get/upsert resurrection. Need cold-start lifecycle skip/tombstone set and regression.
+
+### 2026-06-17 — Cold-start tombstone follow-up verified
+
+Implemented active cold-start lifecycle skip/tombstone sets so queueDelete/queueSnapshot during cold-start remain skipped until that cold-start completes, even after pending flush clears pendingDeletes. Targeted regression, full creative-document-sync tests (27/27), and lib typecheck passed. Proceeding to fresh closure round3.
+
+### 2026-06-17 — Closure round3 found repository upsert async race
+
+Closure round3 confirmed PF still closed but REG remains open: `REG-HIGH-001-COLDSTART-UPSERT-RACE`. The cold-start skip checks occur before calling `upsertBoardFromCloud`, but if a user deletes/updates while repository upsert is awaiting internal work, the old remote board can still commit. Need repository-level conditional/cancellable upsert guard and regression.
+
+### 2026-06-17 — REG-HIGH-001 round8 closure + final build-sync gate
+
+Resolved the remaining OpenTU document-sync race findings from codex-flow round7. Added immediate revision clearing on queued deletes, in-flight local mutation guards in `workspaceService.upsertBoardFromCloud`, and tests for delete-before-upsert / update-before-upsert with `shouldApply` always true plus hidden syncEngine side-effect isolation. Main verification passed: `creative-document-sync.test.ts` 41/41, `pnpm nx run drawnix:typecheck`, and diff checks. Trellis check sub-agent passed after small cleanup. Real codex-flow round8 passed with `pfHigh001Closed=true`, `regHigh001Closed=true`, no findings. Re-ran final `creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests` after the check-agent edits; OpenTU build/typecheck/SW build, embedded dist sync/artifact contract, new-api tests, and `go build ./...` all passed.

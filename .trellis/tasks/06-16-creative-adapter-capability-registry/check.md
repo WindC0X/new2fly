@@ -1631,3 +1631,384 @@ Browser result: PASS.
 Observation:
 
 - Local staging `.env.staging.local` currently has `CREATIVE_ASSET_SYNC_ENABLED=true`, `CREATIVE_ASSET_ROLLOUT_MODE=local`, and `CREATIVE_ASSET_STORAGE=database`; this is a local staging setting, not a production recommendation. Production Phase 1 should keep Creative 云同步 disabled as documented in the production runbook.
+
+## 2026-06-17 — Goal-attainment final audit synthesis-only closure
+
+Corrected the final-audit workflow separation after noticing that the previous node was a combined `final-synthesis-verify` step. A dedicated synthesis-only codex-flow run was completed:
+
+- Workflow: `.codex-flow/generated/creative-goal-attainment-final-audit-synthesis-only-20260617.workflow.ts`
+- Journal: `.codex-flow/journal/creative-goal-attainment-final-audit-synthesis-only-20260617.jsonl`
+- Inputs: current branch compact outputs plus the previous combined verify/synthesis structured final message as the verify-node input.
+- Scope guard: did not read archived audit reports; did not modify project code; synthesis-only, not a new broad audit.
+
+Synthesis-only verdict:
+
+- `overallVerdict`: `partial`
+- `mustFixBeforeProduction`: `true`
+- `canDeployBeforeFixes`: `false`
+- `changedHighFindings`: `false`
+- `changedDeploymentVerdict`: `false`
+
+High blockers unchanged and still must-fix before production:
+
+- `FINAL-HIGH-001`: 管理员配置的 channelId 未进入 C1 mock task 元数据。
+- `FINAL-HIGH-002`: Service Worker debug 日志未整体跳过或脱敏 /creative/api/* 与 /creative/relay/*。
+- `FINAL-HIGH-003`: embedded ChatDrawer/部分 settings 仍保留 standalone API Key 工作流假设。
+- `FINAL-HIGH-004`: DeleteIfUnreferenced 与 document asset ref refresh 存在 TOCTOU。
+- `FINAL-HIGH-005`: asset rollout mode 未枚举 fail-closed，S3 endpoint 未强制 HTTPS。
+- `FINAL-HIGH-006`: 生产 runbook 的 candidate refs/tag 已陈旧。
+- `FINAL-HIGH-007`: 当前候选缺少生产 DB copy 数据保全演练证据。
+- `FINAL-HIGH-008`: asset_sync_disabled 未闭环为 document mutation disabled，smoke 也未验证。
+
+Additional production-blocking evidence gate:
+
+- `FINAL-MED-008`: 缺少 production-like asset-sync-disabled staging smoke 与当前候选全控制台 authenticated route matrix。
+
+Recommended order from synthesis-only:
+
+1. 更新 production runbook 候选 refs/tag/RepoDigest 规则，并建立当前候选不可变镜像证据。
+2. 修复 Phase1 数据 gate：document mutations disabled 或后端拒绝，并补 disabled smoke/row-count。
+3. 执行当前候选生产 DB copy rehearsal、integrity_check、critical row-count 前后对比。
+4. 修复高风险代码项：channelId metadata、SW Creative debug redaction、ChatDrawer embedded credential check、asset delete TOCTOU、asset rollout enum + S3 HTTPS。
+5. 重跑 production-like staging（asset sync disabled）和全控制台 authenticated route matrix。
+6. 处理中风险契约/UX：preview catalog 可提交性、reference images scope 标注、validator redaction、trusted proxy scheme、S3 Range。
+7. 整理低风险 polish 与 provenance：audit log、S3 prefix/object key、per-user canary、schema defensive parsing、build commit/hash、workspace hygiene。
+
+## 2026-06-17 — Main-session confirmation before implementation
+
+Main session confirmed the corrected final-audit flow before implementation:
+
+1. Branch audits completed via codex-flow.
+2. A combined verification/synthesis node produced the first structured final message.
+3. After process correction, a dedicated synthesis-only codex-flow node completed and used the combined node only as verify-node input.
+4. Synthesis-only did not change High findings or deployment verdict.
+
+Main-session implementation ordering decision:
+
+- Start with code-class High blockers that can be fixed independently in `new-api` and `opentu`.
+- Defer runbook refs, DB-copy rehearsal, production-like staging, and full route matrix until after code fixes produce the actual final candidate commit/image, to avoid recording stale refs again.
+- Do not treat implementation sub-agent output as final audit; after fixes, run Trellis check, release gates/smoke, and then changed-area/final goal-attainment review as appropriate.
+
+## 2026-06-17 — Code-class High blocker implementation results
+
+Trellis implement sub-agent `fix_newapi_code_highs` completed `new-api` code-class High fixes:
+
+- `FINAL-HIGH-001`: binding `channelId` now propagates into resolved binding, `Task.ChannelId`, and versioned image task metadata.
+- `FINAL-HIGH-004`: asset delete now uses `pending_delete` as the app-level new-reference barrier and re-confirms no refs under row lock before storage delete/retry processing.
+- `FINAL-HIGH-005`: asset rollout mode is normalized/enum-validated fail-closed; production requires `s3-compatible` storage and HTTPS endpoint.
+- `FINAL-HIGH-008` backend half: disabled asset sync/runtime rejects Creative document create/update/delete mutations.
+- Reported tests: `go test -count=1 ./model ./service ./controller` and `go test -count=1 ./middleware ./relay/...` passed.
+
+Trellis implement sub-agent `fix_opentu_code_highs` completed OpenTU code-class High fixes:
+
+- `FINAL-HIGH-002`: same-origin `/creative/api/*` and `/creative/relay/*` are pass-through in SW and bypass `debugFetch` logging, preventing debug capture of CSRF/nonce/idempotency/cookie/body/response materials.
+- `FINAL-HIGH-003`: embedded ChatDrawer readiness no longer requires local Gemini/API key; it checks managed session route/model availability and shows a safe actionable error when unavailable while preserving standalone settings behavior.
+- `FINAL-HIGH-008` frontend half: when sync is disabled, document create/update/delete mutations remain browser-local and do not call the cloud adapter.
+- Reported tests: targeted drawnix tests (27 tests), SW Vitest tests (6 tests), `pnpm nx run drawnix:typecheck`, and `pnpm nx run web:typecheck` passed. `.npmrc` warned about missing `${NPM_TOKEN}` but tests passed.
+
+Main-session integration spot checks before Trellis check:
+
+- Verified worktree scopes: `new-api` changed only backend/test files; `opentu` changed only SW/chat/document-sync files; `new2fly` only task/journal records plus pre-existing `.codex/config.toml`.
+- Checked `new-api` critical diffs for channelId propagation, document mutation gate, pending-delete recheck, and rollout/S3 HTTPS gate.
+- Checked `opentu` critical diffs for Creative private pass-through, debugFetch bypass, ChatDrawer readiness, and document-sync disabled path.
+- Noted that deployment evidence blockers (`FINAL-HIGH-006`, `FINAL-HIGH-007`, `FINAL-MED-008`) remain intentionally pending until a final candidate commit/image exists.
+
+## 2026-06-17 — Trellis check results for code-class High blockers
+
+Trellis check sub-agent `check_newapi_code_highs`: PASS.
+
+- Verified `FINAL-HIGH-001`, `FINAL-HIGH-004`, `FINAL-HIGH-005`, and backend half of `FINAL-HIGH-008`.
+- No new fixed findings; only `gofmt` was run and did not create additional semantic changes.
+- Reported verification passed: `gofmt`, `git diff --check`, `go vet ./model ./service ./controller`, `go build ./...`, `go test -count=1 ./model ./service ./controller`, and `go test -count=1 ./middleware ./relay/...`.
+- Not fixed: broad `go vet ./model ./service ./controller ./middleware ./relay/...` still hits existing unreachable code in unmodified relay provider packages.
+
+Trellis check sub-agent `check_opentu_code_highs`: PASS.
+
+- Verified `FINAL-HIGH-002`, `FINAL-HIGH-003`, and frontend half of `FINAL-HIGH-008`.
+- Self-fixed one Medium issue: ChatDrawer send callback dependency array now includes `sessionModel/sessionModelRef` so embedded managed readiness is not stale after model switching.
+- Self-fixed one Low issue: debugFetch privacy test now covers relative `/creative/api/bootstrap` in addition to absolute Creative URLs.
+- Reported verification passed: targeted SW Vitest tests (2 files / 7 tests), targeted Drawnix tests (3 files / 31 tests), `pnpm nx run drawnix:typecheck`, and `pnpm nx run web:typecheck`.
+- Repo-wide OpenTU lint remains baseline-failing due unrelated existing files; changed-file scoped lint had no errors, only warnings.
+
+Main-session next step: run a minimal independent verification set, then rebuild/sync embedded OpenTU dist into `new-api` before release gate.
+
+## 2026-06-17 — Main-session independent code verification
+
+Main-session verification after Trellis check:
+
+`new-api`:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./model ./service ./controller
+go test -count=1 ./middleware ./relay/...
+go build ./...
+```
+
+Result: PASS.
+
+`opentu`:
+
+```bash
+cd /mnt/f/code/project/opentu
+pnpm --dir packages/drawnix test --run \
+  src/components/chat-drawer/chat-drawer-readiness.test.ts \
+  src/services/creative-document-sync.test.ts \
+  src/hooks/use-creative-document-sync-status.test.tsx
+pnpm exec vitest run --config apps/web/vite.config.ts \
+  apps/web/src/sw/creative-asset-pass-through.spec.ts \
+  apps/web/src/sw/task-queue/debug-fetch.spec.ts
+pnpm nx run drawnix:typecheck
+pnpm nx run web:typecheck
+```
+
+Result: PASS. Tests reported 31 Drawnix tests passed and 7 SW tests passed. `.npmrc` emitted existing `${NPM_TOKEN}` warnings only.
+
+User requested a post-fix workflow review. Plan: after OpenTU build/dist sync and release gate, run a real codex-flow dynamic workflow re-audit focused on the changed code-class High blockers and any regressions introduced by the fixes. This will not replace deployment evidence gates that still require final candidate image/DB/staging checks.
+
+## 2026-06-17 — Build/sync release gate after code-class High fixes
+
+After code-class High fixes and Trellis checks, main session rebuilt OpenTU and synced the embedded Creative dist into new-api:
+
+```bash
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests
+```
+
+Result: PASS.
+
+Key evidence:
+
+- `pnpm build:web` completed: web typecheck, app build, service-worker build, and embedded postprocess succeeded.
+- Dist sync copied `/mnt/f/code/project/opentu/dist/apps/web` to both:
+  - `/mnt/f/code/project/new-api/web/creative/dist`
+  - `/mnt/f/code/project/new-api/router/web/creative/dist`
+- Embedded artifact contract passed:
+  - index refs use `/creative/assets`
+  - idle-prefetch manifests have `/creative/assets` refs
+  - static brand contract holds
+  - 175 files in all three dist locations
+  - no generated sourcemaps found
+- Source diff checks passed for `new2fly`, `opentu` (excluding dist), and `new-api` (excluding synced dist).
+- new-api tests/build from release gate passed, including `go test -count=1 .`, selected packages, relay packages, and `go build ./...`.
+
+Known non-blocking warnings: existing OpenTU `.npmrc` `${NPM_TOKEN}` warning, Sass deprecation warnings, Browserslist staleness, and Vite chunk-size/dynamic-import warnings.
+
+Next: run the requested post-fix codex-flow workflow review before treating the code-class High fixes as closed.
+
+## 2026-06-17 — Post-fix codex-flow re-audit result
+
+User requested a real workflow re-audit after fixes. Ran codex-flow:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-code-high-fixes-reaudit-20260617.workflow.ts
+```
+
+Journal: `.codex-flow/journal/creative-code-high-fixes-reaudit-20260617.jsonl`.
+
+Result: FAIL for code closure; `codeHighFixesClosed=false`, `mustFixBeforeCommit=true`.
+
+Must-fix before commit findings:
+
+- `PF-HIGH-001`: `/api/task/self` generic user task DTO can expose creative image raw `Data.channelId` via `relay.TaskModel2Dto`, even though the Creative image task-specific DTO omits it. Fix: redact `data.channelId` for `constant.TaskPlatformCreativeImage` in user-facing task DTOs while keeping internal DB metadata/Task.ChannelId.
+- `REG-HIGH-001`: OpenTU document sync badge/hook can auto-initialize the singleton before bootstrap config is written; because `assetSyncEnabled` is a readonly constructor value and singleton uses `||=`, later bootstrap true may not update it. Fix: ensure badge only subscribes, or singleton can be recreated/updated after bootstrap; add regression test for initial false then bootstrap true still flushing to adapter.
+
+Other items:
+
+- `GIT-UNTRACKED-001` Low but must-fix before commit: ensure new source/tests and synced dist hash assets are staged; do not use only `git add -u`.
+- `WORKSPACE-DRIFT-001` Info but must-fix before commit: exclude or explicitly decide on `.codex/config.toml` drift.
+- `SW-LOW-001`, `CHAT-LOW-001`, `ASSET-INFO-001` are non-blocking follow-ups.
+
+Deployment evidence gates remain open and are not closed by this code re-audit.
+
+## 2026-06-17 — Post-fix re-audit High follow-up implementation
+
+Implemented follow-up fixes for the post-fix codex-flow re-audit High findings:
+
+`PF-HIGH-001` (`new-api`):
+
+- `relay/relay_task.go`: `TaskModel2Dto` now calls a Creative-image-specific DTO data redactor for `constant.TaskPlatformCreativeImage`.
+- Redaction removes only root-level `channelId` and `channel_id` from user-facing DTO `Data`; internal `Task.ChannelId` and stored `Task.Data` remain intact.
+- Tests added in `relay/relay_task_test.go` and `controller/task_test.go` for DTO-level and `/api/task/self?platform=creative_image` redaction.
+
+`REG-HIGH-001` (`opentu`):
+
+- `CreativeDocumentCloudSyncService` can update `assetSyncEnabled` after construction.
+- `initializeCreativeDocumentCloudSync()` no longer permanently locks a pre-bootstrap disabled singleton; subsequent initialization with bootstrap-enabled config updates the existing service, clears disabled state, resumes cold-start sync, and schedules pending flush.
+- Disabled Phase 1 behavior remains fail-closed: when config remains disabled, create/update/delete do not call the cloud adapter.
+- Regression added for initial disabled singleton -> bootstrap enabled -> pending create/update flush calls adapter.
+
+Main-session targeted verification:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./controller ./relay
+
+cd /mnt/f/code/project/opentu
+pnpm --dir packages/drawnix test --run \
+  src/services/creative-document-sync.test.ts \
+  src/hooks/use-creative-document-sync-status.test.tsx
+pnpm nx run drawnix:typecheck
+```
+
+Result: PASS. OpenTU `.npmrc` `${NPM_TOKEN}` warning remains non-blocking.
+
+Next: run a narrow codex-flow closure review for `PF-HIGH-001` and `REG-HIGH-001`.
+
+## 2026-06-17 — Narrow closure workflow after PF/REG High fixes
+
+Ran a narrow codex-flow closure review for the two post-fix High follow-ups:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-postfix-high-closure-20260617.workflow.ts
+```
+
+Journal: `.codex-flow/journal/creative-postfix-high-closure-20260617.jsonl`.
+
+Closure result: `overallVerdict=partial`, `pfHigh001Closed=true`, `regHigh001Closed=false`, `mustFixBeforeCommit=true`.
+
+- `PF-HIGH-001`: closed. Creative image `TaskDto.Data` removes root `channelId/channel_id` while internal stored data and `Task.ChannelId` remain intact.
+- `REG-HIGH-001`: partially closed, but new must-fix child issue found:
+  - `REG-HIGH-001-COLDSTART-PENDING-DELETE`: when disabled singleton is later enabled, current order can run cold-start sync before pending delete flush. A pre-bootstrap local delete can therefore be undone by cold-start hydrate/upsert before the pending delete only removes the remote copy, leaving the deleted board locally resurrected.
+  - Required fix: either flush pending deletes/mutations before cold-start or make cold-start skip boards in `pendingSnapshots` / `pendingDeletes`; add a regression for disabled -> enabled with default cold-start and pending delete.
+
+Next: implement the OpenTU cold-start/pending-delete fix and rerun targeted closure.
+
+## 2026-06-17 — REG-HIGH-001 cold-start pending-delete follow-up
+
+Implemented the remaining closure finding `REG-HIGH-001-COLDSTART-PENDING-DELETE` in OpenTU:
+
+- `CreativeDocumentCloudSyncService.syncRemoteDocumentsForColdStart()` now snapshots pending snapshot/delete board IDs at cold-start start and also checks current pending snapshot/delete sets while iterating remote summaries.
+- Cold-start skips any board that is pending locally, preventing stale remote list hydration from resurrecting a board the user deleted while sync was disabled.
+- Disabled fail-closed behavior and enable-after-bootstrap pending flush behavior remain intact.
+- Regression added: disabled singleton queues delete/create/update, bootstrap enables with default cold-start, pending-deleted remote board is not fetched/upserted, pending delete clears via `adapter.delete`, and pending create/update still flush.
+
+Main-session targeted verification:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./controller ./relay
+
+cd /mnt/f/code/project/opentu
+pnpm --dir packages/drawnix test --run \
+  src/services/creative-document-sync.test.ts \
+  src/hooks/use-creative-document-sync-status.test.tsx
+pnpm nx run drawnix:typecheck
+```
+
+Result: PASS. OpenTU `.npmrc` `${NPM_TOKEN}` warning remains non-blocking.
+
+Next: rerun a fresh narrow codex-flow closure workflow with new node keys to avoid replaying the previous pre-fix closure result.
+
+## 2026-06-17 — Fresh closure round2 result
+
+Ran fresh closure workflow with new node keys:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-postfix-high-closure-round2-20260617.workflow.ts
+```
+
+Journal: `.codex-flow/journal/creative-postfix-high-closure-round2-20260617.jsonl`.
+
+Result: `overallVerdict=partial`, `pfHigh001Closed=true`, `regHigh001Closed=false`, `coldstartPendingDeleteClosed=false`, `mustFixBeforeCommit=true`.
+
+- `PF-HIGH-001`: remains closed.
+- `REG-HIGH-001-COLDSTART-PENDING-DELETE-RACE`: still open in a narrower race: if cold-start has started and is waiting on `adapter.list()`, a user can delete a board and flush successfully, clearing `pendingDeletes`; when stale list returns, the current skip logic no longer sees that board as pending and can still `get/upsert` it. Required fix: during each cold-start lifecycle, keep a skip/tombstone set for board IDs that become pending/deleted during the cold-start, and do not remove them just because flush cleared pending state. Add regression for list pending -> queueDelete -> flush success -> list returns stale id -> no get/upsert.
+
+Next: implement cold-start lifecycle skip/tombstone fix and rerun closure.
+
+## 2026-06-17 — Cold-start tombstone follow-up verification
+
+Implemented `REG-HIGH-001-COLDSTART-PENDING-DELETE-RACE` follow-up in OpenTU:
+
+- Added active cold-start skip/tombstone sets to `CreativeDocumentCloudSyncService`.
+- `queueDelete` and `queueSnapshot` add board IDs to any active cold-start skip set.
+- Cold-start now checks the lifecycle skip set before conflict handling, `get`, hydrate, and `upsertBoardFromCloud`.
+- The lifecycle skip set is released only when that cold-start finishes, so a board deleted and flushed while `adapter.list()` is in flight still cannot be re-imported by the stale list result.
+- Regression added for `list` pending -> `queueDelete` -> `flushPending` success -> stale list returns deleted id -> no `adapter.get` / no `upsertBoardFromCloud`.
+
+Main-session verification:
+
+```bash
+cd /mnt/f/code/project/opentu
+pnpm --dir packages/drawnix exec vitest run \
+  src/services/creative-document-sync.test.ts \
+  -t "deleted and flushed while the remote list is pending"
+pnpm --dir packages/drawnix exec vitest run src/services/creative-document-sync.test.ts
+pnpm --dir packages/drawnix exec tsc -p tsconfig.lib.json --noEmit
+```
+
+Result: PASS. Targeted test passed; full `creative-document-sync.test.ts` reported 27/27 passed; lib typecheck exited 0. Existing `.npmrc` and third-party sourcemap warnings remain non-blocking.
+
+Next: run fresh closure round3.
+
+## 2026-06-17 — Fresh closure round3 result
+
+Ran closure round3:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-postfix-high-closure-round3-20260617.workflow.ts
+```
+
+Journal: `.codex-flow/journal/creative-postfix-high-closure-round3-20260617.jsonl`.
+
+Result: `overallVerdict=fail`, `pfHigh001Closed=true`, `regHigh001Closed=false`, `coldstartPendingDeleteClosed=false`, `mustFixBeforeCommit=true`.
+
+- `PF-HIGH-001`: closed.
+- New narrower remaining High: `REG-HIGH-001-COLDSTART-UPSERT-RACE`.
+  - Even after list/get/hydrate skip guards, once `upsertBoardFromCloud()` has been called, a user can delete/update while the repository upsert is awaiting internal work; default repository can still write the old remote board because it lacks a commit-time guard.
+  - Required fix: conditional/cancellable repository upsert or pass a tombstone/skip guard into `upsertBoardFromCloud` and re-check immediately before writing local maps/storage. Add tests for delete/update while upsert is suspended.
+
+Next: implement repository-level conditional upsert guard and rerun closure.
+
+### 2026-06-17 — REG-HIGH-001 round8 closure and final build-sync gate
+
+Closed the remaining REG-HIGH-001 cold-start/document-sync race findings in OpenTU:
+
+- `workspaceService.upsertBoardFromCloud` now stages cloud imports and does not publish into public workspace maps until final `shouldApply` + local-mutation epoch + in-flight-local-mutation gates pass.
+- `workspaceService` now tracks active in-flight local board mutations so a local save/delete that started before cloud upsert sampling causes the cloud upsert to return `false`.
+- `CreativeDocumentCloudSyncService.queueDelete` now clears and persists document revisions immediately when a local delete is queued, before the remote delete flush.
+- Cold-start conflict records are source-tagged; local snapshots clear only cold-start-produced conflict/frozen residue; flush-origin conflicts remain frozen.
+- Race tests mock/isolate legacy GitHub sync side effects and assert no hidden syncEngine calls in the local-priority race paths.
+
+Main-session verification after final check-agent edits:
+
+```bash
+cd /mnt/f/code/project/opentu
+pnpm --dir packages/drawnix exec vitest run src/services/creative-document-sync.test.ts
+pnpm nx run drawnix:typecheck
+```
+
+Result: PASS — `creative-document-sync.test.ts` 41/41 passed; `drawnix:typecheck` passed.
+
+Trellis check sub-agent verification:
+
+- REG-HIGH-001 queueDelete immediate revision clearing: PASS.
+- REG-HIGH-001 local save/delete vs cloud upsert race protection: PASS.
+- REG-HIGH-001 hidden sync/provider side-effect isolation: PASS.
+- Round6 staged publish / cold-start source tagging / no-revision conflict / applied-only revision persistence regressions: PASS.
+- Target eslint on the 3 touched files: PASS; full lint still has unrelated pre-existing failures outside this scope.
+
+Dynamic workflow closure:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-postfix-high-closure-round8-20260617.workflow.ts
+```
+
+Journal: `.codex-flow/journal/creative-postfix-high-closure-round8-20260617.jsonl`.
+
+Result: PASS — `overallVerdict=pass`, `mustFixBeforeCommit=false`, `pfHigh001Closed=true`, `regHigh001Closed=true`, no findings.
+
+Final build/sync release gate after the check-agent's last source edits:
+
+```bash
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests
+```
+
+Result: PASS — OpenTU web typecheck/build/app/SW build completed; embedded dist synced into both new-api locations; artifact contract passed (`175` files each, `/creative/assets` refs, no sourcemaps); source diff checks passed; new-api `go test` suite and `go build ./...` passed. Existing `.npmrc ${NPM_TOKEN}`, Sass deprecation, Browserslist, and chunk-size warnings remain non-blocking.
