@@ -361,3 +361,72 @@ POST /creative/relay/v1/images/tasks -> resolver -> local mock Task(platform=cre
 GET /creative/relay/v1/images/tasks/:id -> owner + platform + creativeManaged check -> allowlisted DTO
 POST /creative/relay/v1/images/generations with managed binding -> 400 before broker/distribute/provider relay
 ```
+
+## Scenario: Creative model bindings channel summary picker
+
+### 1. Scope / Trigger
+
+- Trigger: changing the admin UI or backend endpoints used to help configure `creative.model_bindings` channel-backed bindings.
+- Applies to `controller/creative_model_bindings.go`, `service/creative_model_capability.go`, `/api/creative/channel-summaries`, system settings Creative model bindings UI, and related tests.
+- This is a cross-layer security/data-minimization contract: Creative binding admin UI needs channel identity and model availability, not provider credentials or transport configuration.
+
+### 2. Signatures
+
+- Admin summary endpoint:
+  - `GET /api/creative/channel-summaries?p=<page>&page_size=<n>&keyword=<q>&channel_id=<id>&group=<group>`
+- Response DTO:
+  - `CreativeChannelSummaryList{items,total,page,page_size}`
+  - `CreativeChannelSummary{id,name,group,status,models[]}`
+- Frontend client:
+  - `getCreativeChannelSummaries(params)` in system settings API.
+  - UI consumes `CreativeChannelSummary`, not the generic `Channel` DTO.
+
+### 3. Contracts
+
+- Creative model bindings UI must not call generic `/api/channel` or import/consume the full `Channel` DTO just to build channel-backed Creative binding drafts.
+- The summary endpoint returns only `id`, `name`, `group`, `status`, and normalized `models[]` plus pagination metadata.
+- Summary responses must not include channel `key`, `base_url`, provider credentials, `header_override`, `param_override`, `settings`, `other`, `other_info`, `model_mapping`, org ids, remarks, balance, quota, or selected-key material.
+- The endpoint is admin-session scoped under `/api/creative/*` and inherits private/no-store cache behavior. It is a read-only helper and does not require Creative nonce, but mutating binding writes/validate/dry-run still require nonce.
+- The frontend builder may use summaries for convenience only. Persisted config writes still go through model-bindings validate + dry-run + PUT gates, and backend validation remains authoritative for channel existence, enabled status, model support, canary groups, and forbidden fields.
+- Generated binding IDs should be deterministic and collision-aware. If the UI derives an ID from provider model data, it must use a safe slug and include enough context such as channel id to avoid silently replacing another channel's binding.
+
+### 4. Validation & Error Matrix
+
+- `channel_id` / `id` query is non-positive or non-integer -> `400` controlled API error.
+- Summary request for a channel containing keys/base URLs/overrides/settings -> response omits all sensitive fields; only summary fields remain.
+- Empty or duplicate comma-separated `models` string -> response normalizes to a deduped `models[]` without blanks.
+- UI selected channel is disabled or has no models -> draft generation is blocked before writing the JSON draft.
+- UI manual provider model not in the selected channel's model list -> draft generation is blocked when summary metadata is available.
+- Duplicate generated binding id -> explicit confirmation or collision avoidance before replacing an existing draft.
+
+### 5. Good/Base/Bad Cases
+
+- Good: admin searches `gpt-image-2`, receives `[{id: 12, name: "grs", group: "test", status: 1, models: ["gpt-image-2"]}]`, creates a disabled validation-gated draft, then runs validate/dry-run before save.
+- Base: admin manually enters a channel id not currently loaded; UI labels the draft as validation-gated and backend validation rejects missing/disabled/unsupported channels.
+- Bad: Creative binding UI fetches `/api/channel` and stores `base_url`, `header_override`, or `param_override` in React Query cache; UI says provider credentials are never exposed while the browser has full channel transport fields.
+
+### 6. Tests Required
+
+- Controller test for `/api/creative/channel-summaries` proving no-store headers and sanitized response fields.
+- Service/controller fixture with a channel containing fake key, base URL, header/param overrides, settings, model mapping, org id, and remarks; assert none appear in the response body.
+- Service test for model-list normalization and pagination/search behavior when practical.
+- Frontend type/API check proving Creative binding UI imports `CreativeChannelSummary` and `getCreativeChannelSummaries`, not generic `Channel` / `getChannels`.
+- UI/lint/typecheck coverage for disabled channel, empty model list, duplicate binding id, and provider-model mismatch behaviors when those branches are implemented in components.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Creative model bindings page -> GET /api/channel -> full Channel DTO in browser
+binding id = mock-image-task:gpt-image-2:preview for every channel
+manual providerModelId not in selected channel -> draft silently written as “safe”
+```
+
+#### Correct
+
+```text
+Creative model bindings page -> GET /api/creative/channel-summaries -> {id,name,group,status,models[]}
+binding id = mock:gpt-image-2:ch12:preview or explicit admin-provided id with collision confirmation
+manual/unknown values -> validation-gated draft copy, backend validate/dry-run remains authoritative
+```

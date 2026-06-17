@@ -1428,3 +1428,152 @@ remote disk after deploy: ~6.8G available
 ```
 
 Result: PASS.
+
+## 2026-06-17 — Creative model binding admin UX/i18n follow-up
+
+User-raised gap: `Creative Model Bindings` was still an engineer-facing JSON editor, unclear where image-provider credentials are configured, and i18n was incomplete.
+
+Implemented in `/mnt/f/code/project/new-api`:
+
+- Added a guided binding builder to `web/default/src/features/system-settings/models/creative-model-bindings-section.tsx`:
+  - fetches admin channel list for selection;
+  - allows manual `channelId` and provider model entry for deployments with many channels;
+  - writes a safe draft into the existing JSON editor;
+  - keeps generated bindings `enabled=false` by default;
+  - separates `bindingId`, `providerModelId`, and `priceModelId`;
+  - only offers current safe presets: `mock_image_task` and `grsai_gpt_image_dryrun`.
+- Added explanatory UI copy clarifying that provider keys/Base URLs/upstream credentials belong in new-api Channels; model bindings only map Creative-visible model IDs to channel/provider model/adapter/schema.
+- Added zh/en i18n coverage for all literal `t('...')` keys used by this page.
+
+Dynamic workflow/check evidence:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow doctor
+codex-flow run .codex-flow/generated/creative-bindings-ui-reaudit.workflow.ts
+```
+
+Result: workflow was manually stopped after one read-only reviewer completed and one reviewer hung. The completed reviewer found: first-page-only channel selection, mixed English channel labels, and missing locale keys. All reported issues were fixed in this follow-up. Journal: `.codex-flow/journal/creative-bindings-ui-reaudit.jsonl`.
+
+Verification:
+
+```bash
+cd /mnt/f/code/project/new-api/web/default
+pnpm exec eslint src/features/system-settings/models/creative-model-bindings-section.tsx src/features/system-settings/types.ts
+pnpm typecheck
+pnpm build:check
+
+cd /mnt/f/code/project/new-api
+python3 - <<'PY'
+import re,json
+from pathlib import Path
+src=Path('web/default/src/features/system-settings/models/creative-model-bindings-section.tsx').read_text()
+keys=set(re.findall(r"\bt\(\s*'([^']+)'",src)) | set(re.findall(r'\bt\(\s*"([^"]+)"',src))
+zh=json.loads(Path('web/default/src/i18n/locales/zh.json').read_text())['translation']
+en=json.loads(Path('web/default/src/i18n/locales/en.json').read_text())['translation']
+assert not [k for k in keys if k not in zh]
+assert not [k for k in keys if k not in en]
+print('creative bindings i18n keys covered:', len(keys))
+PY
+```
+
+Result: PASS. No real Duomi/GrsAI provider calls were made.
+
+Remaining product scope before final goal-attainment audit:
+
+- Real Duomi/GrsAI live adapters are still intentionally not implemented; current GrsAI is dry-run/fixture only and Duomi remains blocked.
+- A real adapter phase must design/implement provider request mapping, polling/fetch parsing, private URL ingestion, billing/idempotency/CAS/outbox, channel credential retrieval, and provider error mapping before production live calls.
+
+## 2026-06-17 — Creative bindings UI full-severity codex-flow continuation
+
+Reason: previous review workflow was incomplete and an attempted fallback reviewer was not acceptable evidence. Reran a proper codex-flow continuation with high-scrutiny branch review and verification.
+
+Workflow commands:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-bindings-ui-full-severity-continuation.workflow.ts
+codex-flow run .codex-flow/generated/creative-bindings-ui-findings-verify.workflow.ts
+codex-flow run .codex-flow/generated/creative-bindings-ui-synthesis-only.workflow.ts
+```
+
+Journals:
+
+- `.codex-flow/journal/creative-bindings-ui-full-severity-continuation.jsonl`
+- `.codex-flow/journal/creative-bindings-ui-findings-verify.jsonl`
+- `.codex-flow/journal/creative-bindings-ui-synthesis-only.jsonl`
+
+Result:
+
+- Branch review completed across security-contract, admin-channel-data-minimization, ux-i18n-footguns, and draft-logic-maintainability.
+- First verification prompt was too large and failed; this was corrected by a verification-only workflow with compact findings.
+- Verification completed; synthesis-only completed and returned `mustFixBeforeCommit=true`.
+- Rejected false positives:
+  - empty `canaryGroups` does not broad-expose because backend returns false for empty groups;
+  - `/api/channel` list omits `key`, so direct key leakage subclaim was rejected;
+  - backend validation already checks channel existence/enabled/model support.
+
+Verified findings to fix before commit:
+
+- Low: Creative binding builder uses non-minimized generic channel DTO; although key is omitted, base_url/header_override/param_override/settings-like data may enter browser data flow. Add sanitized channel summary endpoint/DTO.
+- Low: fixed `page_size=200` overfetches and misses large deployments; prefer summary search/pagination or lazy single-channel summary.
+- Info: credentials copy overpromises until DTO is minimized.
+- Low: auto binding ID omits channelId and can collide/silently replace.
+- Low: manual channel/model can draft invalid combos; backend catches later, but builder copy should say validation-gated draft and UI should warn/block where possible.
+- Low: auto ID uses raw providerModelId and preset shape differs from templates.
+- Info: Duomi/GrsAI flow wording has slight live-adapter ambiguity.
+- Info: Chinese safety copy mixes many English terms.
+- Low: preset metadata is stringly typed and unknown preset falls back to mock schema.
+- Low: unused/stale locale keys introduced by this change should be removed.
+- Low: unrelated locale churn should be restored/scoped.
+
+Implementation follow-up dispatched to Trellis implement sub-agent `creative_bindings_review_fixes_impl`.
+
+## 2026-06-17 — Creative bindings review-fix implementation and verification
+
+Implemented fixes for the verified codex-flow findings before commit:
+
+- Added sanitized `/api/creative/channel-summaries` admin endpoint returning only `id`, `name`, `group`, `status`, `models`, `total`, `page`, and `page_size`.
+- Added backend tests proving channel summary output omits channel key, base URL, header/param overrides, settings, model mapping, org, remarks, and other credential-like fields.
+- Frontend builder now uses `getCreativeChannelSummaries` / `CreativeChannelSummary` instead of generic `getChannels` / full `Channel` DTO.
+- Builder supports summary search and single-channel lookup rather than fixed 200-channel full DTO fetch.
+- Generated binding IDs include channel id and sanitized model slug, with preset-specific shape (`mock:<model>:ch<id>:preview`, `grsai:<model>:ch<id>:dryrun`).
+- Duplicate binding IDs require explicit confirmation before replacing an existing draft.
+- Builder blocks disabled selected channels, empty model-list channels, and provider models not in the selected channel model list when channel metadata is available.
+- Copy now describes the draft as validation-gated and clarifies Duomi/GrsAI live adapters are future adapter preparation; GrsAI remains dry-run/fixture only.
+- Preset metadata is centralized in a typed const map with no unknown-preset fallback to mock schema.
+- i18n keys used by the component are covered in zh/en; stale locale keys from the previous iteration were removed.
+
+Trellis check sub-agent `creative_bindings_review_fixes_check` found and fixed two additional issues:
+
+- selected channel with an empty model list could still generate a draft;
+- two new copy strings were missing from locale files, and some stale locale churn remained.
+
+Main-session verification after check fixes:
+
+```bash
+cd /mnt/f/code/project/new-api
+go test -count=1 ./service ./controller ./router
+
+cd /mnt/f/code/project/new-api/web/default
+pnpm exec eslint src/features/system-settings/api.ts src/features/system-settings/types.ts src/features/system-settings/models/creative-model-bindings-section.tsx
+pnpm typecheck
+pnpm build:check
+
+cd /mnt/f/code/project/new-api
+python3 - <<'PY'
+import re,json
+from pathlib import Path
+src=Path('web/default/src/features/system-settings/models/creative-model-bindings-section.tsx').read_text()
+keys=set(re.findall(r"\bt\(\s*'([^']+)'",src)) | set(re.findall(r'\bt\(\s*"([^"]+)"',src))
+zh=json.loads(Path('web/default/src/i18n/locales/zh.json').read_text())['translation']
+en=json.loads(Path('web/default/src/i18n/locales/en.json').read_text())['translation']
+assert not [k for k in keys if k not in zh]
+assert not [k for k in keys if k not in en]
+print('creative bindings i18n keys covered:', len(keys))
+PY
+
+git diff --check
+```
+
+Result: PASS. No real Duomi/GrsAI provider calls were made.
