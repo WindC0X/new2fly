@@ -480,7 +480,8 @@ Unexpected `Location` headers, HTML API fallback, or HTML static-miss fallback a
 
 ```bash
 python3 scripts/creative_release_gate.py check \
-  --embedded-smoke-url https://console.se7endot.top/creative/
+  --embedded-smoke-url https://console.se7endot.top/creative/ \
+  --drawnix-ready-timeout-ms 90000
 ```
 
 ### 8.5 Authenticated cloud-sync smoke
