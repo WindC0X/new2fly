@@ -1067,3 +1067,38 @@ Closure round3 confirmed PF still closed but REG remains open: `REG-HIGH-001-COL
 ### 2026-06-17 — REG-HIGH-001 round8 closure + final build-sync gate
 
 Resolved the remaining OpenTU document-sync race findings from codex-flow round7. Added immediate revision clearing on queued deletes, in-flight local mutation guards in `workspaceService.upsertBoardFromCloud`, and tests for delete-before-upsert / update-before-upsert with `shouldApply` always true plus hidden syncEngine side-effect isolation. Main verification passed: `creative-document-sync.test.ts` 41/41, `pnpm nx run drawnix:typecheck`, and diff checks. Trellis check sub-agent passed after small cleanup. Real codex-flow round8 passed with `pfHigh001Closed=true`, `regHigh001Closed=true`, no findings. Re-ran final `creative_release_gate.py build-sync-check --source-diff-check --run-new-api-tests` after the check-agent edits; OpenTU build/typecheck/SW build, embedded dist sync/artifact contract, new-api tests, and `go build ./...` all passed.
+
+
+## Session 27: Creative Adapter Capability Registry final audit
+
+**Date**: 2026-06-18
+**Task**: Creative Adapter Capability Registry final audit
+**Branch**: `master`
+
+### Summary
+
+Completed current-profile dynamic final audit for Creative Adapter Capability Registry; Phase A/B/C1 mock-first scope is mostly met with no functional Critical/High blockers. Committed OpenTU managed runtime model gaps, new-api managed binding release gates plus embedded dist, and Trellis final-audit evidence. Remaining live Duomi/GrsAI adapters are future scope.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `59b09cc5` | (see git log) |
+| `8f50577` | (see git log) |
+| `86d4a20` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
