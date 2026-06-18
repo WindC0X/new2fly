@@ -2012,3 +2012,120 @@ python3 scripts/creative_release_gate.py build-sync-check --source-diff-check --
 ```
 
 Result: PASS — OpenTU web typecheck/build/app/SW build completed; embedded dist synced into both new-api locations; artifact contract passed (`175` files each, `/creative/assets` refs, no sourcemaps); source diff checks passed; new-api `go test` suite and `go build ./...` passed. Existing `.npmrc ${NPM_TOKEN}`, Sass deprecation, Browserslist, and chunk-size warnings remain non-blocking.
+
+## Phase 3.1 final goal-attainment verification — 2026-06-18
+
+Scope: fresh final audit of whether the current Creative Adapter Capability Registry goal is met and whether current code introduces new problems. This was intentionally not limited to checking whether the last `userParams` fix was completed.
+
+Dynamic workflow attempt:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-adapter-capability-final-goal-audit-2026-06-18.workflow.ts
+```
+
+Result: NOT COMPLETED. The workflow and journal were created, but all six reviewer nodes plus synthesis failed with backend `INSUFFICIENT_BALANCE`; journal path: `.codex-flow/journal/creative-adapter-capability-final-goal-audit-2026-06-18.jsonl`. This is not counted as a pass. Re-run the same command to resume after the backend route/account is healthy.
+
+Trellis reviewer fallback:
+
+- Spawned three read-only `trellis-check` reviewers for new-api, OpenTU, and cross-repo release/artifact lenses.
+- Result: no usable findings returned after three 5-minute wait cycles; agents were closed and are not counted as a pass.
+
+Main-session verification performed instead:
+
+new-api:
+
+```bash
+cd /mnt/f/CODE/Project/new-api
+go test -count=1 ./controller ./service ./middleware ./model ./dto
+go test -count=1 ./...
+go build ./...
+git diff --check
+```
+
+Result: PASS.
+
+OpenTU:
+
+```bash
+cd /mnt/f/CODE/Project/opentu
+pnpm vitest run packages/drawnix/src/mcp/tools/__tests__/image-generation.test.ts packages/drawnix/src/utils/__tests__/ai-input-parser.test.ts packages/drawnix/src/components/ai-input-bar/__tests__/workflow-converter.test.ts packages/drawnix/src/services/__tests__/image-generation-service.test.ts packages/drawnix/src/services/__tests__/media-executor.test.ts packages/drawnix/src/services/__tests__/generation-api-service.creative-embedded.test.ts packages/drawnix/src/services/creative-session-broker.test.ts packages/drawnix/src/constants/__tests__/model-config.test.ts
+pnpm typecheck
+pnpm vitest run packages/drawnix/src/services/__tests__/image-generation-service.test.ts --testTimeout=30000
+pnpm vitest run packages/drawnix/src/services/__tests__/task-queue-service-image-retry.test.ts --testTimeout=45000
+git diff --check
+```
+
+Result: PASS. A combined retry test run hit default Vitest timeouts, then the same files passed when run separately with appropriate test timeouts; no assertion failure remained. Existing `.npmrc ${NPM_TOKEN}` warnings and jsdom/localStorage crypto stderr remain known non-blocking test environment noise.
+
+Release artifact gate:
+
+```bash
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py check --source-diff-check
+```
+
+Result: PASS. The gate confirmed OpenTU embedded artifact contract, `new-api:web` and `new-api:router` dist match OpenTU, no sourcemaps, and diff whitespace checks across new2fly/opentu/new-api excluding generated dist where appropriate.
+
+Manual cross-check notes:
+
+- `web/creative/dist` and `router/web/creative/dist` currently have identical file sets and identical common-file content (175 files each). The large hash-file dirty set is expected generated artifact churn, but must be committed as a coherent unit if releasing this build.
+- `CreativeRejectManagedImageBindingSyncRoute` rejects managed image binding ids on the sync `/images/generations` route, forcing schema-backed Creative image bindings to `/creative/relay/v1/images/tasks` until sync URL interception exists.
+- `CreativeRelayImageTaskSubmit/Fetch/Content` use session-only checks, owner+platform scoped task lookup, private no-store content, and public DTO allowlisting. Mock C1 route stores `priceModelId` in billing context and does not call provider transport.
+- OpenTU `creativeManaged` / empty `userParams` are preserved through parser/workflow/submission/queue/MCP/direct execution paths, and direct managed image tasks sanitize `userParams` against the runtime schema before fetch body submission.
+
+Current final-audit verdict from available evidence: no Critical/High runtime blocker found by main-session verification. Remaining release caveat: the requested codex-flow independent final audit did not complete due external backend balance, so the strongest possible independent workflow evidence is still pending until that command can be resumed.
+
+## Phase 3.1 current-profile dynamic final audit closure — 2026-06-18
+
+The first current-profile final-audit workflows were not accepted as complete:
+
+- `.codex-flow/generated/creative-adapter-final-goal-audit-current-profile-2026-06-18.workflow.ts`
+  - Result: backend/opentu/release branches timed out; synthesis failed with current profile quota error.
+- `.codex-flow/generated/creative-final-goal-evidence-pack-audit-current-profile-2026-06-18.workflow.ts`
+  - Result: branch reviewers timed out; synthesis completed but branches were null. Not counted as complete branch review.
+
+A compact current-code evidence pack was then generated from current code snippets and verification commands:
+
+```text
+.trellis/tasks/06-16-creative-adapter-capability-registry/research/final-goal-current-evidence-2026-06-18.md
+```
+
+Final accepted dynamic workflow using the current enabled profile:
+
+```bash
+cd /mnt/f/code/project/new2fly
+codex-flow run .codex-flow/generated/creative-final-goal-evidence-only-branches-current-profile-2026-06-18.workflow.ts
+```
+
+Journal:
+
+```text
+.codex-flow/journal/creative-final-goal-evidence-only-branches-current-profile-2026-06-18.jsonl
+```
+
+Result: COMPLETED.
+
+- `backend-evidence-only`: PASS, verdict `met`, no Critical/High.
+- `opentu-evidence-only`: PASS, verdict `mostly_met`, no Critical/High.
+- `release-evidence-only`: PASS, verdict `mostly_met`, no Critical, one High release-process issue.
+- `evidence-only-synthesis`: PASS, overall verdict `mostly_met`.
+
+Synthesis findings:
+
+- Critical: none.
+- High: current release/deploy state is not closed while `new-api`, `opentu`, and `new2fly` still contain uncommitted changes; before formal release these must be committed/frozen as a coherent cross-repo change set.
+- Medium: real Duomi/GrsAI live provider adapters remain out of Phase A/B/C1 mock-first scope. If product expectation shifts to real provider calls, a new phase must implement provider request mapping, polling/fetch parsing, private result URL ingestion/proxying, billing/idempotency/CAS/outbox, channel credential retrieval, and provider error mapping.
+- Low: generated Creative dist churn is acceptable only because release gate confirmed both embedded new-api dist trees match OpenTU and contain no sourcemaps; release should still preserve the coherent artifact source.
+- Gap: default/recommended model behavior has indirect but not line-by-line dynamic evidence; runtime schema/userParams/managed task path evidence is direct.
+
+Dynamic final-audit conclusion: Phase A/B/C1 mock-first Creative Adapter Capability Registry goal is mostly met, with no current functional Critical/High blocker. The remaining High is release-process closure: commit the cross-repo source/artifact/task evidence consistently before publish/deploy.
+
+## Phase 3.4 commit closure — 2026-06-18
+
+The dynamic final audit's only High release-process issue was uncommitted cross-repo state. It was addressed by committing the code/artifact changes as coherent repository commits:
+
+- OpenTU: `59b09cc5 fix(creative): close managed runtime model gaps`
+- new-api: `8f50577 fix(creative): finalize managed binding release gates`
+
+new2fly task evidence is committed separately in this repository. `.codex/config.toml` remains an intentionally uncommitted local config drift and is excluded.
