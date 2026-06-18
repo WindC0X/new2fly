@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
+- **Total Sessions**: 29
 - **Last Active**: 2026-06-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1139 | Active |
+| `journal-1.md` | ~1172 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-06-18 | Creative adapter manifest binding UI | new-api:`1680c11` | `master` |
 | 28 | 2026-06-18 | Creative staging params acceptance | `46fdd6c3`, `241573a`, `5402ba4` | `master` |
 | 27 | 2026-06-18 | Creative Adapter Capability Registry final audit | `59b09cc5`, `8f50577`, `86d4a20` | `master` |
 | 26 | 2026-06-15 | Creative embedded production deploy | `1eafcb6` | `master` |

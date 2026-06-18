@@ -1137,3 +1137,36 @@ Fixed OpenTU managed direct image model parameter fallback, synced embedded Crea
 ### Next Steps
 
 - None - task complete
+
+
+## Session 29: Creative adapter manifest binding UI
+
+**Date**: 2026-06-18
+**Task**: Creative adapter manifest binding UI
+**Branch**: `master`
+
+### Summary
+
+Implemented Phase A Creative adapter manifest registry, admin endpoint, manifest-driven binding UI, validation, dynamic workflow reviews, and local staging smoke. New-api commit 1680c11.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `new-api:1680c11` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
