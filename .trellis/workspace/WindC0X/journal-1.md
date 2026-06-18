@@ -1102,3 +1102,38 @@ Completed current-profile dynamic final audit for Creative Adapter Capability Re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: Creative staging params acceptance
+
+**Date**: 2026-06-18
+**Task**: Creative staging params acceptance
+**Branch**: `master`
+
+### Summary
+
+Fixed OpenTU managed direct image model parameter fallback, synced embedded Creative dist into new-api, refreshed local staging, verified route/admin/UI smoke, and recorded Duomi/GrsAI live adapter gap.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `46fdd6c3` | (see git log) |
+| `241573a` | (see git log) |
+| `5402ba4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
