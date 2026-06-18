@@ -259,6 +259,9 @@ if (isCreativeEmbeddedMode()) {
 ### 2. Signatures
 
 - Runtime schema source: `ModelConfig.parameterSchema?: ParamConfig[]` with `runtimeSchema: true`.
+- Direct managed catalog fallback source:
+  - OpenTU may reuse static parameter metadata only for a received managed `ModelConfig` whose `providerModelId` or `id` resolves to a known static model of the same `type`.
+  - `priceModelId` is billing metadata and is never a parameter-metadata lookup key.
 - User payload carrier: `CreativeUserParams = Record<string, string | number | boolean>`.
 - OpenTU request chain fields:
   - `ParsedGenerationParams.userParams?: CreativeUserParams`
@@ -271,6 +274,10 @@ if (isCreativeEmbeddedMode()) {
 ### 3. Contracts
 
 - For schema-backed image models, OpenTU submits the backend catalog `id` as `model`/binding id and carries only typed `userParams` derived from backend schema IDs.
+- Runtime `parameterSchema` is authoritative. If it is present, `getCompatibleParams()` must use it and must not merge static params from `providerModelId`, `id`, or any billing field.
+- Direct New API channel catalog models can be `creativeManaged=true` without a runtime schema, for example a channel-provided `Gpt-image-2`. In that case OpenTU may show static image parameters only when `providerModelId` or the catalog `id` matches a known safe static model such as `gpt-image-2` after normal model-id lookup.
+- Unknown `creativeManaged` models without runtime schema remain parameterless (`[]`) and fail closed; do not infer parameters from labels, short codes, tags, defaults, user preferences, or standalone provider profiles.
+- `priceModelId` must stay distinct from `providerModelId`: a known static `priceModelId` must not cause parameter controls to appear for an unknown executable binding.
 - Runtime schema preferences are scoped by binding/selection key, not by `providerModelId`; two bindings that share one upstream provider model must keep separate defaults and saved params.
 - Schema-backed image requests must not legacy-rewrite or pass through OpenTU `params`, `size`, `resolution`, `quality`, `inputFidelity`, `background`, `outputFormat`, `outputCompression`, `count`, aspect/duration defaults, callback/webhook/header/url/provider/channel/model override fields, or frontend callbacks as provider parameters.
 - `buildCreativeUserParams()` may collect only IDs that survived `normalizeCreativeParameterSchema()`; unsafe/control schema IDs are dropped before they become UI params.
@@ -281,6 +288,10 @@ if (isCreativeEmbeddedMode()) {
 ### 4. Validation & Error Matrix
 
 - Runtime schema contains forbidden ID such as `baseUrl`, `endpoint`, `url`, `headers`, `provider`, `channel`, `modelRef`, `sourceProfileId`, `idempotencyKey`, `onProgress`, `onSubmitted`, `callback`, `webhook`, or `notifyHook` -> drop the field from runtime params and from submitted `userParams`.
+- Managed direct catalog model `id="Gpt-image-2"` and no schema -> static `gpt-image-2` image controls may render, including size/resolution/quality.
+- Managed binding `providerModelId="gpt-image-2"` and no schema -> static `gpt-image-2` image controls may render while the executable model id remains the binding id.
+- Managed binding `priceModelId="gpt-image-2"` with unknown/missing `providerModelId` and no schema -> no static parameter fallback; return `[]`.
+- Unknown managed catalog/binding model and no schema -> no static parameter fallback; return `[]`.
 - Schema-backed model has `options.params.size` or prompt `-size=` -> do not legacy-normalize into `size`; keep provider-specific size only as a typed schema field when schema ID allows it.
 - Schema-backed request reaches an adapter without `supportsCreativeUserParams === true` -> throw a local error before image preprocessing, adapter `generateImage`, or provider relay.
 - Async MCP image execution follows the same gate: managed/schema-backed image requests must stop before a non-managed adapter's `generateImage()` runs, even if the call path is not queue-based.
@@ -290,12 +301,16 @@ if (isCreativeEmbeddedMode()) {
 ### 5. Good/Base/Bad Cases
 
 - Good: catalog binding `mock:gpt-image-2:preview` renders schema params, parser emits `userParams: { size: "1024x1024", seed: 42 }`, workflow/generation/executor omit legacy `params` and `size`, and an unsupported GPT/OpenAI adapter is not called.
+- Good: direct managed catalog model `Gpt-image-2` with no schema renders the same safe static size/resolution/quality controls as `gpt-image-2`, because the executable model id itself resolves to a known static image model.
+- Base: managed binding id `grsai-image-binding` with `providerModelId="gpt-image-2"` and no schema renders static `gpt-image-2` controls, but the browser still submits the backend catalog id / binding id as the executable model.
 - Base: schema has a hidden or forbidden control field; the field is absent from OpenTU selectable params and absent from submitted `userParams`.
+- Bad: unknown managed binding renders `gpt-image-2` controls only because `priceModelId="gpt-image-2"` or the display label contains `gpt-image-2`.
 - Bad: schema-backed request falls through to `gpt-image-adapter` with `model="mock:gpt-image-2:preview"` and legacy `params` or `size`; this can send a binding id to a real provider and violates the no-provider-call gate.
 
 ### 6. Tests Required
 
 - Model-config tests: typed enum/string/number/integer/boolean cast; dangerous schema IDs are filtered; static fallback still works for non-schema models.
+- Model-config tests: runtime schema priority over static fallback; managed providerModelId fallback; managed direct catalog id fallback including case variants such as `Gpt-image-2`; priceModelId non-fallback; unknown managed no-schema returns `[]`.
 - Parser/workflow tests: schema-backed image steps serialize `userParams` and do not serialize legacy `params`/`size`.
 - Generation service tests: persisted task params and executor params include typed `userParams` and strip legacy adapter/provider fields when `userParams` is present.
 - Executor/adapter tests: supported managed adapter receives typed `userParams`; unsupported adapter rejects before `generateImage` is called.
@@ -314,6 +329,11 @@ await adapter.generateImage(context, {
 });
 ```
 
+```typescript
+// Wrong: billing metadata grants UI/runtime parameter authority.
+const staticParams = getStaticModelConfig(model.priceModelId);
+```
+
 #### Correct
 
 ```typescript
@@ -326,6 +346,13 @@ await adapter.generateImage(context, {
   params: userParams ? undefined : legacyParams,
   size: userParams ? undefined : legacySize,
 });
+```
+
+```typescript
+// Correct: schema wins; otherwise managed fallback is limited to executable/provider model identity.
+if (Array.isArray(model.parameterSchema)) return model.parameterSchema;
+const staticParams =
+  model.creativeManaged && (lookup(model.providerModelId) || lookup(model.id));
 ```
 
 #### Wrong
