@@ -1,0 +1,5 @@
+{"file":".trellis/tasks/archive/2026-06/06-21-06-21-creative-duomi-grsai-live-image-adapter/validation.md","reason":"Prior implementation verification and dynamic workflow final audit evidence."}
+{"file":".trellis/tasks/archive/2026-06/06-21-06-21-creative-duomi-grsai-live-image-adapter/prd.md","reason":"Original live adapter requirements and constraints."}
+{"file":".trellis/tasks/archive/2026-06/06-21-06-21-creative-duomi-grsai-live-image-adapter/design.md","reason":"Adapter implementation design and rollout constraints."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Backend Creative live adapter, binding, route, privacy, and security contracts."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded /creative release and smoke contract."}
