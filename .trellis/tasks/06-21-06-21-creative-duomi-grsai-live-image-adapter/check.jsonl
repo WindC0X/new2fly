@@ -1,0 +1,14 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend guideline index and quality checklist for new-api service/controller/model changes."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Creative route, model binding, DTO privacy, forbidden-field, channel-summary, and mock image task security contracts."}
+{"file":".trellis/spec/backend/creative-async-task-billing-consistency.md","reason":"Durable async task submit, idempotency, selected-key affinity, terminal CAS, billing outbox, and refund contract."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Safe result URL/content storage/proxy considerations for Creative assets."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Backend controlled errors and failure behavior standards."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Backend validation and test quality expectations."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend guideline index for admin UI and embedded Creative model surfaces."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded OpenTU managed model catalog, schema-backed userParams, and fail-closed generation contract."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Admin settings component consistency if Creative Model Bindings UI is changed."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"TypeScript API/schema typing standards for admin binding UI changes."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-layer data-flow guide for browser -> backend -> provider -> task -> content flow."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse guide for adapter abstraction and existing billing/idempotency helpers."}
+{"file":".trellis/tasks/06-21-06-21-creative-duomi-grsai-live-image-adapter/research/provider-api-contracts.md","reason":"Sanitized Duomi/GrsAI API contract extraction from Apifox docs."}
+{"file":".trellis/tasks/06-21-06-21-creative-duomi-grsai-live-image-adapter/research/current-code-context.md","reason":"Current new-api Creative binding/task/billing code context and identified gaps."}
