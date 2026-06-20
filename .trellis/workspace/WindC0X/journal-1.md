@@ -1396,3 +1396,38 @@ Verified production Creative post-deploy route/provenance, recorded user-confirm
 ### Next Steps
 
 - None - task complete
+
+
+## Session 33: Creative Duomi GrsAI live image adapter
+
+**Date**: 2026-06-21
+**Task**: Creative Duomi GrsAI live image adapter
+**Branch**: `master`
+
+### Summary
+
+Implemented channel-backed Duomi/GrsAI Creative live image adapters, validated with dynamic workflow final audit, targeted tests, local no-provider staging smoke, browser smoke, and updated backend live-adapter contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ed0fea4` | (see git log) |
+| `0c6a46d` | (see git log) |
+| `d5007c8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 32
+- **Total Sessions**: 33
 - **Last Active**: 2026-06-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1398 | Active |
+| `journal-1.md` | ~1433 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 33 | 2026-06-21 | Creative Duomi GrsAI live image adapter | `ed0fea4`, `0c6a46d`, `d5007c8` | `master` |
 | 32 | 2026-06-21 | Creative production browser acceptance | new2fly:`06b2015`, new-api:`53b8f54`, opentu:`0b584e2c` | `master` |
 | 31 | 2026-06-21 | Creative pinned candidate production deploy | new2fly:`593c548`, new2fly:`c14b852`, new2fly:`7368ba9`, new-api:`53b8f54`, opentu:`0b584e2c` | `master` |
 | 30 | 2026-06-20 | Creative production hardening candidate closeout | opentu:`0b584e2c`, new-api:`4bdc245`, new-api:`53b8f54`, new2fly:`6e06dd0`, new2fly:`4c4a1d1`, new2fly:`224e180` | `master` |
