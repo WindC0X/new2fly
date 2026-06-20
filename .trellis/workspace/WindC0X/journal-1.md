@@ -1361,3 +1361,38 @@ Pushed pinned Creative candidate refs, verified remote hashes, ran local disposa
   - no provider generation/submit was triggered during acceptance.
 - Temporary root-user automation was intentionally not used in this pass because it is a production DB/auth mutation. It remains available only as a separately authorized smoke path with create/delete cleanup if browser acceptance needs automation later.
 - Explicit not-run items remain: provider generation/payment smoke, Creative 云同步/S3 smoke, and Duomi/GrsAI live adapter validation.
+
+
+## Session 32: Creative production browser acceptance
+
+**Date**: 2026-06-21
+**Task**: Creative production browser acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified production Creative post-deploy route/provenance, recorded user-confirmed authenticated browser acceptance for model list and parameter UI, kept provider/cloud-sync mutations out of scope, and documented why temporary root-user automation was not used without separate production DB/auth mutation authorization.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `new2fly:06b2015` | (see git log) |
+| `new-api:53b8f54` | (see git log) |
+| `opentu:0b584e2c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
