@@ -1264,3 +1264,23 @@ Pinned and verified the embedded Creative production-hardening candidate across 
 ### Next Steps
 
 - None - task complete
+
+## 2026-06-21 — Creative pinned candidate push/staging/preflight progress
+
+- Pushed and verified remote refs:
+  - OpenTU `feat/creative-embed` -> `0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
+  - new-api `feat/creative-embed` -> `53b8f54126214b4eac7b33619d45c097fe443e34`.
+  - new2fly `master` -> `593c548fec9e181d788fddcaebfe253daa84ffb3` at the time of push.
+- Post-push gates passed:
+  - `new-api/scripts/creative_ci_gate.sh` -> `creative_ci_gate=pass`, provenance `0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
+  - `creative_release_gate.py check --source-diff-check --sourcemap-policy forbid` -> pass.
+- Local disposable staging passed after retrying with existing Go module cache:
+  - temporary SQLite/minimal `env -i`, `CREATIVE_ASSET_SYNC_ENABLED=false`, `CREATIVE_VIDEO_RELAY_ENABLED=false`.
+  - Playwright embedded smoke: 1/1 passed.
+  - Redacted local route boundary table passed.
+- VPS/production read-only preflight completed without printing env values:
+  - host `iZ5ts1b7e631cus6rzvbt3Z`, app dir present.
+  - current running image is old candidate `new-api-creative-embed:1680c11`, container running with restart_count=0.
+  - selected env keys checked by presence only; no secret values printed.
+  - public route baseline smoke passed against `console.se7endot.top` / `api.se7endot.top`.
+- Next step is production mutation and requires explicit authorization: build/package `53b8f54` candidate, backup/rehearsal, image identity check, compose/env update, restart, and smoke.

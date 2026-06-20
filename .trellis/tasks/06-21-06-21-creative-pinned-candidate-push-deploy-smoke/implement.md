@@ -8,35 +8,35 @@
 
 ## Phase B — Push and remote verification
 
-- [ ] Attempt WSL `git push --dry-run` / `git ls-remote` where credentials work without exposing secrets.
-- [ ] If WSL credentials fail, use host Git/PowerShell for push/verify; do not copy tokens into WSL.
+- [x] Attempt WSL `git push --dry-run` / `git ls-remote` where credentials work without exposing secrets.
+- [x] If WSL credentials fail, use host Git/PowerShell for push/verify; do not copy tokens into WSL.
 - [ ] Push:
-  - [ ] OpenTU `feat/creative-embed` at `0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
-  - [ ] new-api `feat/creative-embed` at `53b8f54126214b4eac7b33619d45c097fe443e34`.
-  - [ ] new2fly `master` at the current task commit.
-- [ ] Verify remote refs with `git ls-remote` and record hashes.
+  - [x] OpenTU `feat/creative-embed` at `0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
+  - [x] new-api `feat/creative-embed` at `53b8f54126214b4eac7b33619d45c097fe443e34`.
+  - [x] new2fly `master` at the current task commit.
+- [x] Verify remote refs with `git ls-remote` and record hashes.
 
 ## Phase C — Post-push gates
 
-- [ ] Run `TMPDIR=/dev/shm GOCACHE=/dev/shm/go-cache-new-api GOMODCACHE=/dev/shm/go-mod-cache-new-api bash scripts/creative_ci_gate.sh` in `new-api`.
-- [ ] Run `bash -n ops/newapi-opentu-production/creative-route-check.sh ops/newapi-opentu-production/creative-cloud-sync-smoke.sh` in `new2fly`.
-- [ ] Run `PYTHONDONTWRITEBYTECODE=1 python3 scripts/creative_release_gate.py check --new-api /mnt/f/CODE/Project/new-api --opentu /mnt/f/code/project/opentu --source-diff-check --sourcemap-policy forbid`.
-- [ ] Confirm embedded dist provenance still reports OpenTU commit `0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
+- [x] Run `TMPDIR=/dev/shm GOCACHE=/dev/shm/go-cache-new-api GOMODCACHE=/dev/shm/go-mod-cache-new-api bash scripts/creative_ci_gate.sh` in `new-api`.
+- [x] Run `bash -n ops/newapi-opentu-production/creative-route-check.sh ops/newapi-opentu-production/creative-cloud-sync-smoke.sh` in `new2fly`.
+- [x] Run `PYTHONDONTWRITEBYTECODE=1 python3 scripts/creative_release_gate.py check --new-api /mnt/f/CODE/Project/new-api --opentu /mnt/f/code/project/opentu --source-diff-check --sourcemap-policy forbid`.
+- [x] Confirm embedded dist provenance still reports OpenTU commit `0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
 
 ## Phase D — Staging/candidate validation
 
-- [ ] Run local disposable candidate/container staging from pinned commits, or document why the existing staging service is used instead.
-- [ ] Verify `/creative/`, static assets, `/creative/api/bootstrap`, `/creative/api/models`, model catalog/parameter UI, and route/API boundaries in staging.
-- [ ] Keep staging cloud sync disabled unless explicitly using isolated non-production S3-compatible storage.
-- [ ] Record staging result separately from production readiness.
-- [ ] Do not proceed to VPS/production preflight if staging fails.
+- [x] Run local disposable candidate/container staging from pinned commits, or document why the existing staging service is used instead.
+- [x] Verify `/creative/`, static assets, `/creative/api/bootstrap`, `/creative/api/models`, model catalog/parameter UI, and route/API boundaries in staging.
+- [x] Keep staging cloud sync disabled unless explicitly using isolated non-production S3-compatible storage.
+- [x] Record staging result separately from production readiness.
+- [x] Do not proceed to VPS/production preflight if staging fails.
 
 ## Phase E — VPS/production read-only preflight
 
-- [ ] Run read-only VPS/runbook preflight only after staging passes.
-- [ ] Confirm current production image, compose, app dir, env key presence, and backup plan without printing secrets.
-- [ ] Confirm current route baseline using redacted GET/HEAD checks only.
-- [ ] Stop and ask for explicit production mutation authorization before any build/load/restart/env edit/authenticated smoke.
+- [x] Run read-only VPS/runbook preflight only after staging passes.
+- [x] Confirm current production image, compose, app dir, env key presence, and backup plan without printing secrets.
+- [x] Confirm current route baseline using redacted GET/HEAD checks only.
+- [x] Stop and ask for explicit production mutation authorization before any build/load/restart/env edit/authenticated smoke.
 
 ## Phase F — Authorized deployment/smoke
 
