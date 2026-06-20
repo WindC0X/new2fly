@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Creative relay/session-broker/model policy security contract for backend changes."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Asset sync storage, fail-closed, and production safety contract."}
+{"file":".trellis/spec/backend/creative-async-video-relay.md","reason":"Video relay/content proxy platform and session-broker boundaries."}
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded OpenTU release artifact and managed model policy/fail-closed contract."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"Frontend asset prepare/hydrate/sanitizer and service-worker pass-through contract."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Task spans ops/backend/frontend data flow and release boundaries."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Shared denylist/config helpers must reuse existing patterns."}

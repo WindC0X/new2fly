@@ -1,16 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+CONNECT_TIMEOUT="${CREATIVE_SMOKE_CONNECT_TIMEOUT:-10}"
+MAX_TIME="${CREATIVE_SMOKE_MAX_TIME:-30}"
+INSECURE_MODE="${CREATIVE_SMOKE_INSECURE:-${CURL_INSECURE:-0}}"
 ASSERT_MODE=0
-if [[ "${1:-}" == "--assert" ]]; then
-  ASSERT_MODE=1
-  shift
-fi
+POSITIONAL=()
+usage() {
+  cat <<'USAGE'
+Usage:
+  creative-route-check.sh [--assert] [--insecure] [console-base-url] [api-base-url]
 
-BASE_URL="${1:-https://console.se7endot.top}"
-API_BASE_URL="${2:-https://api.se7endot.top}"
+Defaults:
+  console-base-url: https://console.se7endot.top
+  api-base-url:     https://api.se7endot.top
+
+TLS / timeout policy:
+  Public HTTPS is verified by default. Use --insecure or CREATIVE_SMOKE_INSECURE=1
+  only for a controlled private/self-signed target.
+  CREATIVE_SMOKE_CONNECT_TIMEOUT controls curl connect timeout (default: 10s).
+  CREATIVE_SMOKE_MAX_TIME controls curl total timeout (default: 30s).
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --assert)
+      ASSERT_MODE=1
+      shift
+      ;;
+    --insecure)
+      INSECURE_MODE=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      POSITIONAL+=("$1")
+      shift
+      ;;
+  esac
+done
+
+BASE_URL="${POSITIONAL[0]:-https://console.se7endot.top}"
+API_BASE_URL="${POSITIONAL[1]:-https://api.se7endot.top}"
 EXISTING_ASSET_PATH="${CREATIVE_EXISTING_ASSET_PATH:-}"
 FAILURES=()
+CURL_ARGS=(-sS --connect-timeout "$CONNECT_TIMEOUT" --max-time "$MAX_TIME")
+if [[ "$INSECURE_MODE" == "1" ]]; then
+  CURL_ARGS+=(-k)
+fi
 
 trim_slash() {
   local value="$1"
@@ -40,7 +81,7 @@ auto_asset_path() {
   local tmp path
   tmp="$(mktemp)"
   path=""
-  if curl -k -sS -o "$tmp" "$(trim_slash "$BASE_URL")/creative/"; then
+  if curl "${CURL_ARGS[@]}" -o "$tmp" "$(trim_slash "$BASE_URL")/creative/"; then
     path="$(python3 - "$tmp" <<'PY'
 import re, sys
 text = open(sys.argv[1], errors='ignore').read()
@@ -63,10 +104,10 @@ probe() {
   status="000"
   size="0"
   if [[ "$method" == "HEAD" ]]; then
-    status="$(curl -k -sS -o /dev/null -D "$tmp_headers" -w '%{http_code}' -I "$url" || true)"
+    status="$(curl "${CURL_ARGS[@]}" -o /dev/null -D "$tmp_headers" -w '%{http_code}' -I "$url" || true)"
     size="0"
   else
-    status="$(curl -k -sS -o "$tmp_body" -D "$tmp_headers" -w '%{http_code}' "$url" || true)"
+    status="$(curl "${CURL_ARGS[@]}" -o "$tmp_body" -D "$tmp_headers" -w '%{http_code}' "$url" || true)"
     size="$(wc -c < "$tmp_body" | tr -d ' ')"
   fi
   content_type="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{sub(/^[^:]+:[[:space:]]*/, ""); sub(/[[:space:]]*\r$/, ""); print; exit}' "$tmp_headers")"

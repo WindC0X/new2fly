@@ -1,0 +1,42 @@
+{
+  "blockingFindings": [],
+  "branch": "new2fly: master@fcee013a dirty; new-api: feat/creative-embed@1680c112 dirty; opentu: feat/creative-embed@f35a831 dirty",
+  "commandsRun": [
+    "git status --short --branch / rev-parse for all three repos",
+    "bash -n ops/newapi-opentu-production/creative-route-check.sh ops/newapi-opentu-production/creative-cloud-sync-smoke.sh",
+    "python3 scripts/creative_release_gate.py check --source-diff-check --sourcemap-policy forbid",
+    "GOTMPDIR=/dev/shm/... GOCACHE=/dev/shm/... python3 scripts/creative_release_gate.py check --source-diff-check --sourcemap-policy forbid --run-new-api-tests",
+    "TMPDIR=/dev/shm pnpm exec vitest run src/constants/__tests__/model-config.test.ts src/components/ai-input-bar/ModelDropdown.test.tsx src/services/__tests__/generation-api-service.creative-embedded.test.ts src/services/creative-session-broker.test.ts --config vitest.config.ts",
+    "focused rg/nl/sed/find reads over backend, frontend, generated dist, ops scripts"
+  ],
+  "evidence": [
+    "Release gate passed: 174 dist files byte-identical across opentu, new-api:web, new-api:router; provenance version=0.9.6 gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92; no sourcemaps; dist text hygiene holds.",
+    "Go gate passed: new-api go test root and ./router ./middleware ./controller ./model ./service ./relay/... passed; go build ./... completed with exit 0.",
+    "Frontend targeted Vitest passed: 4 files, 42 tests.",
+    "Header safety: /mnt/f/CODE/Project/new-api/relay/common/override.go:1236 and :1254 filter copy/move source and target headers; :1288 rejects selected/request/upstream key variants and secret-like headers; /mnt/f/CODE/Project/new-api/relay/channel/api_request.go:130 filters {client_header:*}.",
+    "Task submit non-OK body handling: /mnt/f/CODE/Project/new-api/relay/relay_task.go:226-269 closes/discards non-OK body and returns status-only error; regression test at /mnt/f/CODE/Project/new-api/relay/relay_task_test.go:38.",
+    "S3 finite timeout/fail-closed: /mnt/f/CODE/Project/new-api/service/creative_asset.go:38, :768-794, :1063 set finite S3 timeout; :225-249 require production S3-compatible HTTPS config; tests at /mnt/f/CODE/Project/new-api/service/creative_asset_test.go:90 and :156.",
+    "Model catalog/binding contract: /mnt/f/CODE/Project/new-api/service/creative_model_capability.go:311-343 marks Duomi/GrsAI live as future/non-enableable; :456-500 excludes future/provider-call manifests from save; :565-586 exposes only enabled mock image bindings; :855-880 marks parameterSchema present.",
+    "Empty schema behavior: /mnt/f/CODE/Project/new-api/dto/pricing.go:41-63 serializes present nil schema as []; frontend treats empty arrays as runtime schema at /mnt/f/code/project/opentu/packages/drawnix/src/constants/model-config.ts:2850-2858 and returns it without static fallback at :3021-3023; tests at model-config.test.ts:156 and :315 cover no fallback through priceModelId/static shortcodes limits."
+  ],
+  "inconclusive": [
+    "No live route smoke or cloud-sync smoke was run because the audit rule forbids network/provider/payment calls.",
+    "Full OpenTU build/e2e/typecheck/lint were not rerun in this read-only audit; current generated dist was verified by release gate and focused Vitest covered the model/catalog regressions."
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "All three repos report dirty worktrees via git status; new-api includes source and generated dist changes, opentu includes source/version changes, new2fly includes ops/runbook/gate changes.",
+      "mitigation": "Commit or otherwise freeze the exact three worktrees, then rerun the same release gate before release.",
+      "severity": "medium",
+      "title": "Dirty worktrees reduce release reproducibility"
+    },
+    {
+      "evidence": "The full gate completed with exit 0, but go build emitted a read-only module stat-cache warning under the sandboxed HOME/GOMODCACHE.",
+      "mitigation": "Run release CI/builds with writable Go cache paths to keep gate output unambiguous.",
+      "severity": "low",
+      "title": "Go build warning from read-only cache"
+    }
+  ],
+  "summary": "当前磁盘复审未发现新的 blocking defect。代码、generated dist、local gates、runbook/smoke scripts 在可本地验证范围内满足本次 model catalog/binding/adapter contract 与 reaudit8 修复目标；剩余限制主要是脏工作树和按规则未跑线上 smoke。",
+  "verdict": "pass_with_risks"
+}

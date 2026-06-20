@@ -1,0 +1,45 @@
+{
+  "blockingFindings": [
+    {
+      "evidence": "命令证据：`find /mnt/f/code/project/opentu/dist/apps/web /mnt/f/CODE/Project/new-api/web/creative/dist /mnt/f/CODE/Project/new-api/router/web/creative/dist -maxdepth 1 -type f \\( -name 'stats.html' -o -name 'sw-debug.html' -o -name 'cdn-debug.html' \\) -printf '%p\\n'` 返回 `sw-debug.html` 和 `cdn-debug.html`；`git -C /mnt/f/CODE/Project/new-api ls-files ...` 证明 backend 两份 embedded dist 中这 4 个 debug HTML 文件仍被跟踪。Gate 同时误通过：`python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid --source-diff-check` 输出 `[ok] Creative embedded artifact contract holds`。代码证据：`/mnt/f/code/project/new2fly/scripts/creative_release_gate.py:53-54` 只把 debug HTML 放入文本扫描列表，`/mnt/f/code/project/new2fly/scripts/creative_release_gate.py:74-80` 的 forbidden static paths 没有精确禁止 `sw-debug.html`/`cdn-debug.html`。",
+      "impact": "当前生成产物仍会发布 debug HTML 入口；release gate 对该问题 false negative，不能证明 dist debug artifact/provenance 目标达成。",
+      "requiredFix": "从 OpenTU dist 和 new-api 两份 embedded dist 删除/停止生成 `sw-debug.html`、`cdn-debug.html`，并把 gate 的 forbidden path 改为精确禁止这两个文件名；修复后重跑 release gate。",
+      "severity": "high",
+      "title": "Generated Creative dist 仍包含 tracked debug HTML artifacts，且 gate 漏检"
+    }
+  ],
+  "branch": "orchestration master; backend feat/creative-embed; frontend feat/creative-embed",
+  "commandsRun": [
+    "python3 ./.trellis/scripts/get_context.py",
+    "git -C /mnt/f/CODE/Project/new-api status --short --branch",
+    "git -C /mnt/f/code/project/opentu status --short --branch",
+    "nl -ba middleware/creative.go | sed -n '303,431p'",
+    "nl -ba router/web-router.go | sed -n '53,155p'",
+    "nl -ba service/creative_asset.go | sed -n '147,258p'",
+    "nl -ba relay/relay_task.go | sed -n '261,270p'",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid --source-diff-check",
+    "find /mnt/f/code/project/opentu/dist/apps/web /mnt/f/CODE/Project/new-api/web/creative/dist /mnt/f/CODE/Project/new-api/router/web/creative/dist -maxdepth 1 -type f \\( -name 'stats.html' -o -name 'sw-debug.html' -o -name 'cdn-debug.html' \\) -printf '%p\\n'",
+    "git -C /mnt/f/CODE/Project/new-api ls-files web/creative/dist/sw-debug.html web/creative/dist/cdn-debug.html router/web/creative/dist/sw-debug.html router/web/creative/dist/cdn-debug.html"
+  ],
+  "evidence": [
+    "`/mnt/f/CODE/Project/new-api/middleware/creative.go:327-337` 使用 `CREATIVE_PUBLIC_ORIGIN` 优先，否则只用 TLS/request URL/Host；`/mnt/f/CODE/Project/new-api/middleware/creative_test.go:112-129` 覆盖 TLS 反代配置并拒绝 raw forwarded spoof。",
+    "`/mnt/f/CODE/Project/new-api/router/web-router.go:58-99` 显示 `/creative/api` 与 `/creative/relay/v1` 都经 session auth，unsafe relay/API 再加 same-origin/nonce。",
+    "`/mnt/f/CODE/Project/new-api/relay/relay_task.go:261-269` 对 task submit non-OK 只丢弃 body 并返回 status-only error。",
+    "`/mnt/f/CODE/Project/new-api/service/creative_asset.go:160` 默认 S3 request timeout 为 30 秒，`:248-253` 生产 S3 endpoint 要求 HTTPS。",
+    "Dist provenance 是 concrete commit：三个 `version.json` 的 `gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92`，且 OpenTU HEAD 相同。"
+  ],
+  "inconclusive": [
+    "未运行 live route/cloud smoke，因为本次规则禁止 network/provider calls。",
+    "未运行完整 Go/Vitest 套件；已运行当前 release gate/source-diff gate，但该 gate 对 debug HTML 存在已确认 false negative。"
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "三个仓库均 dirty；backend 有大量 staged generated dist 变更，`git diff --cached --name-only` 包含 embedded dist 文件。",
+      "mitigation": "修复 blocker 后，在最终 staged/commit candidate 或实际镜像构建输入树上重跑 gate，避免工作区状态与发布树不一致。",
+      "severity": "medium",
+      "title": "Dirty/staged worktrees 是发布复现风险"
+    }
+  ],
+  "summary": "当前代码的 origin/session/CSRF、raw X-Forwarded spoof resistance、same-origin relay/API、task submit raw body、S3 timeout 方向未发现新的阻断缺陷；最终结论仍为 fail，因为当前生成 dist 仍包含 debug HTML artifacts，且 release gate 会误判通过。",
+  "verdict": "fail"
+}

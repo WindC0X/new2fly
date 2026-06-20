@@ -1,0 +1,67 @@
+{
+  "blockingFindings": [
+    {
+      "evidence": "/mnt/f/code/project/new2fly/scripts/creative_release_gate.py:169-172 derives default `new_api` as sibling `new-api`; `python3 .../creative_release_gate.py --help` reports default `--new-api /mnt/f/code/project/new-api`; `readlink -f` and `git rev-parse --show-toplevel` show `/mnt/f/code/project/new-api` and audited `/mnt/f/CODE/Project/new-api` are distinct worktrees. Runbook also uses the lowercase path at /mnt/f/code/project/new2fly/ops/newapi-opentu-production/README.md:38-40 and :127-130.",
+      "impact": "Release gate/runbook defaults can validate or sync a different backend checkout than the audited disk state. That invalidates pre-commit/release reproducibility even though the explicit-path gate currently passes.",
+      "requiredFix": "Canonicalize the backend path in gate + runbook, or require explicit `--new-api /mnt/f/CODE/Project/new-api`; preferably fail if both distinct checkouts exist and no explicit backend path is provided.",
+      "severity": "medium",
+      "title": "Release gate defaults to a backend path outside the audited checkout"
+    }
+  ],
+  "branch": "new-api: feat/creative-embed; opentu: feat/creative-embed; new2fly: master; audit branch: frontend embedded UX, cloud sync, and asset sanitizer",
+  "commandsRun": [
+    "git status --short --branch in /mnt/f/CODE/Project/new-api, /mnt/f/code/project/opentu, /mnt/f/code/project/new2fly",
+    "diff -qr /mnt/f/code/project/opentu/dist/apps/web against both new-api embedded dist trees",
+    "python3 /mnt/f/code/project/new2fly/scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid",
+    "python3 /mnt/f/code/project/new2fly/scripts/creative_release_gate.py --help",
+    "readlink -f and git rev-parse --show-toplevel for both new-api-looking paths",
+    "Focused rg/nl reads across router, middleware, controller, asset sanitizer, SW pass-through, Settings/GitHub/Feedback/Cloud Sync surfaces, and runbooks",
+    "bash -n for shell gates/smokes; Python AST parse for creative_release_gate.py"
+  ],
+  "evidence": [
+    "Explicit-path release gate passed: 174 files matched across opentu/new-api:web/new-api:router, version provenance `0.9.6` / `f35a831...`, no sourcemaps, dist hygiene passed.",
+    "Generated dist trees are byte-identical across frontend and both backend copies: both `diff -qr` commands exited 0 with no output.",
+    "Unauth/API/relay/static fallback hardening is present: /mnt/f/CODE/Project/new-api/router/web-router.go:208-212 blocks `/creative/api|relay` from SPA fallback; /mnt/f/CODE/Project/new-api/middleware/cache.go:21-24 sets no-store; tests cover unauth/no-store/no-redirect at /mnt/f/CODE/Project/new-api/router/web_router_test.go:142-180.",
+    "Embedded model/session behavior is fail-closed: /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:648-650 errors on empty model pool; /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-embedded-model-guard.ts:60-67 throws when no selectable model; /mnt/f/code/project/opentu/packages/drawnix/src/utils/settings-manager.ts:1809-1859 forces session-broker with empty `apiKey`.",
+    "Standalone surfaces are gated in embedded mode: Cloud Sync hidden at /mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/app-toolbar/app-toolbar.tsx:104-109, GitHub button hidden at :175-188, Feedback returns null at /mnt/f/code/project/opentu/packages/drawnix/src/components/feedback-button/feedback-button.tsx:28-40, GitHub sync indicator returns null at /mnt/f/code/project/opentu/packages/drawnix/src/components/sync-status/SyncStatusIndicator.tsx:28-30.",
+    "Managed Settings wording/API-key handling is present: /mnt/f/code/project/opentu/packages/drawnix/src/components/settings-dialog/settings-dialog.tsx:2482-2489 says New API manages model pool/channel/upstream credentials and browser does not configure provider keys; API URL/API Key fields are disabled/blank for session-broker at :2525-2626.",
+    "Local/cloud status wording is present: /mnt/f/code/project/opentu/packages/drawnix/src/components/creative-document-sync-status/CreativeDocumentCloudSyncBadge.tsx:56-73 distinguishes local browser save, cloud syncing, cloud saved, and conflict states.",
+    "Asset sanitizer is strict: /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-assets.ts:211-230 accepts only same-origin `/creative/api/assets/:id/content` without query/hash; :253-274 rejects credentialed/signed/object-storage URLs; :593-672 prepare/upload/revalidate; :675-749 hydrate/download to local cache.",
+    "Backend asset URLs and ref validation align: /mnt/f/CODE/Project/new-api/service/creative_asset.go:611-622 returns relative `/creative/api/assets/:id/content`; /mnt/f/CODE/Project/new-api/model/creative_asset.go:688-739 rejects protocol-relative, query/fragment, encoded path traversal, wrong origin, and invalid IDs.",
+    "Service worker pass-through is in source and generated dist contract passed: /mnt/f/code/project/opentu/apps/web/src/sw/creative-asset-pass-through.ts:1-18 identifies `/creative/api` and `/creative/relay`; /mnt/f/code/project/opentu/apps/web/src/sw/index.ts:4246-4251 returns before cache/static handlers; order test at /mnt/f/code/project/opentu/apps/web/src/sw/creative-asset-pass-through.spec.ts:36-56.",
+    "Embedded service worker is disabled by default unless `?sw=1`: /mnt/f/code/project/opentu/apps/web/src/main.tsx:37-56 computes `shouldUseServiceWorker`; cleanup unregisters existing SW at :282-320; registration is under `if (shouldUseServiceWorker)` at :445-446 and :572-574."
+  ],
+  "inconclusive": [
+    "未运行 Go/Vitest/Playwright/browser smoke，也未打任何网络/provider/payment/production endpoint；运行时 HTTP 行为只由源码、测试文件和只读 release gate 推断。",
+    "未对所有 minified chunk 做可达性证明；chunk 中保留 standalone 组件字符串不等于嵌入暴露，本次判断依赖源码门控与 release gate/static checks。",
+    "`python3 -m py_compile` 尝试写 `__pycache__` 被只读文件系统拒绝；随后用只读 AST parse 验证了 Python 语法。"
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "三个仓库 `git status --short --branch` 均显示未提交修改；new-api/opentu 还有大量生成 dist/source 修改，new2fly 有 runbook/gate 修改和未跟踪 Trellis task。",
+      "mitigation": "最终部署/提交前统一 stage/commit 或生成可复现补丁，并重新跑显式路径 release gate。不要把这当作运行时代码缺陷。",
+      "severity": "medium",
+      "title": "Dirty worktree release reproducibility risk"
+    },
+    {
+      "evidence": "/mnt/f/CODE/Project/new-api/scripts/creative_ci_gate.sh:174-181 在可选 embedded smoke 分支打印 `CREATIVE_EMBEDDED_SMOKE_URL`。",
+      "mitigation": "改成只打印 `embedded_smoke configured` 或 redacted origin/path，避免 CI 日志泄露 private candidate URL。",
+      "severity": "low",
+      "title": "Optional CI smoke can print private smoke URL"
+    },
+    {
+      "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/settings-dialog/settings-dialog.tsx:1442-1451 clones profiles; :1474-1484 always offers Clone for managed profile; :1803-1815 and :1923-1934 persist full `profilesDraft`.",
+      "mitigation": "嵌入模式禁用 managed profile clone，或保存前过滤非托管 cloned session-broker profile。",
+      "severity": "low",
+      "title": "Embedded Settings can persist hidden cloned managed profile"
+    },
+    {
+      "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/settings-dialog/settings-dialog.tsx:2059-2066 renders compact “新增供应商”; handler at :1344-1348 only reselects managed profile in embedded mode.",
+      "mitigation": "嵌入 compact 模式隐藏该按钮或替换为只读“查看模型池”。",
+      "severity": "low",
+      "title": "Embedded compact Settings shows misleading Add Provider action"
+    }
+  ],
+  "summary": "当前代码/产物的核心嵌入行为没有发现新的阻塞运行时缺陷：未登录 JSON/no-store、空模型 fail-closed、managed session-broker、standalone UI 门控、资产 sanitizer、SW pass-through、dist 合同都能从当前磁盘证据闭合。阻塞项是 ops/gate 层面的 backend 路径不一致：默认 gate/runbook 可指向非本次审计的 backend worktree，必须先修正再把 gate 结果作为 pre-commit/release 依据。",
+  "verdict": "fail"
+}

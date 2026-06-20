@@ -1,0 +1,50 @@
+{
+  "blockingFindings": [],
+  "branch": "new-api: feat/creative-embed @ 1680c112cbab325cc8f08ad05ccf02e6c5d4e783; opentu: feat/creative-embed @ f35a83102273bfa45c4e399639b2e4a0c2c9fc92; new2fly: master",
+  "commandsRun": [
+    "nl -ba middleware/creative.go | sed -n '1,160p' / '303,431p'",
+    "nl -ba router/web-router.go | sed -n '50,105p'",
+    "nl -ba controller/creative.go | sed -n '340,480p' / '1638,1672p' / '2248,2285p'",
+    "nl -ba model/creative_asset.go | sed -n '617,760p'",
+    "nl -ba packages/drawnix/src/services/provider-routing/provider-transport.ts | sed -n '336,470p'",
+    "nl -ba packages/drawnix/src/services/creative-document-assets.ts | sed -n '200,235p'",
+    "diff -qr opentu/dist/apps/web new-api/web/creative/dist",
+    "diff -qr opentu/dist/apps/web new-api/router/web/creative/dist",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid",
+    "git diff --check -- focused Creative/backend/frontend/runbook paths",
+    "bash -n scripts/creative_ci_gate.sh; bash -n ops/newapi-opentu-production/creative-route-check.sh; bash -n ops/newapi-opentu-production/creative-cloud-sync-smoke.sh",
+    "go test ./middleware -run '^$' -list 'TestCreative'"
+  ],
+  "evidence": [
+    "middleware/creative.go:322-337 computes expected origin from CREATIVE_PUBLIC_ORIGIN or request TLS/URL scheme + Host; middleware/creative.go:352-371 accepts only scheme+host public origin with no path/query/fragment/userinfo.",
+    "rg evidence for middleware/creative.go shows X-Forwarded/Forwarded helpers only as definitions at middleware/creative.go:374 and middleware/creative.go:390, while actual origin path uses creativeRequestOrigin at middleware/creative.go:322-337.",
+    "middleware/creative.go:83-117 requires same-origin signal when configured for relay and rejects explicit cross-origin API reads; middleware/creative.go:119-153 requires same-origin plus CSRF/nonce for unsafe methods.",
+    "router/web-router.go:54-73 mounts /creative/api with session auth and cross-origin rejection; unsafe API routes add CreativeRequireNonce. router/web-router.go:90-99 mounts /creative/relay/v1 with session auth, CreativeRequireSameOrigin, CreativeRequireNonce, and forbidden-field rejection.",
+    "controller/creative.go:1653-1659 rejects API-token-only Creative API access; controller/creative_asset_test.go:70-83 covers asset API token-auth rejection.",
+    "controller/creative.go:373 and controller/creative.go:463 pass creativeAPIRequestOrigin into document asset reference validation; controller/creative.go:2269-2270 delegates that helper to middleware.CreativeRequestOrigin.",
+    "model/creative_asset.go:688-739 rejects protocol-relative asset URLs, query/fragment, encoded slash/backslash, '..', wrong origin, and non-/creative/api/assets/:id/content paths.",
+    "opentu packages/drawnix/src/services/creative-mode.ts:1-13 centralizes same-origin /creative/api and /creative/relay/v1 endpoints plus X-Creative headers.",
+    "opentu packages/drawnix/src/services/provider-routing/provider-transport.ts:347-366 rejects absolute session-broker paths/baseUrl and non-canonical baseUrl; provider-transport.ts:419-462 forces session-broker credentials to same-origin.",
+    "opentu packages/drawnix/src/services/creative-document-assets.ts:211-230 only normalizes same-origin, query-free /creative/api/assets/:id/content refs; creative-document-assets.test.ts:288-308 covers same-origin allow and query/protocol-relative/evil-origin reject.",
+    "middleware/creative_test.go:44-130 covers forwarded-header spoof resistance and CREATIVE_PUBLIC_ORIGIN TLS-proxy behavior; controller/creative_test.go:632-673, 716-773, 776-800, and 1624-1649 cover unsafe origin/nonce and relay GET same-origin behavior.",
+    "docs/openapi/creative-embed.md:15 documents CREATIVE_PUBLIC_ORIGIN for HTTPS TLS-termination and states raw X-Forwarded-* remains untrusted; docs/openapi/creative-embed.md:20-23 documents API safe-read vs relay same-origin semantics.",
+    "diff -qr exited 0 for opentu dist vs both new-api embedded dist directories; find for *.map/stats.html produced no output.",
+    "creative_release_gate.py check exited 0 with 174 files matched in both new-api dist copies, version=0.9.6 gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92, no sourcemaps, and embedded dist text hygiene passed.",
+    "dist text scan counted 0 absolute /creative/api or relay refs, 0 protocol-relative /creative refs, 0 sourceMappingURL, 0 /mnt/ workspace paths, 0 node_modules/.pnpm paths, and 0 packages/drawnix/src paths in all three dist trees."
+  ],
+  "inconclusive": [
+    "Full Go/Vitest suites were not run. A read-only syntax/listing attempt failed: go test ./middleware -run '^$' -list 'TestCreative' -> mkdir /tmp/go-build...: read-only file system.",
+    "No live reverse-proxy, provider, payment, or network smoke was run, per user rule. Live HSTS/HTTP exposure and browser cookie transport were not validated from runtime.",
+    "main.go:186-191 still sets session cookie SameSite=Strict but Secure=false. I did not classify this as a Creative origin/CSRF blocker because SameSite=Strict protects cross-site cookie attachment for this boundary, but production HTTPS cookie hardening depends on deployment/HSTS details not verified here."
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "git status --porcelain=v1 | wc -l returned new-api=150, opentu=40, new2fly=6. ops/newapi-opentu-production/README.md:11-18 records verified commits and says stale refs are a release blocker; current dirty disk is not fully represented by those commit SHAs.",
+      "mitigation": "Before final deploy/release tagging, commit or otherwise freeze the audited disk state, refresh runbook refs, and rerun the same gates from a clean checkout/artifact source.",
+      "severity": "high",
+      "title": "发布复现风险：当前审计的是 dirty disk state，不是完全可由 commit 复现的 release candidate"
+    }
+  ],
+  "summary": "当前磁盘状态下，针对 CREATIVE_PUBLIC_ORIGIN、TLS 终止、raw X-Forwarded-* spoof、API/relay 同源边界、asset document origin helper、generated dist、gates 和 runbook 的只读复核没有发现 blocking code/ops defect。主要剩余风险是发布复现性：三仓都有未提交改动；完整测试也因只读 /tmp 未能运行。",
+  "verdict": "pass_with_risks"
+}

@@ -1,0 +1,60 @@
+{
+  "blockingFindings": [
+    {
+      "evidence": "/mnt/f/CODE/Project/new-api/common/init.go:104 默认 `RELAY_TIMEOUT=0`；/mnt/f/CODE/Project/new-api/.env.example:79-81 说明 0 表示不限制；/mnt/f/CODE/Project/new-api/service/http_client.go:93-100 只有 `RelayTimeout != 0` 才设置 `http.Client.Timeout`；/mnt/f/CODE/Project/new-api/service/creative_asset.go:765-769 让 S3-compatible asset client 复用该 client，778-795/809-816/840-845/864-870 直接执行 Put/Get/Head/Delete；/mnt/f/CODE/Project/new-api/controller/creative_asset.go:45,72,88,124 只传入 `c.Request.Context()`，未见专用 deadline。`rg -n \"RELAY_TIMEOUT|CREATIVE_ASSET.*TIMEOUT|timeout\" ops/newapi-opentu-production/README.md ops/newapi-opentu-production/env.production.example` 只命中 smoke curl timeout，没有生产 S3 runtime timeout 要求。",
+      "impact": "Phase 2 启用 Creative 云同步后，默认/文档化配置下对象存储请求可在慢响应或挂起时无限等待，阻塞请求处理器；这使 smoke 脚本的 timeout hardening 没有覆盖实际生产 S3 路径。",
+      "requiredFix": "为 Creative S3-compatible storage 增加独立有限默认超时，或在 asset storage 操作处包 `context.WithTimeout`；同时在 runbook/env gate 中要求该生产超时配置。",
+      "severity": "high",
+      "title": "Phase 2 S3-compatible asset runtime 默认没有有限超时"
+    }
+  ],
+  "branch": "审计焦点: ops deploy/runbook/smoke；当前实际分支: new2fly master，new-api feat/creative-embed，opentu feat/creative-embed",
+  "commandsRun": [
+    "git status --short --branch / git diff --name-only HEAD（三个仓库）",
+    "bash -n ops/newapi-opentu-production/creative-route-check.sh",
+    "bash -n ops/newapi-opentu-production/creative-cloud-sync-smoke.sh",
+    "python3 AST parse scripts/creative_release_gate.py",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid --source-diff-check",
+    "find ... -name '*.map'",
+    "rg/nl focused reads for ops runbook, release gate, backend creative middleware/assets, frontend embedded settings/toolbox/backup/debug paths"
+  ],
+  "evidence": [
+    "ops/newapi-opentu-production/creative-route-check.sh:4-6,51-54 默认有限 curl timeout，只有 `--insecure`/env opt-in 才追加 `-k`；README.md:465-468 文档化 public HTTPS 默认校验。",
+    "ops/newapi-opentu-production/creative-cloud-sync-smoke.sh:7-9,121-124 同样默认有限 timeout 且显式 insecure opt-in；27-29 声明不打印 password/cookies/CSRF/nonce/body/storage credentials。",
+    "ops/newapi-opentu-production/README.md:494-503 与 env.production.example:26-28 已记录 `CREATIVE_PUBLIC_ORIGIN=https://console.se7endot.top` 用于 HTTPS reverse proxy/TLS termination。",
+    "ops/newapi-opentu-production/README.md:395-396,446-447 baseline/post-deploy curl 使用 `--connect-timeout` 与 `--max-time`，未使用 `-k`。",
+    "release gate 当前通过：三份 dist 均为 174 文件且 byte-identical，version=0.9.6，gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92，无 sourcemap，source diff check 通过。",
+    "/mnt/f/CODE/Project/new-api/middleware/creative.go:303-315 要求 unsafe request 有 Origin/Referer 且匹配；322-371 规范化 `CREATIVE_PUBLIC_ORIGIN`，拒绝 path/query/fragment/credentials。",
+    "/mnt/f/CODE/Project/new-api/service/creative_asset.go:210-255 对 asset sync fail-closed：启用时 rollout 必须显式，production 必须 s3-compatible 且 endpoint 必须 HTTPS；service/creative_asset_test.go:54-136 有覆盖。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/components/settings-dialog/settings-dialog.tsx:701-709 embedded 只显示 `new-api-creative` profile；2167-2176 隐藏新增供应商；2371-2516 对 embedded session-broker 隐藏 base URL/API key 表单。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/components/toolbox-drawer/ToolboxDrawer.tsx:58-66,215-230,315-330,647 embedded 过滤/阻断 API-key-template 工具并禁止自定义凭证模板。",
+    "`rg -n \"production deployed|currently deployed|now live|is live|已部署|已上线|上线完成|部署完成\" ops/newapi-opentu-production scripts` 无命中，未发现当前 docs 声称已 production deployed/live。"
+  ],
+  "inconclusive": [
+    "未跑生产/网络/provider/payment/smoke 请求，符合约束；因此线上证书、真实 reverse proxy 行为、真实云同步 smoke 结果未验证。",
+    "未执行 /mnt/f/CODE/Project/new-api/scripts/creative_ci_gate.sh 的 go tests，因为该脚本会运行测试/可能写缓存；仅做了 `bash -n` 和源码审计。",
+    "未跑 Playwright embedded smoke；仅依据源码、生成 dist、release gate 与可见测试文件判断。"
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/toolbar/app-toolbar/app-toolbar.tsx:103 无条件渲染 `<DebugPanel />`，104-118 只对 CloudSync/UserManual/VersionInfo 做 embedded 隐藏；app-menu-items.tsx:209-217 点击后跳转 `./sw-debug.html`。当前 /mnt/f/CODE/Project/new-api/web/creative/dist/sw-debug.html:1-15 是 noindex 的 New API Creative stub，无脚本/旧 debug UI。",
+      "mitigation": "建议 embedded 下也隐藏 DebugPanel，并让 gate 明确断言 debug 菜单或 debug HTML 文件名策略，避免以后 stub 回退成真实 debug 面。",
+      "severity": "medium",
+      "title": "embedded 菜单仍暴露 DebugPanel 入口，但当前目标是安全 stub"
+    },
+    {
+      "evidence": "三仓库均为脏工作树：new2fly 修改 ops/runbook/gate 且有未跟踪 Trellis task；new-api/opentu 有源码与 generated dist 变更。new-api dist/status 显示大量 A/D/R/M，虽然 release gate 当前确认三份 dist byte-identical。",
+      "mitigation": "作为最终发布可复现性门禁，应在提交前确认预期变更全部 staged/committed，尤其 generated dist 与 gate 脚本；不要把脏树本身当代码行为缺陷。",
+      "severity": "medium",
+      "title": "未提交工作树是最终发布可复现性风险"
+    },
+    {
+      "evidence": "scripts/creative_release_gate.py:14-15 与 523-526 默认 `sourcemap-policy=allow`；本次和 runbook 使用 `--sourcemap-policy forbid`，new-api/scripts/creative_ci_gate.sh:41-60 也会禁止 sourcemap。",
+      "mitigation": "生产 CI/发布命令继续强制 `--sourcemap-policy forbid`，或将 orchestration gate 默认改为 forbid，减少误用 bare `check` 的空间。",
+      "severity": "low",
+      "title": "orchestration release gate 裸跑默认仍允许 sourcemap"
+    }
+  ],
+  "summary": "当前磁盘状态下，ops 脚本、runbook、CREATIVE_PUBLIC_ORIGIN 文档、cloud-sync smoke 脱敏策略、dist identity/sourcemap gate 大体通过；但发现一个新的 Phase 2 生产阻断：S3-compatible asset runtime 默认无有限超时。按 pre-commit re-audit，这应在提交/放行 Phase 2 前修复。",
+  "verdict": "fail"
+}

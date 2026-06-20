@@ -8,10 +8,14 @@ It is intentionally conservative: current `new-api` may be paused for a maintena
 
 ### Candidate refs
 
+The table below records the last verified local candidate base. Refresh it after
+any hardening commit and before each deployment; stale refs are a release
+blocker, not documentation noise.
+
 | Component | Remote/ref | Verified commit |
 | --- | --- | --- |
-| OpenTU embedded frontend | `WindC0X/opentu feat/creative-embed` | `bc938728754f7acbfbe8043a717c823bcedcacf0` |
-| new-api backend + embedded dist | `WindC0X/new-api feat/creative-embed` | `bfef3101603837088f011112101038bbcde01b14` |
+| OpenTU embedded frontend | `WindC0X/opentu feat/creative-embed` | `0b584e2cf7c622b9fa431b3bf39b4a86055699bc` |
+| new-api backend + embedded dist | `WindC0X/new-api feat/creative-embed` | `4bdc2450427525050874aa19fd4a0dfc03b971af` |
 | new2fly ops/runbook | current repository | record the commit SHA after this runbook is committed |
 
 Re-verify before deployment:
@@ -27,12 +31,12 @@ expect_ref() {
 }
 
 expect_ref https://github.com/WindC0X/opentu.git refs/heads/feat/creative-embed \
-  bc938728754f7acbfbe8043a717c823bcedcacf0
+  0b584e2cf7c622b9fa431b3bf39b4a86055699bc
 expect_ref https://github.com/WindC0X/new-api.git refs/heads/feat/creative-embed \
-  bfef3101603837088f011112101038bbcde01b14
+  4bdc2450427525050874aa19fd4a0dfc03b971af
 
 cd /mnt/f/code/project/new-api
-test "$(git rev-parse HEAD)" = bfef3101603837088f011112101038bbcde01b14
+test "$(git rev-parse HEAD)" = 4bdc2450427525050874aa19fd4a0dfc03b971af
 ```
 
 ### VPS-A preflight baseline
@@ -54,11 +58,12 @@ Read-only preflight on 2026-06-15 found:
 
 1. **Phase 1: route/UI cutover only**
    - Deploy the candidate image that embeds Creative routes and dist.
+   - If TLS terminates at a reverse proxy in front of the container, set `CREATIVE_PUBLIC_ORIGIN` to the browser-visible console origin, for example `https://console.se7endot.top`.
    - Keep `CREATIVE_ASSET_SYNC_ENABLED=false`.
    - Verify existing `new-api` baseline plus `/creative/*` static/API boundaries.
 2. **Phase 2: enable Creative 云同步**
    - Only after private S3-compatible storage is configured and checked.
-   - Set `CREATIVE_ASSET_SYNC_ENABLED=true`, `CREATIVE_ASSET_ROLLOUT_MODE=production`, `CREATIVE_ASSET_STORAGE=s3-compatible`.
+   - Setting only `CREATIVE_ASSET_SYNC_ENABLED=true` is intentionally invalid for production; set `CREATIVE_ASSET_ROLLOUT_MODE=production`, `CREATIVE_ASSET_STORAGE=s3-compatible`, complete HTTPS S3-compatible settings, and a finite `CREATIVE_ASSET_S3_REQUEST_TIMEOUT_SECONDS` in the same reviewed change.
    - Run authenticated cloud-sync smoke.
 
 Do not use `CREATIVE_ASSET_STORAGE=database` in production.
@@ -88,7 +93,10 @@ Rollback is image/compose rollback. Do not attempt destructive schema rollback j
 From `/mnt/f/code/project/new2fly`:
 
 ```bash
-python3 scripts/creative_release_gate.py check --source-diff-check --run-new-api-tests
+python3 scripts/creative_release_gate.py check \
+  --source-diff-check \
+  --sourcemap-policy forbid \
+  --run-new-api-tests
 ```
 
 If rebuilding OpenTU artifacts:
@@ -98,7 +106,9 @@ cd /mnt/f/code/project/opentu
 VITE_BASE_URL=/creative/ pnpm build:web
 
 cd /mnt/f/code/project/new2fly
-python3 scripts/creative_release_gate.py build-sync-check --run-new-api-tests
+python3 scripts/creative_release_gate.py build-sync-check \
+  --sourcemap-policy forbid \
+  --run-new-api-tests
 ```
 
 Before building/pushing an image, confirm these trees match byte-for-byte through the release gate:
@@ -116,7 +126,7 @@ Build a custom image from the verified `new-api` checkout. Example tag:
 ```bash
 cd /mnt/f/code/project/new-api
 docker build --pull=false --progress=plain \
-  -t new-api-creative-embed:bfef310 \
+  -t new-api-creative-embed:1680c11 \
   .
 ```
 
@@ -125,7 +135,7 @@ If deploying from a registry, tag/push using the operator-approved registry. Do 
 Before rehearsal and cutover, close the image identity loop:
 
 ```bash
-docker image inspect new-api-creative-embed:bfef310 \
+docker image inspect new-api-creative-embed:1680c11 \
   --format 'candidate_image_id={{.Id}} repo_digests={{join .RepoDigests ","}}'
 ```
 
@@ -320,7 +330,7 @@ docker run -d --name new-api-creative-rehearsal \
 trap 'docker rm -f new-api-creative-rehearsal >/dev/null 2>&1 || true' EXIT
 
 for i in $(seq 1 30); do
-  if curl -fsS http://127.0.0.1:13984/api/status >/dev/null; then
+  if curl -fsS --connect-timeout 2 --max-time 5 http://127.0.0.1:13984/api/status >/dev/null; then
     echo 'rehearsal_status=ready'
     break
   fi
@@ -382,8 +392,8 @@ set -euo pipefail
 cd /home/admin/apps/new-api
 # Keep current docker-compose.yml, .env, data, and logs unchanged.
 docker compose up -d
-curl -k -sS -o /dev/null -w 'api_models=%{http_code}\n' https://api.se7endot.top/v1/models
-curl -k -sS -o /dev/null -w 'console_login=%{http_code}\n' https://console.se7endot.top/login
+curl -sS --connect-timeout 10 --max-time 30 -o /dev/null -w 'api_models=%{http_code}\n' https://api.se7endot.top/v1/models
+curl -sS --connect-timeout 10 --max-time 30 -o /dev/null -w 'console_login=%{http_code}\n' https://console.se7endot.top/login
 REMOTE
 ```
 
@@ -433,8 +443,8 @@ ssh -i ~/.ssh/id_ed25519 admin@47.80.71.35 \
 These protect current users:
 
 ```bash
-curl -k -sS -o /dev/null -w 'api_models=%{http_code}\n' https://api.se7endot.top/v1/models
-curl -k -sS -o /dev/null -w 'console_login=%{http_code}\n' https://console.se7endot.top/login
+curl -sS --connect-timeout 10 --max-time 30 -o /dev/null -w 'api_models=%{http_code}\n' https://api.se7endot.top/v1/models
+curl -sS --connect-timeout 10 --max-time 30 -o /dev/null -w 'console_login=%{http_code}\n' https://console.se7endot.top/login
 ```
 
 Expected:
@@ -451,6 +461,11 @@ ops/newapi-opentu-production/creative-route-check.sh --assert \
   https://console.se7endot.top \
   https://api.se7endot.top
 ```
+
+The route helper verifies public HTTPS certificates by default and uses finite
+curl timeouts. Use `--insecure` or `CREATIVE_SMOKE_INSECURE=1` only for a
+controlled private/self-signed target; do not use it for public production
+evidence.
 
 The script automatically tries to extract one real `/creative/assets/*` path from `/creative/`. If extraction fails, assertion mode fails. It also redacts query strings/fragments from `Location` headers before printing.
 
@@ -476,10 +491,21 @@ If `FRONTEND_BASE_URL` is set in the effective production env, do not claim embe
 
 Unexpected `Location` headers, HTML API fallback, or HTML static-miss fallback are release blockers.
 
+### 8.3.1 HTTPS reverse-proxy Origin check
+
+Creative unsafe browser-session calls compare `Origin`/`Referer` against the expected public origin. Raw `X-Forwarded-*` headers are intentionally not trusted. If production terminates HTTPS before the `new-api` container, configure:
+
+```env
+CREATIVE_PUBLIC_ORIGIN=https://console.se7endot.top
+```
+
+The value must be the canonical browser origin only: scheme + host, no path, query, fragment, or credentials. Without it, a backend that receives internal `http://host` requests may reject legitimate `https://...` Creative document, asset, and relay writes with `creative request origin is invalid`.
+
 ### 8.4 Embedded browser smoke
 
 ```bash
 python3 scripts/creative_release_gate.py check \
+  --sourcemap-policy forbid \
   --embedded-smoke-url https://console.se7endot.top/creative/ \
   --drawnix-ready-timeout-ms 90000
 ```
@@ -489,6 +515,9 @@ python3 scripts/creative_release_gate.py check \
 Run only after explicit credential handling is approved. Use a dedicated smoke user when possible. Passwords should be typed at the prompt or provided by the operator's secret channel; do not put them in shell history.
 
 The helper below prints only statuses and sanitized generated IDs. It must not print cookies, CSRF, nonce, passwords, token values, response bodies, asset bytes, S3 endpoints, or provider/storage credentials.
+Like the route helper, it verifies TLS by default and uses finite connect/total
+timeouts. `--insecure` / `CREATIVE_SMOKE_INSECURE=1` is reserved for controlled
+private/self-signed targets only.
 
 Phase 1 disabled-state check:
 
@@ -572,13 +601,14 @@ Only after private S3-compatible storage is ready, append/update the reviewed Ph
 CREATIVE_ASSET_SYNC_ENABLED=true
 CREATIVE_ASSET_ROLLOUT_MODE=production
 CREATIVE_ASSET_STORAGE=s3-compatible
-CREATIVE_ASSET_S3_ENDPOINT=<private-object-storage-endpoint>
+CREATIVE_ASSET_S3_ENDPOINT=https://<private-object-storage-endpoint>
 CREATIVE_ASSET_S3_REGION=<region-or-auto>
 CREATIVE_ASSET_S3_BUCKET=<private-bucket>
 CREATIVE_ASSET_S3_PREFIX=creative-assets
 CREATIVE_ASSET_S3_ACCESS_KEY_ID=<secret>
 CREATIVE_ASSET_S3_SECRET_ACCESS_KEY=<secret>
 CREATIVE_ASSET_S3_FORCE_PATH_STYLE=<true|false>
+CREATIVE_ASSET_S3_REQUEST_TIMEOUT_SECONDS=30
 ```
 
-Ensure there is exactly one effective `CREATIVE_ASSET_SYNC_ENABLED` key after editing; remove or override the Phase 1 `false` value. Then restart and run authenticated Creative cloud-sync smoke. Public asset refs must remain `/creative/api/assets/:id/content`; never expose bucket or signed URLs.
+Ensure there is exactly one effective `CREATIVE_ASSET_SYNC_ENABLED` key after editing; remove or override the Phase 1 `false` value. Production startup must also see explicit `CREATIVE_ASSET_ROLLOUT_MODE=production` and `CREATIVE_ASSET_STORAGE=s3-compatible`; database storage or a missing rollout mode is a fail-closed misconfiguration. The S3-compatible endpoint must be an `https://` URL in production, and S3-compatible requests must have a finite timeout (`CREATIVE_ASSET_S3_REQUEST_TIMEOUT_SECONDS`, default 30 seconds). Then restart and run authenticated Creative cloud-sync smoke. Public asset refs must remain `/creative/api/assets/:id/content`; never expose bucket or signed URLs.

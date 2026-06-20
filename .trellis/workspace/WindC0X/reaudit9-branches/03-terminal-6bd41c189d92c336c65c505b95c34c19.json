@@ -1,0 +1,48 @@
+{
+  "blockingFindings": [
+    {
+      "evidence": "`controller/creative.go:1969` 的 `creativeForbiddenRelayBodyNormalizedKey` 只对子串 `notifyhook/callback/webhook/...` 做包含匹配；`controller/creative.go:1995` 只列出精确 `selectedkey/xselectedkey/requestkey/xrequestkey`；`controller/creative.go:2002-2003` 只列出精确 `notify/notifyurl/.../owner/ownerid/user/userid`。本地复刻 normalizer 输出：`notificationUrl -> False`, `notifyEndpoint -> False`, `ownerOverride -> False`, `selectedKeyOverride -> False`, `x-selected-key-override -> False`。",
+      "impact": "Creative browser relay 仍可携带部分 notify/owner/selected-key 同义或后缀变体进入后续 relay/provider 请求路径，未满足“forbidden relay fields including notify/callback/webhook/owner/selected-key variants”的 fail-closed 目标。",
+      "requiredFix": "把 relay field/header normalizer 扩展为与策略层一致的 deny 规则，至少包含 `notify`/`notificat`、`owner`、`user`、`selectedkey`、`requestkey`、`reqkey` 的子串或明确别名覆盖；为 header/query/json/form/multipart filename 以及 Suno/MJ submit 添加这些变体的回归测试。",
+      "severity": "high",
+      "title": "Relay forbidden-field normalizer still allows notify/owner/selected-key variants"
+    }
+  ],
+  "branch": "new2fly: master; new-api: feat/creative-embed; opentu: feat/creative-embed",
+  "commandsRun": [
+    "git status --short --branch (all three repos)",
+    "git rev-parse --abbrev-ref HEAD / git rev-parse HEAD (all three repos)",
+    "rg/nl focused reads for controller/creative.go, relay/common/override.go, relay/channel/api_request.go, relay/relay_task.go, controller/video_proxy.go, service/task_polling.go, service/creative_asset.go, OpenTU workflow/audio submission files, release gate/runbook scripts",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid",
+    "find dist trees for stats.html, *.map, sw-debug*, cdn-debug*",
+    "python3 static normalizer probe for notify/owner/selected-key variants",
+    "go test -count=1 focused packages/test regex"
+  ],
+  "evidence": [
+    "Release artifact gate passed: `[ok] Creative embedded artifact contract holds`; all three dist trees have 174 files and version provenance `gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92`.",
+    "S3 timeout appears fixed in code: `service/creative_asset.go:160` reads `CREATIVE_ASSET_S3_REQUEST_TIMEOUT_SECONDS`; `service/creative_asset.go:782-790` clones the HTTP client and forces a finite timeout.",
+    "Owner/platform scoping appears present for video content: `controller/video_proxy.go:74-95` fetches by session user id and rejects disallowed platforms before content fetch.",
+    "Task submit non-OK raw body exposure appears fixed: `relay/relay_task.go:261-269` drains/closes limited body and returns only status text."
+  ],
+  "inconclusive": [
+    "Focused Go tests and `--run-new-api-tests` could not execute in this read-only environment: `go: creating work dir: mkdir /tmp/go-build...: read-only file system`.",
+    "No live route/cloud/browser smoke was run because the request forbids network/provider calls.",
+    "`dynamic-workflow` codex-flow fanout was not run because it would invoke provider-backed agents and write workflow/journal files, conflicting with the current no provider/read-only constraints."
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "`git status --short --branch` shows dirty worktrees in all three repos; new-api/opentu contain many modified source and generated dist files, new2fly contains modified gate/runbook files and untracked Trellis task artifacts.",
+      "mitigation": "Before release, commit or otherwise freeze the exact candidate and rerun the gates from that immutable state.",
+      "severity": "medium",
+      "title": "Dirty worktrees reduce release reproducibility"
+    },
+    {
+      "evidence": "`find` shows `sw-debug.html` and `cdn-debug.html` still exist in all three dist trees, but `nl` shows sanitized placeholder content and release gate passes.",
+      "mitigation": "If the release contract is “no debug-named paths at all,” add `sw-debug.html` and `cdn-debug.html` to forbidden static-path existence checks; otherwise document that these are inert placeholders.",
+      "severity": "low",
+      "title": "Debug-named placeholder files remain in dist"
+    }
+  ],
+  "summary": "当前磁盘状态未通过最终安全目标：核心 blocker 是 relay forbidden-field normalizer 对若干 notify/owner/selected-key 变体仍未 fail-closed。dist 一致性/provenance gate 通过，S3 timeout、selected-key fail-closed、raw-body redaction、owner+platform scoping的已读代码证据整体正向，但测试 gate 受只读环境限制未能执行。",
+  "verdict": "fail"
+}

@@ -36,6 +36,18 @@ CREATIVE_BASE = "/creative/"
 ENTRY_REF_PATTERN = re.compile(r"[\"'](?P<ref>/creative/assets/[^\"']+\.(?:js|css))(?:\?[^\"']*)?[\"']")
 BAD_RELATIVE_ENTRY_PATTERN = re.compile(r"[\"']\.\/assets\/[^\"']+\.(?:js|css)(?:\?[^\"']*)?[\"']")
 BAD_ROOT_ENTRY_PATTERN = re.compile(r"[\"']/assets/[^\"']+\.(?:js|css)(?:\?[^\"']*)?[\"']")
+GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{7,64}$", re.IGNORECASE)
+EMBEDDED_FORBIDDEN_TEXT_MARKERS = (
+    "sourceMappingURL=",
+    "node_modules/.pnpm",
+    "packages/drawnix/src",
+    "sw-debug.html",
+    "cdn-debug.html",
+    "menu.debugPanel",
+)
+EMBEDDED_FORBIDDEN_TEXT_PATTERNS = (
+    re.compile(r"/mnt/[^\\s'\"<>]+"),
+)
 EMBEDDED_STANDALONE_HTML_FILES = (
     "home.html",
     "en/home.html",
@@ -63,6 +75,7 @@ EMBEDDED_STANDALONE_MARKERS = (
     "用户手册",
 )
 EMBEDDED_FORBIDDEN_STATIC_PATHS = (
+    "stats.html",
     "product_showcase",
     "user-manual",
     "sw-debug",
@@ -225,6 +238,44 @@ def check_identity(layout: Layout) -> None:
         print(f"[check] {label} matches {baseline_label}: {len(candidate)} files")
 
 
+def check_version_provenance(layout: Layout) -> None:
+    versions: list[tuple[str, dict[str, object]]] = []
+    for label, dist in layout.all_dists:
+        path = dist / "version.json"
+        if not path.is_file():
+            raise SystemExit(f"{label} version.json missing: {path}")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"{label} version.json is not valid JSON: {exc}") from exc
+
+        version = str(payload.get("version") or "").strip()
+        build_time = str(payload.get("buildTime") or "").strip()
+        git_commit = str(payload.get("gitCommit") or "").strip()
+        if not version:
+            raise SystemExit(f"{label} version.json has empty version")
+        if not build_time:
+            raise SystemExit(f"{label} version.json has empty buildTime")
+        if git_commit.lower() == "unknown" or not GIT_COMMIT_PATTERN.match(git_commit):
+            raise SystemExit(
+                f"{label} version.json has invalid gitCommit {git_commit!r}; "
+                "embedded provenance must be a concrete git commit"
+            )
+        versions.append((label, payload))
+
+    baseline_label, baseline = versions[0]
+    for label, payload in versions[1:]:
+        if payload != baseline:
+            raise SystemExit(
+                f"{label} version.json differs from {baseline_label}; "
+                "all embedded Creative dist trees must carry identical provenance"
+            )
+    print(
+        f"[check] version provenance: version={baseline['version']} "
+        f"gitCommit={baseline['gitCommit']}"
+    )
+
+
 def check_index_contract(layout: Layout) -> None:
     for label, dist in layout.all_dists:
         index = dist / "index.html"
@@ -357,13 +408,44 @@ def check_embedded_static_brand_contract(layout: Layout) -> None:
 
 
 def check_sourcemaps(layout: Layout, policy: str) -> None:
-    maps = sorted(path.relative_to(layout.source_dist).as_posix() for path in layout.source_dist.rglob("*.map"))
+    maps: list[str] = []
+    for label, dist in layout.all_dists:
+        maps.extend(f"{label}:{path.relative_to(dist).as_posix()}" for path in dist.rglob("*.map"))
     if maps and policy == "forbid":
         raise SystemExit(f"sourcemap policy forbids generated maps; found first entries: {maps[:20]}")
     if maps:
         print(f"[policy] sourcemap-policy=allow; generated maps present: {len(maps)}")
     else:
         print("[policy] no generated sourcemaps found")
+
+
+def check_dist_text_hygiene(layout: Layout) -> None:
+    findings: list[str] = []
+    for label, dist in layout.all_dists:
+        for path in iter_files(dist):
+            relative = path.relative_to(dist).as_posix()
+            if relative in {"stats.html", "sw-debug.html", "cdn-debug.html"}:
+                findings.append(f"{label}:{relative}: forbidden debug analysis artifact")
+                continue
+            try:
+                body = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError as exc:
+                raise SystemExit(f"{label}:{relative}: failed to read for hygiene scan: {exc}") from exc
+            if not body:
+                continue
+            for marker in EMBEDDED_FORBIDDEN_TEXT_MARKERS:
+                if marker in body:
+                    findings.append(f"{label}:{relative}: contains {marker!r}")
+            for pattern in EMBEDDED_FORBIDDEN_TEXT_PATTERNS:
+                match = pattern.search(body)
+                if match:
+                    findings.append(f"{label}:{relative}: contains build path marker {match.group(0)!r}")
+    if findings:
+        raise SystemExit(
+            "embedded dist hygiene check failed; first findings:\n  "
+            + "\n  ".join(findings[:20])
+        )
+    print("[check] embedded dist text hygiene holds")
 
 
 def run_new_api_tests(layout: Layout) -> None:
@@ -419,7 +501,9 @@ def check_all(layout: Layout, sourcemap_policy: str) -> None:
     check_manifest_asset_contract(layout)
     check_embedded_static_brand_contract(layout)
     check_identity(layout)
+    check_version_provenance(layout)
     check_sourcemaps(layout, sourcemap_policy)
+    check_dist_text_hygiene(layout)
     print("[ok] Creative embedded artifact contract holds")
 
 

@@ -1,0 +1,61 @@
+{
+  "blockingFindings": [],
+  "branch": "model catalog/binding/adapter contract",
+  "commandsRun": [
+    "git status --short --branch in /mnt/f/code/project/new2fly, /mnt/f/CODE/Project/new-api, /mnt/f/code/project/opentu",
+    "diff -qr /mnt/f/code/project/opentu/dist/apps/web /mnt/f/CODE/Project/new-api/web/creative/dist",
+    "diff -qr /mnt/f/CODE/Project/new-api/web/creative/dist /mnt/f/CODE/Project/new-api/router/web/creative/dist",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --source-diff-check",
+    "python3 scripts/creative_release_gate.py check",
+    "bash -n ops/newapi-opentu-production/creative-route-check.sh && bash -n ops/newapi-opentu-production/creative-cloud-sync-smoke.sh && bash -n /mnt/f/CODE/Project/new-api/scripts/creative_ci_gate.sh",
+    "rg -n \"#img\" /mnt/f/CODE/Project/new-api/web/creative/dist /mnt/f/CODE/Project/new-api/router/web/creative/dist /mnt/f/code/project/opentu/dist/apps/web",
+    "focused nl/sed reads of backend service/controller/dto/tests, frontend model-config/submission/generation paths, gates and runbooks"
+  ],
+  "evidence": [
+    "未发现当前磁盘状态下的阻断代码/运维缺陷。",
+    "/mnt/f/CODE/Project/new-api/dto/pricing.go:41-63: CreativeModelCatalogItem.MarshalJSON 在 ParameterSchemaPresent=true 时强制写出 parameterSchema，nil schema 被编码为 []。",
+    "/mnt/f/CODE/Project/new-api/service/creative_model_capability.go:855-879: stored binding catalog item 使用 visible schema 并设置 ParameterSchemaPresent=true。",
+    "/mnt/f/CODE/Project/new-api/service/creative_model_capability_test.go:371-412: 覆盖显式空 schema 与全 hidden schema 序列化为 \"parameterSchema\":[]。",
+    "/mnt/f/CODE/Project/new-api/service/creative_model_capability.go:274-344: mock 可用；GrsAI dry-run CanBeEnabled=false；Duomi/GrsAI live 均为 Status=future 且 CanBeEnabled=false。",
+    "/mnt/f/CODE/Project/new-api/service/creative_model_capability.go:487-499: 只有 status=available 且 transport 为 mock/dry_run 的 manifest 可保存；future_live 不可保存。",
+    "/mnt/f/CODE/Project/new-api/service/creative_model_capability.go:742-800: runtime resolver 要求 adapter enabled、mock image task enabled、binding enabled/image，并且 stored binding 必须是 mock_image_task + mock_gpt_image。",
+    "/mnt/f/CODE/Project/new-api/service/creative_model_capability_test.go:650-666: 测试覆盖 enabled dry-run 与 Duomi future-live 被拒绝。",
+    "/mnt/f/CODE/Project/new-api/service/creative_model_capability.go:656-721 与 /mnt/f/CODE/Project/new-api/controller/creative_model_bindings.go:26-60: admin channel summary 只选/返回 id/name/group/status/models，未暴露 key。",
+    "/mnt/f/CODE/Project/new-api/service/creative_model_capability.go:1464-1474 与 /mnt/f/CODE/Project/new-api/service/creative_model_capability_test.go:999-1075: binding channelId 必须存在、启用，并支持 providerModelId 或合法 mapping。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:308-331: server parameterSchema/parameter_schema 被 normalize 后写入 runtime model，creativeManaged=true。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/constants/model-config.ts:2767-2858: 空数组 schema 保留为 []，hasRuntimeParameterSchema 使用 Array.isArray，因此空数组仍是 schema-backed。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/utils/ai-input-parser.ts:391-407 与 :518-535: schema-backed model 生成 userParams，空时为 {}，并设置 creativeManaged=true。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/workflow-converter.ts:323-335: creativeManaged/userParams 分支删除 legacy size/params，改传 userParams 与 creativeManaged。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/services/media-generation/image-generation-service.ts:185-261: schema-backed 请求禁用 legacy image params，传 userParams/creativeManaged 到 executor。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/ModelDropdown.test.tsx:408-415: stale/unavailable 模型下拉文案断言不包含 #img/#gpt2。",
+    "命令证据: rg -n \"#img\" 三份 dist 退出 1 且无输出；未在生成物中发现 #img fallback 字符串。",
+    "命令证据: 两个 diff -qr dist 对比均 exit 0 且无输出；opentu dist、new-api web dist、new-api router dist 当前一致。",
+    "命令证据: explicit creative_release_gate 输出 opentu file count 174、new-api:web/router matches opentu 174 files、version=0.9.6 gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92、no generated sourcemaps found、embedded dist text hygiene holds、[done]。",
+    "命令证据: explicit creative_release_gate --source-diff-check 通过，并运行 new2fly/opentu/new-api 的 git diff --check source-only 检查。",
+    "/mnt/f/code/project/new2fly/scripts/creative_release_gate.py:494-504: gate 覆盖 index、manifest、brand、identity、version provenance、sourcemap、dist text hygiene。",
+    "/mnt/f/CODE/Project/new-api/scripts/creative_ci_gate.sh:7-12 与 :156-186: CI gate 跑 Creative/Header/Video/Asset/Model/Router 相关 Go tests，并检查两份 embedded dist 一致、index refs、sourcemaps/debug artifacts、version provenance、可选 smoke。",
+    "/mnt/f/code/project/new2fly/ops/newapi-opentu-production/creative-route-check.sh:51-54 与 :157-188: 默认不使用 -k，assert 覆盖 /creative/、sw.js、version.json、真实 asset、missing asset、unauth bootstrap/relay、existing API/login。",
+    "/mnt/f/code/project/new2fly/ops/newapi-opentu-production/creative-cloud-sync-smoke.sh:27-30 与 :173-200: runbook 声明不打印 password/cookies/CSRF/nonce/body/credentials；CSRF/nonce 写入临时 curl config，不在输出中打印。"
+  ],
+  "inconclusive": [
+    "未运行 Go test、pnpm test/build、Playwright/e2e smoke；本审计按用户约束只做本地文件读取、语法/listing/gate 检查。",
+    "未执行任何网络、provider、payment 或真实登录/上传调用；线上路由、真实 provider 行为和云同步端到端效果未验证。"
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "命令证据: 三仓 git status 均非 clean；new-api 有源码、workflow、dist 与 A scripts/creative_ci_gate.sh；opentu 有大量源码变更与新增 useWorkflowSubmission.test.tsx；new2fly 有 runbook/gate 变更和新增 Trellis task。",
+      "mitigation": "发布候选前提交或明确打包这些变更，并在干净 checkout 上重跑 gate；该项是发布可复现性风险，不是当前代码行为缺陷。",
+      "severity": "medium",
+      "title": "三仓 dirty worktree 影响最终发布可复现性"
+    },
+    {
+      "evidence": "/mnt/f/code/project/new2fly/scripts/creative_release_gate.py:169-171 默认使用 repo_root().parent / \"opentu\"；直接运行 check 的命令输出读取 /mnt/f/CODE/Project/opentu/dist/apps/web，而用户指定前端路径为 /mnt/f/code/project/opentu。显式 --opentu /mnt/f/code/project/opentu 已通过。",
+      "mitigation": "在 runbook/CI 中固定传入 --opentu 和 --new-api，或统一仓库路径布局，避免大小写/镜像路径环境中误读另一个工作树。",
+      "severity": "low",
+      "title": "orchestration gate 默认路径在当前环境可能读到非用户指定前端路径"
+    }
+  ],
+  "summary": "当前磁盘状态的模型绑定、preview/mock 解析、空 parameterSchema 序列化、future-live 禁用、admin channel 关系、前端参数存活、no #img fallback、dist 同步与主要 gate/runbook 检查未发现阻断缺陷。结论为可继续预提交，但带有 dirty worktree 与 gate 默认路径两个发布流程风险。",
+  "verdict": "pass_with_risks"
+}

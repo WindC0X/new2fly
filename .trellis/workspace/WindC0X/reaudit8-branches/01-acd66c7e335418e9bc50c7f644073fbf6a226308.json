@@ -1,0 +1,57 @@
+{
+  "blockingFindings": [],
+  "branch": "generated dist and release gates",
+  "commandsRun": [
+    "git status --short --branch in /mnt/f/code/project/new2fly, /mnt/f/CODE/Project/new-api, /mnt/f/code/project/opentu",
+    "rg --files focused patterns for vite config, gates, stats.html, .map, dist markers",
+    "sed/nl reads of scripts/creative_release_gate.py, scripts/creative_ci_gate.sh, apps/web/vite.config.ts, production/staging runbooks",
+    "python3 focused dist file-count/hash/provenance scan across the three dist trees",
+    "python3 focused text hygiene scan for sourceMappingURL, node_modules/.pnpm, packages/drawnix/src, /mnt paths",
+    "find three dist trees for stats.html and *.map",
+    "rg -n sourceMappingURL/build-path markers in three dist trees",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid",
+    "python3 scripts/creative_release_gate.py check --sourcemap-policy forbid",
+    "bash -n scripts/creative_ci_gate.sh",
+    "python3 ast parse of scripts/creative_release_gate.py",
+    "rg -n creative_ci_gate in new-api .github/scripts/docs",
+    "git ls-files release-tree checks for scripts/creative_ci_gate.sh and embedded dist"
+  ],
+  "evidence": [
+    "当前三棵 dist 均存在且各 174 个文件：/mnt/f/code/project/opentu/dist/apps/web、/mnt/f/CODE/Project/new-api/web/creative/dist、/mnt/f/CODE/Project/new-api/router/web/creative/dist。",
+    "当前三棵 dist 的文件列表和 SHA-256 全量一致：opentu -> new-api:web missing=0 extra=0 mismatched=0；opentu -> new-api:router missing=0 extra=0 mismatched=0。",
+    "当前三棵 dist 均未发现 stats.html 或 *.map；sourceMappingURL=、node_modules/.pnpm、packages/drawnix/src、/mnt 路径扫描均为 0 命中。",
+    "三棵 dist 的 version.json 均为 version=0.9.6，buildTime 非空，gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92，未出现 unknown。",
+    "scripts/creative_release_gate.py:218-235 校验三树 byte identity；238-273 校验 version provenance；276-310 校验 /creative/assets index 引用和 boot/root 结构；407-445 覆盖 sourcemap 和 build-path/text hygiene；494-504 在 check_all 中串起这些检查。",
+    "`python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid` 通过，并输出 `[ok] Creative embedded artifact contract holds`。默认 sibling 布局在当前 WSL/NTFS 路径上也解析到同一 inode，并通过相同 forbid 检查。",
+    "scripts/creative_ci_gate.sh:41-60 禁止 *.map 和 sourceMappingURL；63-83 禁止 stats.html、/mnt、node_modules/.pnpm、packages/drawnix/src；85-127 校验 version provenance；156-172 校验两份 new-api dist、diff、index refs、sourcemap/debug artifacts。",
+    "new-api workflow 已接入 gate：.github/workflows/docker-image-alpha.yml:29、docker-image-nightly.yml:29、docker-build.yml:32、release.yml:32、electron-build.yml:27 均运行 `bash scripts/creative_ci_gate.sh`。",
+    "production runbook 使用 hardened gate：ops/newapi-opentu-production/README.md:96-99 和 109-111 均包含 `--sourcemap-policy forbid` 与 `--run-new-api-tests`；507-510 的 embedded smoke gate 也包含 `--sourcemap-policy forbid`。",
+    "apps/web/vite.config.ts:14-16 仅在 BUNDLE_ANALYZE/VITE_BUNDLE_ANALYZE 为 true 时启用分析；1550-1556 的 visualizer 输出 stats.html；当前产物与 gate 均确认 stats.html 未同步。"
+  ],
+  "inconclusive": [
+    "`bash scripts/creative_ci_gate.sh` 的完整运行未能在当前只读沙箱验证：Go 在启动测试时失败于 `mkdir /tmp/go-build...: read-only file system`。这不是被审计代码的行为缺陷，但意味着本次只能确认脚本语法、文件逻辑、workflow wiring 和 release-tree 子检查，不能确认整条 CI gate 在可写 runner 上实际通过。",
+    "未运行网络、provider、payment、远端 smoke 或生产端调用，符合本次约束；这些路径的运行时行为不在本次结论内。"
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "ops/newapi-opentu-staging/README.md:25 仍是 `python3 scripts/creative_release_gate.py check --source-diff-check`，未带 `--sourcemap-policy forbid`，也未带 `--run-new-api-tests`；相对地 production runbook 在 ops/newapi-opentu-production/README.md:96-99 使用了 forbid/tests。",
+      "mitigation": "如果 staging candidate 会作为 release rehearsal 或 promotion 输入，补齐 staging runbook 的 `--sourcemap-policy forbid` 和测试参数，避免 staging 路径放过 production 禁止的 sourcemap 回归。",
+      "severity": "medium",
+      "title": "staging runbook 仍可能用默认 sourcemap policy 过门"
+    },
+    {
+      "evidence": "scripts/creative_release_gate.py:523-526 的 `--sourcemap-policy` 默认值仍为 `allow`，407-414 表示默认只报告 maps present；production runbook 已显式传 forbid。",
+      "mitigation": "保留当前设计也可接受，但更稳妥的是将 release gate 默认改为 forbid，或要求所有 runbook/CI 调用显式传 sourcemap policy。",
+      "severity": "low",
+      "title": "release gate CLI 默认策略仍允许 *.map"
+    },
+    {
+      "evidence": "当前三个 repo 都有未提交改动；new-api release 树包含大量 dist rename/add/delete，new2fly 有 gate/runbook 改动和未跟踪 Trellis task。git release-tree 子检查显示 scripts/creative_ci_gate.sh 已 tracked，且目标 release 树没有 untracked/deleted 输出，但整体候选仍处于 pre-commit dirty 状态。",
+      "mitigation": "提交前用可写环境跑完整 gate；提交时确保 new-api 的两棵 dist、scripts/creative_ci_gate.sh、new2fly gate/runbook 进入对应 commit，避免最终部署不可复现。",
+      "severity": "medium",
+      "title": "dirty worktree 是发布可复现性风险，不是当前代码行为缺陷"
+    }
+  ],
+  "summary": "未发现当前磁盘上的 blocking code/ops defect。三棵 Creative dist 当前 byte-identical，未生成/同步 stats.html，未发现 sourcemap/sourceMappingURL 或 build-machine path/module graph marker，version provenance 不是 unknown；new2fly release gate 和 new-api CI gate 的静态逻辑覆盖了这些回归。剩余风险主要是 staging/default sourcemap policy、dirty worktree 发布可复现性，以及只读环境无法完整执行 new-api CI gate。",
+  "verdict": "pass_with_risks"
+}

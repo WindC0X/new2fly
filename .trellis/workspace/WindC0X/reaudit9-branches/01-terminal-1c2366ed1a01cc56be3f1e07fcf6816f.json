@@ -1,0 +1,38 @@
+{
+  "blockingFindings": [],
+  "branch": "new2fly: master; new-api: feat/creative-embed; opentu: feat/creative-embed",
+  "commandsRun": [
+    "git status --short --branch in all three repos",
+    "bash -n ops/newapi-opentu-production/creative-route-check.sh ops/newapi-opentu-production/creative-cloud-sync-smoke.sh",
+    "python3 scripts/creative_release_gate.py check --source-diff-check --sourcemap-policy forbid",
+    "python3 scripts/creative_release_gate.py check --source-diff-check --run-new-api-tests",
+    "focused nl/rg reads for header safety, task-submit error redaction, S3 timeout/TLS docs, dist provenance/debug markers"
+  ],
+  "evidence": [
+    "Release gate passed current dist/source checks: 174 files byte-identical across opentu dist and both new-api embedded copies; no generated sourcemaps; version provenance gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92; command completed with [done] no-secrets Creative release gate completed.",
+    "Header variants are blocked in shared safety logic: /mnt/f/CODE/Project/new-api/relay/common/override.go:1295 includes authorization/cookie; lines 1299-1300 include selected/upstream/request/req key variants; lines 1304-1307 block xcreative/apikey/secret fragments. Regression coverage at /mnt/f/CODE/Project/new-api/relay/common/override_test.go:1640.",
+    "Task submit non-OK no longer exposes raw upstream body: /mnt/f/CODE/Project/new-api/relay/relay_task.go:261 drains/closes body and line 269 returns only status; regression at /mnt/f/CODE/Project/new-api/relay/relay_task_test.go:38.",
+    "Creative S3 production hardening is present: /mnt/f/CODE/Project/new-api/service/creative_asset.go:225 requires production s3-compatible, line 248 requires HTTPS endpoint, lines 782-792 clone HTTP client and set finite timeout; tests at /mnt/f/CODE/Project/new-api/service/creative_asset_test.go:156.",
+    "Runbook documents reproducible gates, strict TLS/timeouts, explicit insecure opt-in, CREATIVE_PUBLIC_ORIGIN, and S3 timeout: /mnt/f/code/project/new2fly/ops/newapi-opentu-production/README.md:96, :465, :496, :598; env example at /mnt/f/code/project/new2fly/ops/newapi-opentu-production/env.production.example:26."
+  ],
+  "inconclusive": [
+    "Full Go test/build gate was not verified because the read-only sandbox prevents Go from creating /tmp/go-build*: `go: creating work dir: mkdir /tmp/go-build704849639: read-only file system`.",
+    "Public deployed route smoke, embedded browser smoke, and authenticated cloud-sync smoke were not executed because this audit was constrained to current disk/no network/no credential calls."
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "`git status --short --branch` shows uncommitted changes in all three repos, including generated dist changes in new-api/opentu and runbook/gate changes in new2fly.",
+      "mitigation": "Before release, commit or otherwise pin exact tree state for all three repos, then rerun the release gate on that exact checkout/image.",
+      "severity": "medium",
+      "title": "Dirty worktrees reduce release reproducibility"
+    },
+    {
+      "evidence": "/mnt/f/code/project/opentu/dist/apps/web/sw.js:1 still contains SW_DEBUG_ENABLE / SW_DEBUG_GET_LOGS / SW_DEBUG_GET_CONSOLE_LOGS message protocol strings; the release gate forbids sw-debug.html/stats/sourcemaps/source paths and passed, but does not forbid the runtime SW debug protocol itself.",
+      "mitigation": "If production policy requires no runtime debug protocol, add a gate marker and build it out; otherwise document that it is accepted because debug is off by default and debug UI artifacts are excluded.",
+      "severity": "low",
+      "title": "Production dist retains disabled SW debug protocol"
+    }
+  ],
+  "summary": "当前磁盘状态未发现新的 blocking code/dist/runbook defect；reaudit8 修复点在静态代码和 no-secrets release gate 范围内闭合。最终结论仍受本地 Go gate 与真实部署 smoke 未验证限制。",
+  "verdict": "inconclusive"
+}

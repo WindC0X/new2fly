@@ -1,0 +1,42 @@
+{
+  "blockingFindings": [],
+  "branch": "new2fly master fcee013; new-api feat/creative-embed 1680c112; opentu feat/creative-embed f35a831",
+  "commandsRun": [
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid --source-diff-check",
+    "python3 scripts/creative_release_gate.py check --sourcemap-policy forbid",
+    "bash scripts/creative_ci_gate.sh",
+    "find/rg dist scans for *.map, stats.html, sourceMappingURL, build path/module graph markers",
+    "diff/tree-hash checks for opentu/dist/apps/web and both new-api embedded dist trees",
+    "bash -n ops/newapi-opentu-production/*.sh /mnt/f/CODE/Project/new-api/scripts/creative_ci_gate.sh",
+    "focused nl/rg reads for header safety, task submit non-OK handling, S3 timeout, video content fail-closed, CI workflow wiring"
+  ],
+  "evidence": [
+    "三份目标 dist 一致：opentu/dist/apps/web、new-api/web/creative/dist、new-api/router/web/creative/dist 均为 174 files / 16144344 bytes / tree_sha256=14f0600432ea05f07502c4b0dceeac4102b01746b1c1537bbec8526f33fea575。",
+    "new2fly release gate 通过：输出包含 `[ok] Creative embedded artifact contract holds`、`[policy] no generated sourcemaps found`、`[check] embedded dist text hygiene holds`。",
+    "版本 provenance 具体且一致：三份 version.json 均为 version=0.9.6, gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92；该 commit 在 opentu 当前仓库存在。",
+    "new-api CI wiring：.github/workflows/docker-build.yml:16-35、release.yml:17-35、docker-image-alpha.yml:14-32、docker-image-nightly.yml:14-32、electron-build.yml:12-30 都先跑 `bash scripts/creative_ci_gate.sh`。",
+    "header 变体防护：relay/common/override.go:1236-1263 对 copy/move source 和 target 复用 denylist；override.go:1288-1307 覆盖 selected/request/upstream key、websocket、secret/api key 变体；override_test.go:1640-1744 覆盖回归用例。",
+    "task submit 非 OK 上游响应：relay/relay_task.go:226-269 丢弃并关闭 body，只返回状态码错误；relay/relay_task_test.go:38-54 覆盖不暴露原始上游 body。",
+    "Creative S3 timeout：service/creative_asset.go:782-790 克隆 HTTP client 并设置默认/自定义有限 timeout；service/creative_asset_test.go:156-181 覆盖默认 30s 和自定义 45s。",
+    "视频 content fail-closed：controller/creative.go:730-735 设置 Creative video context；video_proxy.go:74-95 owner-scope 查询并在非视频平台前置 404；creative_test.go:1451-1507 覆盖 owner scope 和 same-user non-video。"
+  ],
+  "inconclusive": [
+    "new-api gate 的 Go tests/build 未能在当前只读沙箱执行：`go: creating work dir: mkdir /tmp/go-build...: read-only file system`。脚本内容已审计，但运行时测试结果未验证。"
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "三个仓库均有未提交改动；dist version.json 指向 opentu HEAD f35a831，但当前工作树还有未提交源/ops/gate 改动。用户规则下这是 release reproducibility risk，不作为代码行为 blocker。",
+      "mitigation": "提交或形成可复现补丁后重新运行 new2fly gate 和 new-api CI gate。",
+      "severity": "medium",
+      "title": "Dirty worktrees make provenance incomplete until commit"
+    },
+    {
+      "evidence": "ops/newapi-opentu-production/README.md:19 对 new2fly ops/runbook 仍写着 `record the commit SHA after this runbook is committed`。",
+      "mitigation": "提交 runbook/gate 后补入最终 new2fly commit 或在发布记录中记录该 SHA。",
+      "severity": "low",
+      "title": "Runbook provenance for orchestration repo is intentionally pending commit"
+    }
+  ],
+  "summary": "当前磁盘复审未发现新的 blocking defect。生成 dist、debug artifact/provenance、new2fly release gate、new-api CI wiring、runbook/smoke timeout/TLS 文档，以及最近修复点的源码与测试覆盖均符合目标；唯一未验证项是只读沙箱无法运行 Go 测试阶段。",
+  "verdict": "pass_with_risks"
+}

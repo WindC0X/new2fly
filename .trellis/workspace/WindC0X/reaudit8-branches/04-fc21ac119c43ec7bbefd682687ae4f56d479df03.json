@@ -1,0 +1,54 @@
+{
+  "blockingFindings": [
+    {
+      "evidence": "/mnt/f/CODE/Project/new-api/relay/common/override.go:1288-1306 只阻止 xselectedkey/xupstreamkey 等，未阻止 selectedkey/upstreamkey/requestkey/reqkey/xrequestkey；本地只读复刻输出显示 Selected-Key、Upstream-Key、Request-Key、Req-Key、X-Request-Key 均 skip=False。/mnt/f/CODE/Project/new-api/relay/channel/api_request.go:117-142 和 :207-235 均依赖该 helper。/mnt/f/CODE/Project/new-api/controller/creative.go:1969-2003 的 generic Creative relay forbidden list也未包含 selectedkey/xselectedkey。",
+      "impact": "Creative/session-broker 或通用 relay 的 pass_headers、copy_header、move_header、{client_header:...} 路径仍可能把客户端 supplied selected-key 类字段传给上游，削弱 selected-key 亲和与 fail-closed 加固。",
+      "requiredFix": "把 selectedkey/xselectedkey、upstreamkey/xupstreamkey、requestkey/xrequestkey、reqkey/xreqkey 等变体统一加入 shared header skip 和 Creative relay forbidden field guard，并补 override/api_request/creative guard 回归测试。",
+      "severity": "high",
+      "title": "敏感 header/field 过滤仍漏掉 selected/request key 变体"
+    },
+    {
+      "evidence": "/mnt/f/CODE/Project/new-api/relay/relay_task.go:261-270 在 task submit non-OK 时读取上游 body 并用 fmt.Errorf(\"%s\", string(responseBody)) 包装；/mnt/f/CODE/Project/new-api/service/error.go:193-205 只有文本包含 post/dial/http 时才 MaskSensitiveInfo，否则 Message 直接保留；/mnt/f/CODE/Project/new-api/controller/relay.go:650-657、:792-797 将 TaskError JSON 返回；/mnt/f/CODE/Project/new-api/dto/task.go:7-13 的 message 是客户端可见字段。当前 /mnt/f/CODE/Project/new-api/relay/relay_task_test.go:25-36 只覆盖关闭 body，未覆盖脱敏。",
+      "impact": "Creative video/Suno/MJ submit 上游失败时，provider 返回的错误 body 可能原样进入浏览器响应、retry/channel-error 链或日志上下文；若 body 含凭据、私密 URL 或调试信息，会造成泄露。",
+      "requiredFix": "non-OK submit 不应把 raw upstream body 放进 TaskError.Message；改为通用错误或经过结构化 redaction 的有限摘要。补测试确保凭据样式字段、provider URL、callback/webhook/notify 等不会出现在 TaskError.Message 或客户端 JSON。",
+      "severity": "high",
+      "title": "Task submit non-OK 路径仍可暴露 raw upstream response body"
+    }
+  ],
+  "branch": "用户目标: relay/provider security；当前 repo 分支显示 new-api/opentu 为 feat/creative-embed，orchestration 为 master",
+  "commandsRun": [
+    "git status --short --branch in /mnt/f/CODE/Project/new-api, /mnt/f/code/project/opentu, /mnt/f/code/project/new2fly",
+    "rg/nl/sed focused reads for controller/creative*.go, video_proxy.go, relay/common/override.go, relay/channel/api_request.go, relay/relay_task.go, service/task_polling.go, service/error.go, task tests, opentu session-broker services/tests",
+    "python3 local read-only reproductions for header compact skip behavior and TaskErrorWrapper masking trigger classification",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api",
+    "python3 scripts/creative_release_gate.py check --opentu /mnt/f/code/project/opentu --new-api /mnt/f/CODE/Project/new-api --sourcemap-policy forbid",
+    "python3 scripts/creative_release_gate.py check --sourcemap-policy forbid",
+    "diff -qr between /mnt/f/code/project/opentu/dist/apps/web and both new-api embedded dist trees",
+    "find embedded dist trees for *.map and top-level stats.html"
+  ],
+  "evidence": [
+    "Release gate 当前通过：三份 dist 均 174 files，version=0.9.6，gitCommit=f35a83102273bfa45c4e399639b2e4a0c2c9fc92，无 sourcemap，text hygiene 通过。",
+    "diff -qr 对 opentu dist 与 new-api web/router dist 均无输出；find *.map 和 stats.html 均无输出。",
+    "/mnt/f/CODE/Project/new-api/router/web-router.go:90-99 对 /creative/relay/v1 应用 CreativeRejectForbiddenRelayFields。",
+    "/mnt/f/CODE/Project/new-api/controller/video_proxy.go:41-65、:74-95 对 video content 做 platform allowlist 与 owner-scoped task lookup；:177-194 日志 URL 使用 redacted host-only form；:215-233 过滤 set-cookie/auth/api-key/cache headers。",
+    "/mnt/f/CODE/Project/new-api/controller/creative_image_tasks.go:336-348 对 image task 做 owner、platform、managed metadata scoping。",
+    "/mnt/f/CODE/Project/new-api/controller/creative.go:589-598、:619-628、:642-648 对 MJ fetch/list/image 做 owner + Midjourney platform scoping。",
+    "/mnt/f/CODE/Project/new-api/model/task.go:278-287 保存 submit-time selected key/idempotency；/mnt/f/CODE/Project/new-api/service/task_polling.go:211-219、:230-249、:581-588 对 Creative task 缺 stored selected key fail-closed。",
+    "/mnt/f/code/project/opentu/packages/drawnix/src/services/audio-api-service.ts:879-913 对 session-broker lyrics submit 关闭 notify_hook；:1072-1096 对 session-broker Suno submit non-OK 返回 sanitized error；对应测试在 audio-api-service.test.ts:1058-1156。"
+  ],
+  "inconclusive": [
+    "未运行 Go/Vitest/build 测试，因为用户要求命令保持只读，避免会写缓存或构建产物的验证。",
+    "未执行任何网络、provider、payment 或 live smoke；runbook 中的网络 smoke 仅做文件审计。",
+    "dist 中对 callback/webhook/selectedKey 等字符串的 rg 会命中大量 minified/第三方代码；未把这些作为缺陷证据，最终只采信 source/gate 证据。"
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "git status 显示 new-api、opentu、new2fly 三个工作树均有未提交变更；new-api 中 scripts/creative_ci_gate.sh 处于新增状态，dist 也有大量 staged/modified entries。/mnt/f/CODE/Project/new-api/scripts/creative_ci_gate.sh:129-153 自身要求 release tree 中 gate script 和 dist 必须被 git 跟踪。",
+      "mitigation": "预提交前用 git add/commit 明确纳入 gate script 与 dist 变更；发布候选应从干净 tree 或可复现 commit 构建。",
+      "severity": "medium",
+      "title": "发布可复现性风险：三个 repo 当前均 dirty"
+    }
+  ],
+  "summary": "当前磁盘复审结论为 fail。生成 dist 和 release gate 当前通过，owner/platform scoping、stored-key polling fail-closed、video proxy 私密 URL 日志脱敏表面基本成立；但后端仍有两个阻塞项：selected/request key 类字段过滤不完整，以及 task submit non-OK raw upstream body 可进入客户端错误响应。",
+  "verdict": "fail"
+}

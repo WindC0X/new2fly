@@ -1,0 +1,39 @@
+{
+  "blockingFindings": [],
+  "branch": "new2fly: master; new-api: feat/creative-embed; opentu: feat/creative-embed",
+  "commandsRun": [
+    "git status --short --branch (3 repos)",
+    "git diff --check (backend/frontend)",
+    "python3 scripts/creative_release_gate.py check --source-diff-check --sourcemap-policy forbid",
+    "python dist hash/provenance/artifact count check",
+    "bash scripts/creative_ci_gate.sh",
+    "focused rg/nl reads for key filtering, task submit errors, S3 timeout, embedded model guard, asset sanitizer, SW pass-through, runbooks"
+  ],
+  "evidence": [
+    "PASS: `python3 scripts/creative_release_gate.py check --source-diff-check --sourcemap-policy forbid` completed with `[ok] Creative embedded artifact contract holds` and `[done] no-secrets Creative release gate completed`.",
+    "Dist identity/provenance verified: opentu/new-api:web/new-api:router each have 174 files; both embedded copies hash-match OpenTU dist; all `version.json` files report gitCommit `f35a83102273bfa45c4e399639b2e4a0c2c9fc92`.",
+    "No dist debug/source-map artifacts found: checked `stats 0 maps 0 sourceMappingURL 0` for both new-api embedded dist trees.",
+    "Previously fixed blockers remain covered in current source: header variants in `relay/common/override.go:1288`, relay body filtering in `controller/creative.go:1969`, task submit non-OK sanitized error in `relay/relay_task.go:261`, finite S3 timeout in `service/creative_asset.go:782`.",
+    "Branch goals present in current source: embedded empty-model fail-closed in `packages/drawnix/src/services/creative-embedded-model-guard.ts:33`, managed image route guard in `packages/drawnix/src/services/generation-api-service.ts:435`, asset prepare/hydrate sanitizer in `packages/drawnix/src/services/creative-document-assets.ts:593`, SW pass-through in `apps/web/src/sw/index.ts:4339` and `apps/web/src/sw/creative-asset-pass-through.ts:13`.",
+    "Runbooks/gates include sanitized smoke and no-secret policy: `ops/newapi-opentu-production/creative-route-check.sh:62`, `ops/newapi-opentu-production/creative-cloud-sync-smoke.sh:27`, `scripts/creative_release_gate.py:40`."
+  ],
+  "inconclusive": [
+    "Full `bash scripts/creative_ci_gate.sh` could not run in this read-only sandbox: `go: creating work dir: mkdir /tmp/go-build1128021889: read-only file system`. The release gate's artifact/source-diff portions did pass, but Go test execution remains unverified here."
+  ],
+  "nonBlockingRisks": [
+    {
+      "evidence": "`git ls-files --others --exclude-standard` shows `packages/drawnix/src/hooks/useWorkflowSubmission.test.tsx` untracked.",
+      "mitigation": "Add the test before release so retry/managed routing coverage is reproducible from the committed tree.",
+      "severity": "medium",
+      "title": "Frontend has untracked test coverage"
+    },
+    {
+      "evidence": "All three repos have dirty worktrees from `git status --short --branch`; backend/frontend include many source and generated dist changes.",
+      "mitigation": "Commit or otherwise freeze exact candidate SHAs before final release gates/image build.",
+      "severity": "medium",
+      "title": "Release candidate is not yet reproducible from clean refs"
+    }
+  ],
+  "summary": "当前磁盘状态未发现新的阻断性代码或产物缺陷。生成 dist、品牌/standalone 清理、provenance、no sourcemap/debug artifacts、runbook/gate 结构和已修 reaudit8 项均通过只读复核；剩余风险主要是只读沙箱阻止 Go 测试运行，以及未跟踪测试/脏工作树带来的发布可复现性缺口。",
+  "verdict": "pass_with_risks"
+}

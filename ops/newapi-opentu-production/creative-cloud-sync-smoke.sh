@@ -4,11 +4,14 @@ umask 077
 
 PHASE=""
 BASE_URL="https://console.se7endot.top"
+CONNECT_TIMEOUT="${CREATIVE_SMOKE_CONNECT_TIMEOUT:-10}"
+MAX_TIME="${CREATIVE_SMOKE_MAX_TIME:-45}"
+INSECURE_MODE="${CREATIVE_SMOKE_INSECURE:-${CURL_INSECURE:-0}}"
 
 usage() {
   cat <<'USAGE'
 Usage:
-  creative-cloud-sync-smoke.sh --phase disabled|enabled [base-url]
+  creative-cloud-sync-smoke.sh --phase disabled|enabled [--insecure] [base-url]
 
 Purpose:
   No-secret authenticated Creative 云同步 smoke for embedded /creative/.
@@ -16,7 +19,10 @@ Purpose:
 Inputs:
   CREATIVE_SMOKE_USERNAME  Optional. If omitted, prompted without echoing password.
   CREATIVE_SMOKE_PASSWORD  Optional. Prefer prompt/stdin secret channel over shell history.
-  CURL_INSECURE=1          Optional. Adds curl -k for private/self-signed targets.
+  CREATIVE_SMOKE_INSECURE=1 Optional. Adds curl -k for private/self-signed targets only.
+  CURL_INSECURE=1           Backward-compatible alias for CREATIVE_SMOKE_INSECURE=1.
+  CREATIVE_SMOKE_CONNECT_TIMEOUT Optional curl connect timeout in seconds. Default: 10.
+  CREATIVE_SMOKE_MAX_TIME        Optional curl total timeout in seconds. Default: 45.
 
 Output policy:
   Prints only statuses and sanitized generated IDs. Never prints password, cookies,
@@ -29,6 +35,10 @@ while [[ $# -gt 0 ]]; do
     --phase)
       PHASE="${2:-}"
       shift 2
+      ;;
+    --insecure)
+      INSECURE_MODE=1
+      shift
       ;;
     -h|--help)
       usage
@@ -108,8 +118,8 @@ die() {
 
 BASE_URL="$(trim_slash "$BASE_URL")"
 ORIGIN="$(origin_for "$BASE_URL")"
-CURL_ARGS=(-sS)
-if [[ "${CURL_INSECURE:-0}" == "1" ]]; then
+CURL_ARGS=(-sS --connect-timeout "$CONNECT_TIMEOUT" --max-time "$MAX_TIME")
+if [[ "$INSECURE_MODE" == "1" ]]; then
   CURL_ARGS+=(-k)
 fi
 

@@ -1170,3 +1170,45 @@ Implemented Phase A Creative adapter manifest registry, admin endpoint, manifest
 ### Next Steps
 
 - None - task complete
+
+## 2026-06-20 — Creative production hardening reaudit12 final
+
+- Fixed reaudit11 HIGH blocker: embedded dist still shipped toolbar DebugPanel/dead `sw-debug.html` entry.
+  - OpenTU: removed toolbar DebugPanel entry and menu i18n key; embedded ErrorBoundary hides standalone help/debug area and no longer emits literal `/sw-debug.html`.
+  - Gates: new2fly release gate and new-api creative_ci_gate now scan embedded dist text for `sw-debug.html`, `cdn-debug.html`, `menu.debugPanel`.
+- Red/green evidence:
+  - Before rebuild, updated release gate failed on old dist with `sw-debug.html` and `menu.debugPanel` in startup chunk.
+  - After rebuild/sync, `build-sync-check --sourcemap-policy forbid --source-diff-check` passed and explicit dist literal scan reported 0 hits in all three embedded dist trees.
+- Fresh validation passed:
+  - frontend targeted Vitest: 6 files / 111 tests passed.
+  - backend targeted Go tests passed for middleware/service/controller/router/relay/common/relay/channel/relay.
+  - `new-api/scripts/creative_ci_gate.sh` passed.
+  - `new2fly/scripts/creative_release_gate.py check --source-diff-check --sourcemap-policy forbid` passed.
+- Dynamic final audit:
+  - reaudit11: 6/6 branches completed but synthesis=null and found DebugPanel blocker; not accepted.
+  - reaudit12: 4/4 branches completed, no blocking findings; built-in AI synthesis failed but deterministic fallback non-null.
+  - synthesis retry workflow succeeded with `synthesisMode=ai`, `overallVerdict=code_candidate`, `blockingFindings=[]`.
+- Report written: `.trellis/tasks/06-19-06-19-creative-production-hardening/reaudit12-final-report-2026-06-20.md`.
+
+## 2026-06-20 — Creative production hardening worktree closeout pre-commit
+
+- Worktree scope check:
+  - `new2fly` changes are limited to Trellis task records, ops runbook/smoke scripts, and `creative_release_gate.py`.
+  - `new-api` changes are limited to Creative backend security/runtime behavior, CI/release gates, docs, tests, and synced embedded Creative dist.
+  - `opentu` changes are limited to embedded Creative/session-broker/model-parameter/debug-surface code and tests.
+- Repository hygiene:
+  - `.codex-flow/` is ignored and remains out of commit scope.
+  - No `.env`, private key, DB, cookie, token, log, or data-file candidate appeared in git status.
+- Product/documentation alignment:
+  - Current task remains Phase 1 production hardening; real Duomi/GrsAI live provider adapters are explicitly out of scope.
+  - Admin binding UI and backend manifest copy mark Duomi/GrsAI live adapters as future/blocked, not completed.
+  - Production runbook candidate refs currently point at the last committed base and must be refreshed after the pending opentu/new-api commits.
+- Current status:
+  - Candidate is verified on disk but not yet pinned; next step is per-repo commit, candidate-ref refresh, and post-commit gates.
+
+## 2026-06-20 — Creative production hardening candidate pinned
+
+- Pinned OpenTU commit: `0b584e2cf7c622b9fa431b3bf39b4a86055699bc` (`fix(creative): harden embedded production candidate`).
+- Pinned new-api commit: `4bdc2450427525050874aa19fd4a0dfc03b971af` (`fix(creative): harden embedded production release`).
+- Updated production runbook candidate refs to these commits.
+- Next gate: run post-commit release checks from the pinned worktrees before marking the Trellis task complete.
