@@ -1,0 +1,3 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check browser UI/model catalog/parameter/standalone cleanup acceptance."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Check authenticated Creative API/session behavior and redaction."}
+{"file":".trellis/spec/frontend/creative-asset-sync.md","reason":"Check Phase 1 cloud-sync disabled/unavailable UI wording."}

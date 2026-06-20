@@ -1347,3 +1347,17 @@ Pushed pinned Creative candidate refs, verified remote hashes, ran local disposa
 ### Next Steps
 
 - None - task complete
+
+## 2026-06-21 — Creative production authenticated browser acceptance
+
+- Public route/provenance checks remained healthy after deployment:
+  - `/creative/`, `/creative/sw.js`, `/creative/version.json`, existing/missing assets, unauth bootstrap, relay wrong method, `/v1/models`, and `/login` passed the redacted route smoke.
+  - `/creative/version.json` reports `version=0.9.6 gitCommit=0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
+- User performed the required real logged-in production browser acceptance and reported checks normal:
+  - `/creative/` loads in authenticated browser session.
+  - model list appears.
+  - image model parameter panel is available where expected.
+  - old standalone OpenTU setup surfaces such as APIKey-required flow, GitHub/Gist cloud-sync setup, feedback group image, and GitHub CTA are not blocking embedded use.
+  - no provider generation/submit was triggered during acceptance.
+- Temporary root-user automation was intentionally not used in this pass because it is a production DB/auth mutation. It remains available only as a separately authorized smoke path with create/delete cleanup if browser acceptance needs automation later.
+- Explicit not-run items remain: provider generation/payment smoke, Creative 云同步/S3 smoke, and Duomi/GrsAI live adapter validation.
