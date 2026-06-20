@@ -1226,3 +1226,41 @@ Implemented Phase A Creative adapter manifest registry, admin endpoint, manifest
   - runbook pins the OpenTU source commit used for the build;
   - embedded `new-api` dist `version.json.gitCommit` must match that source commit;
   - do not blindly commit OpenTU source-side `apps/web/public/version.json` timestamp/gitCommit churn and create a self-reference loop.
+
+
+## Session 30: Creative production hardening candidate closeout
+
+**Date**: 2026-06-20
+**Task**: Creative production hardening candidate closeout
+**Branch**: `master`
+
+### Summary
+
+Pinned and verified the embedded Creative production-hardening candidate across OpenTU, new-api, and new2fly; refreshed runbook refs, fixed embedded dist provenance, reran targeted tests and release gates, documented the provenance contract, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `opentu:0b584e2c` | (see git log) |
+| `new-api:4bdc245` | (see git log) |
+| `new-api:53b8f54` | (see git log) |
+| `new2fly:6e06dd0` | (see git log) |
+| `new2fly:4c4a1d1` | (see git log) |
+| `new2fly:224e180` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
