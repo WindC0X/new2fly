@@ -1310,3 +1310,40 @@ Pinned and verified the embedded Creative production-hardening candidate across 
   - Creative 云同步/S3 smoke not run; Phase 1 keeps asset sync disabled.
   - live provider/payment/generation smoke not run.
   - Duomi/GrsAI live adapters remain future scope and are not implemented.
+
+
+## Session 31: Creative pinned candidate production deploy
+
+**Date**: 2026-06-21
+**Task**: Creative pinned candidate production deploy
+**Branch**: `master`
+
+### Summary
+
+Pushed pinned Creative candidate refs, verified remote hashes, ran local disposable staging, deployed new-api image 53b8f54 to production with backup and DB-copy rehearsal, confirmed public route and embedded Playwright smoke, and recorded not-run cloud-sync/provider/authenticated smoke boundaries.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `new2fly:593c548` | (see git log) |
+| `new2fly:c14b852` | (see git log) |
+| `new2fly:7368ba9` | (see git log) |
+| `new-api:53b8f54` | (see git log) |
+| `opentu:0b584e2c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
