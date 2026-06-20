@@ -1212,3 +1212,10 @@ Implemented Phase A Creative adapter manifest registry, admin endpoint, manifest
 - Pinned new-api commit: `4bdc2450427525050874aa19fd4a0dfc03b971af` (`fix(creative): harden embedded production release`).
 - Updated production runbook candidate refs to these commits.
 - Next gate: run post-commit release checks from the pinned worktrees before marking the Trellis task complete.
+
+## 2026-06-20 — Creative production hardening provenance correction
+
+- Post-commit `new-api/scripts/creative_ci_gate.sh` revealed embedded dist provenance still referenced the previous OpenTU base `f35a831...`.
+- Re-ran `creative_release_gate.py build-sync-check`; build/typecheck succeeded and embedded dist provenance now records OpenTU source commit `0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
+- Restored OpenTU tracked `apps/web/public/version.json` to keep the source worktree clean and avoid a provenance self-reference loop.
+- Added new-api provenance-only commit `53b8f54126214b4eac7b33619d45c097fe443e34` and refreshed the runbook new-api candidate ref.

@@ -15,7 +15,7 @@ blocker, not documentation noise.
 | Component | Remote/ref | Verified commit |
 | --- | --- | --- |
 | OpenTU embedded frontend | `WindC0X/opentu feat/creative-embed` | `0b584e2cf7c622b9fa431b3bf39b4a86055699bc` |
-| new-api backend + embedded dist | `WindC0X/new-api feat/creative-embed` | `4bdc2450427525050874aa19fd4a0dfc03b971af` |
+| new-api backend + embedded dist | `WindC0X/new-api feat/creative-embed` | `53b8f54126214b4eac7b33619d45c097fe443e34` |
 | new2fly ops/runbook | current repository | record the commit SHA after this runbook is committed |
 
 Re-verify before deployment:
@@ -33,10 +33,10 @@ expect_ref() {
 expect_ref https://github.com/WindC0X/opentu.git refs/heads/feat/creative-embed \
   0b584e2cf7c622b9fa431b3bf39b4a86055699bc
 expect_ref https://github.com/WindC0X/new-api.git refs/heads/feat/creative-embed \
-  4bdc2450427525050874aa19fd4a0dfc03b971af
+  53b8f54126214b4eac7b33619d45c097fe443e34
 
 cd /mnt/f/code/project/new-api
-test "$(git rev-parse HEAD)" = 4bdc2450427525050874aa19fd4a0dfc03b971af
+test "$(git rev-parse HEAD)" = 53b8f54126214b4eac7b33619d45c097fe443e34
 ```
 
 ### VPS-A preflight baseline
