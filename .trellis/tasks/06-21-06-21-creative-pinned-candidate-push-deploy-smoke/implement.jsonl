@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Embedded dist provenance, release gate, push/ref verification, and production packaging contract."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Creative API/relay same-origin/session boundary and smoke expectations."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Production cloud-sync disabled/default and S3-compatible enablement safety contract."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Task spans runbook, Git refs, build artifacts, backend packaging, deployment, and smoke evidence."}

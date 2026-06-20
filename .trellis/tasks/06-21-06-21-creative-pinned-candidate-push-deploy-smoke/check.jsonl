@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/creative-embedded-release-artifact.md","reason":"Check embedded dist identity, provenance, no-secrets gate, and remote-ref verification requirements."}
+{"file":".trellis/spec/backend/creative-backend-security-boundary.md","reason":"Check Creative route/API/relay smoke boundaries and credential redaction."}
+{"file":".trellis/spec/backend/creative-asset-sync.md","reason":"Check Phase 1 cloud-sync disabled and production S3-compatible requirements."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check cross-layer release/deploy data flow and evidence labels."}
