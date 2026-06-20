@@ -362,6 +362,98 @@ GET /creative/relay/v1/images/tasks/:id -> owner + platform + creativeManaged ch
 POST /creative/relay/v1/images/generations with managed binding -> 400 before broker/distribute/provider relay
 ```
 
+## Scenario: Creative live image provider adapter contract
+
+### 1. Scope / Trigger
+
+- Trigger: enabling a `creative.model_bindings` image binding whose `adapterPreset` performs real provider transport instead of the local mock task path.
+- Applies to `service/creative_image_adapter.go`, `service/creative_model_capability.go`, `controller/creative_image_tasks.go`, `model/task.go`, `service/task_billing.go`, `/api/creative/model-bindings*`, `/creative/api/models`, and `/creative/relay/v1/images/tasks*`.
+- This is a cross-layer/provider/security contract: admin config, channel credentials, user-visible parameter schema, provider request mapping, polling, billing, idempotency, and result-content privacy must remain consistent.
+
+### 2. Signatures
+
+- Live adapter presets:
+  - `duomi_image_live`
+  - `grsai_image_live`
+- Provider adapter API:
+  - `SubmitCreativeImageProviderTask(ctx, CreativeImageProviderRequest) (CreativeImageProviderResult, error)`
+  - `FetchCreativeImageProviderTask(ctx, CreativeImageProviderFetchRequest) (CreativeImageProviderResult, error)`
+- Binding fields required for live presets:
+  - `channelId > 0`
+  - `adapterPreset` is a known live preset
+  - `parameterTemplate` is a known template for that preset/model family
+  - `providerModelId` is listed by the selected enabled channel
+  - `parameterSchema` has at least one visible allowlisted field
+- Supported live provider mappings:
+  - Duomi submit: `POST <BaseURL>/v1/images/generations?async=true`, auth header `Authorization: <channel key>`
+  - Duomi poll: `GET <BaseURL>/v1/tasks/{upstreamTaskID}`
+  - GrsAI submit: `POST <BaseURL>/v1/api/generate`, auth header `Authorization: Bearer <channel key>`, backend-forced `replyType: "async"`
+  - GrsAI poll: `GET <BaseURL>/v1/api/result?id={upstreamTaskID}`
+
+### 3. Contracts
+
+- Live provider keys and base URLs come only from the selected `new-api` channel. The browser and OpenTU never submit, select, or receive provider credentials/base URLs/channel routing authority.
+- Readiness/validation for a live binding must require all of: global Creative adapter enabled, selected channel exists, channel is enabled, channel has an explicit non-empty `BaseURL`, channel has at least one available key, channel model list contains `providerModelId`, canary group is valid, and schema/template are allowlisted.
+- Catalog/admin readiness checks must not call `GetNextEnabledKey()` or otherwise advance multi-key polling state. Key selection is submit-time only.
+- Stored config reads for admin state may tolerate runtime channel drift so the admin UI can load and repair stale config. Save/validate/runtime resolution remain strict and fail closed.
+- Submit selects exactly one channel key and stores selected-key affinity in `Task.PrivateData.Key`. Polling must reuse that key and must not rotate to another key.
+- Submit stores the provider endpoint snapshot in `Task.PrivateData.ProviderEndpoint`. Polling must fail closed and refund if the current channel base URL no longer matches the stored snapshot.
+- Submit must create the task row and submit-billing/outbox bookkeeping in one DB transaction after provider acceptance. If provider accepted but local persistence/finalize fails, refund pre-consumption and retain the idempotency guard so retries do not create duplicate provider tasks.
+- Terminal poll/reconcile must use compare-and-swap task status updates with durable billing/refund outbox behavior. A terminal CAS loser reloads the stored task and returns the sanitized current DTO.
+- Public DTOs for submit/fetch must not expose selected key, upstream task id, raw provider result URL, channel id, quota, base URL, provider endpoint, or `private_data`. The browser receives only local `/creative/relay/v1/images/tasks/:task_id/content` result URLs.
+- Result content for live tasks is fetched server-side from `Task.PrivateData.ResultURL` through the managed safe HTTP client and `ValidateURLWithFetchSetting`. Allowed content types are image raster types only: png, jpeg/jpg, webp, gif, avif. SVG and HTML/XML/script-like content must be rejected even if the provider reports success.
+- User-submitted `userParams` are allowlisted by `parameterSchema` and provider template. Hidden fields, unknown fields, forbidden keys, sensitive values, and provider-control fields such as `replyType`, callback/webhook/notify, owner/user, base URL, key/header overrides, or channel/group overrides must never enter provider requests.
+- Live catalog entries should be tagged with provider/live family tags and must not include `mock`; mock preview bindings stay explicitly mock-only.
+
+### 4. Validation & Error Matrix
+
+- Live binding with missing/disabled channel, empty `BaseURL`, no available key, unsupported `providerModelId`, invalid canary group, unknown preset/template, or empty visible schema -> validate/save/runtime resolution fails closed.
+- Catalog/admin validation path advances channel key index -> fail test; readiness must be side-effect free.
+- Existing stored config references a deleted/disabled channel -> admin GET still returns repairable state; validate/save/submit fail closed until repaired.
+- Submit accepted by provider but local insert/finalize fails -> refund pre-consumed quota, keep idempotency guard, and do not repeat provider submit on retry.
+- Poll task missing `PrivateData.Key`, missing `UpstreamTaskID`, missing `ProviderEndpoint`, or endpoint mismatch with current channel -> terminal failure/refund path, no provider call with a guessed key/base URL.
+- Provider reports terminal success without a result URL/content reference -> terminal failure/refund path.
+- Provider result URL points to blocked/private/redirected target or returns disallowed content type such as SVG -> content endpoint rejects; raw URL is not sent to the browser.
+- Duomi user param includes `callback` or GrsAI user param includes `replyType` -> rejected/ignored before provider request; backend controls provider-only fields.
+- Public submit/fetch response contains `channelId`, `quota`, `upstreamTaskID`, selected key, raw result URL, or base URL -> fail privacy test.
+
+### 5. Good/Base/Bad Cases
+
+- Good: admin creates a disabled Duomi live draft from channel `12`, validates/dry-runs with `noProviderCall=true`, saves, enables after channel readiness passes, and users submit typed `size/quality` params through `/creative/relay/v1/images/tasks`.
+- Good: GrsAI `gpt-image-2-vip` uses its own parameter template where the visible quality-like values are `1K/2K/4K`; regular GrsAI `gpt-image-2` does not inherit VIP-only values.
+- Base: provider accepts a task as `pending`; submit returns a sanitized local task id and future fetch polls using the stored upstream id/key/endpoint snapshot.
+- Bad: validation rotates the channel's key index; polling uses a newly selected key after the channel base URL was changed; DTO returns the provider's signed image URL directly; SVG result is proxied to the browser.
+
+### 6. Tests Required
+
+- Adapter mapper/parser tests for Duomi submit/poll and GrsAI submit/poll, including accepted, pending/running, success, failure, malformed success, and provider-error responses.
+- Capability tests for live manifests, parameter templates, visible schema non-empty rules, provider-template/model allowlists, GrsAI VIP vs non-VIP schema separation, and live catalog tags.
+- Admin binding tests for channel readiness success/failure, explicit-base-URL requirement, no available key, unsupported provider model, runtime drift tolerance on stored read, strict validate/save behavior, and no `GetNextEnabledKey()` side effects.
+- Submit tests for selected-key/endpoint snapshot persistence, idempotency replay/conflict, provider accepted + local insert/finalize failure refunds, no duplicate provider calls, DTO privacy, and submit-billing outbox creation.
+- Poll/fetch tests for missing key/upstream/endpoint fail-closed refund, endpoint mismatch fail-closed refund, terminal CAS loser reload, malformed terminal provider success refund, and sanitized public DTOs.
+- Content tests for owner/platform scope, SSRF/redirect validation, allowed raster content types, SVG denial, and no raw result URL exposure.
+- Frontend/admin type checks proving schema-backed parameter fields are displayed from `/creative/api/models` rather than hardcoded provider defaults.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+GET /api/creative/model-bindings -> calls channel.GetNextEnabledKey()
+POST /creative/relay/v1/images/tasks -> provider accepts -> local insert fails -> idempotency guard deleted
+GET /creative/relay/v1/images/tasks/:id -> returns upstreamTaskID/channelId/result_url
+Poll -> channel.GetNextEnabledKey() after admin changed BaseURL
+```
+
+#### Correct
+
+```text
+GET /api/creative/model-bindings -> side-effect-free readiness diagnostics
+POST /creative/relay/v1/images/tasks -> lock key + endpoint snapshot -> provider submit -> DB transaction task + submit outbox
+GET /creative/relay/v1/images/tasks/:id -> owner/platform/managed check -> sanitized local DTO
+Poll -> reuse stored key and require endpoint snapshot match, else fail-closed + refund
+```
+
 ## Scenario: Creative model bindings channel summary picker
 
 ### 1. Scope / Trigger
