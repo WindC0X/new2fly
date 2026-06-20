@@ -1219,3 +1219,10 @@ Implemented Phase A Creative adapter manifest registry, admin endpoint, manifest
 - Re-ran `creative_release_gate.py build-sync-check`; build/typecheck succeeded and embedded dist provenance now records OpenTU source commit `0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
 - Restored OpenTU tracked `apps/web/public/version.json` to keep the source worktree clean and avoid a provenance self-reference loop.
 - Added new-api provenance-only commit `53b8f54126214b4eac7b33619d45c097fe443e34` and refreshed the runbook new-api candidate ref.
+
+## 2026-06-20 — Creative embedded provenance spec update
+
+- Updated `.trellis/spec/frontend/creative-embedded-release-artifact.md` with the embedded dist provenance rule learned during closeout:
+  - runbook pins the OpenTU source commit used for the build;
+  - embedded `new-api` dist `version.json.gitCommit` must match that source commit;
+  - do not blindly commit OpenTU source-side `apps/web/public/version.json` timestamp/gitCommit churn and create a self-reference loop.
