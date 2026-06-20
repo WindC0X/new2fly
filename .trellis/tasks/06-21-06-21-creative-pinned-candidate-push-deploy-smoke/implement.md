@@ -42,18 +42,18 @@
 
 Only after explicit authorization:
 
-- [ ] Build or package candidate image from pinned new-api commit.
-- [ ] Verify candidate image ID/digest.
-- [ ] Take production backup/rehearsal per runbook.
-- [ ] Deploy Phase 1 route/UI with Creative asset sync disabled.
-- [ ] Run redacted public route smoke.
-- [ ] Run authenticated smoke only with authorized session/credentials and redaction controls.
-- [ ] Record not-run items: S3 cloud sync, live provider smoke, Duomi/GrsAI live adapter.
+- [x] Build or package candidate image from pinned new-api commit.
+- [x] Verify candidate image ID/digest.
+- [x] Take production backup/rehearsal per runbook.
+- [x] Deploy Phase 1 route/UI with Creative asset sync disabled.
+- [x] Run redacted public route smoke.
+- [x] Run authenticated smoke only with authorized session/credentials and redaction controls. Not run for this Phase 1 CLI rollout because no browser session / Turnstile-safe authenticated path was provided; public route + unauth boundary + embedded Playwright smoke passed.
+- [x] Record not-run items: S3 cloud sync, live provider smoke, Duomi/GrsAI live adapter.
 
 ## Phase G — Finish
 
-- [ ] Update task journal with pushed refs, gate evidence, and deployment/smoke result or blocked reason.
-- [ ] Update specs only if new reusable deployment/provenance rule is learned.
+- [x] Update task journal with pushed refs, gate evidence, and deployment/smoke result or blocked reason.
+- [x] Update specs only if new reusable deployment/provenance rule is learned. No new reusable spec rule beyond existing staging/provenance/deployment contracts.
 - [ ] Commit task/runbook changes.
 - [ ] Archive Trellis task after acceptance criteria are met or explicitly mark blocked if external authorization/credentials are unavailable.
 

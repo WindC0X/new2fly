@@ -1284,3 +1284,29 @@ Pinned and verified the embedded Creative production-hardening candidate across 
   - selected env keys checked by presence only; no secret values printed.
   - public route baseline smoke passed against `console.se7endot.top` / `api.se7endot.top`.
 - Next step is production mutation and requires explicit authorization: build/package `53b8f54` candidate, backup/rehearsal, image identity check, compose/env update, restart, and smoke.
+
+## 2026-06-21 — Creative pinned candidate production deployment
+
+- Built local WSL Docker candidate image from pushed `new-api` commit `53b8f54126214b4eac7b33619d45c097fe443e34`:
+  - tag `new-api-creative-embed:53b8f54`
+  - image ID `sha256:a397902f4507ce4e9b79725cd8170880cb6fd8a5bb7617f0b3b84a0c583bf54b`.
+- Transferred via `docker save | gzip | ssh docker load`; VPS image ID matched the local image ID exactly.
+- Production backup and DB-copy rehearsal:
+  - backup dir `/home/admin/apps/new-api/backups/creative-embed-20260621-003629`.
+  - rehearsal dir `/home/admin/apps/new-api/backups/creative-migration-rehearsal-20260621-003629`.
+  - stopped production container only for consistent backup, then restarted old service before rehearsal.
+  - SQLite backup `PRAGMA integrity_check` returned `ok`.
+  - candidate rehearsal container on localhost-only `127.0.0.1:13984` became ready and critical table count checks passed.
+- Production cutover:
+  - compose image updated from `new-api-creative-embed:1680c11` to `new-api-creative-embed:53b8f54`.
+  - `.env` updated by key only, without printing values: `CREATIVE_PUBLIC_ORIGIN` present, `CREATIVE_ASSET_SYNC_ENABLED=false`, `CREATIVE_VIDEO_RELAY_ENABLED=false`.
+  - container `new-api-relay` running image `new-api-creative-embed:53b8f54`, image ID `sha256:a397902f4507ce4e9b79725cd8170880cb6fd8a5bb7617f0b3b84a0c583bf54b`, restart_count=0.
+- Production smoke:
+  - redacted public route smoke passed for `/creative/`, `/creative/sw.js`, `/creative/version.json`, existing/missing assets, unauth bootstrap, relay wrong method, `/v1/models`, and `/login`.
+  - `/creative/version.json` reports `version=0.9.6 gitCommit=0b584e2cf7c622b9fa431b3bf39b4a86055699bc`.
+  - production embedded Playwright smoke passed: 1/1 test.
+- Explicit not-run items:
+  - authenticated browser-session Creative smoke was not run from CLI because no Turnstile-safe browser session path was provided.
+  - Creative 云同步/S3 smoke not run; Phase 1 keeps asset sync disabled.
+  - live provider/payment/generation smoke not run.
+  - Duomi/GrsAI live adapters remain future scope and are not implemented.
