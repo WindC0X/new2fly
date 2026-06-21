@@ -343,3 +343,118 @@ python3 scripts/creative_release_gate.py check --source-diff-check
 ```
 
 Results: all passed.
+
+## Parameter UI contract correction — Duomi 21:9 and GrsAI default handling
+
+User feedback corrected an over-narrow interpretation of the Duomi Apifox contract:
+
+- Duomi `size` does not document raw ratio `21:9` as a provider enum.
+- The same Duomi API documents custom `widthxheight` sizes, with dimensions divisible by 16 and within the pixel budget.
+- Final implementation therefore keeps Creative UI `21:9` for Duomi, but maps it to provider `1792x768` before provider-facing live submit and dry-run preview.
+
+New-api code changes:
+
+- `service/creative_image_adapter.go`
+  - `creativeDuomiSizeParam` maps Duomi UI `size=21:9` to provider `size=1792x768`.
+  - `creativeStringParam` no longer turns missing/nil map keys into string `"<nil>"`.
+  - GrsAI GPT image helpers omit raw `auto`, omit `imageSize` for `gpt-image-2` / `gpt-image-2-vip`, and map UI aspect ratio + resolution tier to provider pixel `aspectRatio`.
+- `service/creative_model_capability.go`
+  - Duomi `gpt-image-2` schema exposes `size=21:9` plus documented custom-size-compatible options.
+  - Duomi dry-run preview now calls the same size mapping helper as live submit.
+  - GrsAI `gpt-image-2` and `gpt-image-2-vip` expose `aspectRatio + imageSize`; dry-run mirrors live adapter omission/mapping behavior.
+
+Local verification after correction:
+
+```bash
+cd /mnt/f/CODE/Project/new-api
+go test -count=1 ./service
+go test -count=1 ./middleware
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py check --source-diff-check
+```
+
+Results: all passed.
+
+Staging v4 deployment and smoke:
+
+- Rebuilt staging image and recreated the staging container without wiping volumes.
+- Image id: `sha256:c1168fe2f087179c366935f48d4073045fb1e35fa1a21c7b8d1eac7632d9aed0`.
+- Container health: `healthy`.
+- Refreshed Creative Model Bindings from current adapter manifests using admin `validate -> dry-run -> put`.
+- `/creative/api/models` exposed:
+  - Duomi `size` default `auto`, 14 options including `1024x1024`, `21:9`, `1:2`, `2:1`; `quality` default `auto`, 4 options.
+  - GrsAI normal `aspectRatio` default `auto`, 14 options; `imageSize` only `1K`.
+  - GrsAI VIP `aspectRatio` default `auto`, 16 options; `imageSize` `1K/2K/4K`.
+- Browser schema smoke: `/creative/` title `New API Creative - 我的画板1`, model count `7`, console errors `0`.
+- Dry-run default preview:
+  - Duomi default body: `{"model":"gpt-image-2","prompt":"[REDACTED]","size":"auto"}`.
+  - GrsAI normal default body omits raw `aspectRatio=auto` and `imageSize`.
+  - GrsAI VIP default body omits raw `aspectRatio=auto` and `imageSize`.
+
+Staging real provider smoke v4:
+
+- Duomi `duomi:gpt-image-2:live-smoke` with `userParams={"size":"21:9","quality":"low"}`:
+  - Submit HTTP `202`, terminal status `completed`, content HTTP `200`, content type `image/png`, cache `private, no-store`, PNG signature `89504e470d0a1a0a`.
+  - Submit/fetch DTO privacy checks did not expose raw provider HTTP URLs.
+- GrsAI normal `grsai:gpt-image-2:live-smoke` with empty `userParams={}`:
+  - Submit HTTP `202`, terminal status `completed`, content HTTP `200`, content type `image/png`, cache `private, no-store`, PNG signature `89504e470d0a1a0a`.
+  - Submit/fetch DTO privacy checks did not expose raw provider HTTP URLs.
+- VIP was not live-smoked; it remains catalog/browser/dry-run covered only.
+
+Dynamic workflow v4 focused re-audit:
+
+```bash
+codex-flow run .codex-flow/generated/creative-param-ui-v4-focused-reaudit.workflow.ts
+```
+
+Journal:
+
+```text
+.codex-flow/journal/creative-param-ui-v4-focused-reaudit.jsonl
+```
+
+Result:
+
+- `provider-doc-contract-v4`: `pass_with_notes`, `mustFix=[]`.
+- `staging-evidence-review-v4`: `pass_with_notes`, `mustFix=[]`.
+- `schema-adapter-wire-values-v4`: `fail`, `mustFix=[Duomi dry-run preview did not reuse live 21:9 -> 1792x768 mapping when admin default is 21:9]`.
+
+Follow-up mustFix fix:
+
+- `creativeModelBindingDryRunRequestPreview` now maps Duomi dry-run `size` through `creativeDuomiSizeParam`.
+- Added regression test `TestBuildCreativeModelBindingsDryRunMirrorsDuomiLiveSizeMapping`.
+- Re-ran local `go test -count=1 ./service`, `go test -count=1 ./middleware`, and release gate; all passed.
+
+Staging v5 dry-run verification:
+
+- Rebuilt and redeployed staging image without wiping volumes.
+- Image id: `sha256:0e5e894228334fd5b09d62209049b3a20801e9022e98d7295117510094efc5b2`.
+- Container health: `healthy`.
+- Ran validate/dry-run only with a temporary Duomi binding draft whose schema default `size` was `21:9`; did not save this draft.
+- Validate: HTTP `200`, `success=true`, `valid=true`.
+- Dry-run: HTTP `200`, `success=true`, `noProviderCall=true`.
+- Duomi preview body: `{"model":"gpt-image-2","prompt":"[REDACTED]","size":"1792x768"}`.
+
+Dynamic workflow v5 mustFix re-audit:
+
+```bash
+codex-flow run .codex-flow/generated/creative-param-ui-v5-mustfix-reaudit.workflow.ts
+```
+
+Journal:
+
+```text
+.codex-flow/journal/creative-param-ui-v5-mustfix-reaudit.jsonl
+```
+
+Result:
+
+- `dryrun-live-parity`: `pass_with_notes`, `mustFix=[]`.
+- `staging-v5-evidence`: `pass`, `mustFix=[]`.
+- Aggregated `mustFix=[]`.
+
+Current conclusion:
+
+- Creative Duomi `gpt-image-2` parameter UI, dry-run, live adapter, and staging provider smoke are aligned for `21:9` and default/auto handling.
+- Creative GrsAI normal `gpt-image-2` parameter UI, dry-run, live adapter, and staging provider smoke are aligned for default/auto handling.
+- Creative GrsAI VIP remains schema/dry-run/browser verified only; live provider smoke is intentionally not claimed.

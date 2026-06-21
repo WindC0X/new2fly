@@ -405,6 +405,9 @@ POST /creative/relay/v1/images/generations with managed binding -> 400 before br
 - Public DTOs for submit/fetch must not expose selected key, upstream task id, raw provider result URL, channel id, quota, base URL, provider endpoint, or `private_data`. The browser receives only local `/creative/relay/v1/images/tasks/:task_id/content` result URLs.
 - Result content for live tasks is fetched server-side from `Task.PrivateData.ResultURL` through the managed safe HTTP client and `ValidateURLWithFetchSetting`. Allowed content types are image raster types only: png, jpeg/jpg, webp, gif, avif. SVG and HTML/XML/script-like content must be rejected even if the provider reports success.
 - User-submitted `userParams` are allowlisted by `parameterSchema` and provider template. Hidden fields, unknown fields, forbidden keys, sensitive values, and provider-control fields such as `replyType`, callback/webhook/notify, owner/user, base URL, key/header overrides, or channel/group overrides must never enter provider requests.
+- Provider-facing parameter previews must mirror the live adapter mapping. If a user-visible UI value is a logical convenience value rather than a provider enum, both dry-run and live submit must normalize it the same way before showing or sending a request body.
+- Duomi `gpt-image-2` may expose `size=21:9` as a Creative UI convenience because Duomi documents custom `widthxheight` sizes, but the provider payload must not send raw `"21:9"`. Normalize it to a valid custom size such as `1792x768` (divisible by 16 and inside the documented pixel budget) in both live submit and admin dry-run previews.
+- GrsAI `gpt-image-2` / `gpt-image-2-vip` may expose UI `aspectRatio` plus `imageSize`, but the live provider payload encodes selected resolution in provider `aspectRatio` pixel values and omits `imageSize` for those two models. UI/default `auto` must be omitted from provider payloads unless provider documentation explicitly supports raw `auto` for that model.
 - Live catalog entries should be tagged with provider/live family tags and must not include `mock`; mock preview bindings stay explicitly mock-only.
 
 ### 4. Validation & Error Matrix
@@ -417,19 +420,25 @@ POST /creative/relay/v1/images/generations with managed binding -> 400 before br
 - Provider reports terminal success without a result URL/content reference -> terminal failure/refund path.
 - Provider result URL points to blocked/private/redirected target or returns disallowed content type such as SVG -> content endpoint rejects; raw URL is not sent to the browser.
 - Duomi user param includes `callback` or GrsAI user param includes `replyType` -> rejected/ignored before provider request; backend controls provider-only fields.
+- Duomi user param `size=21:9` -> live provider body and dry-run preview both use `size=1792x768`; raw `size=21:9` in provider-facing bodies is a bug.
+- GrsAI GPT image user/default `aspectRatio=auto` -> provider-facing body omits `aspectRatio` instead of sending raw `auto`.
 - Public submit/fetch response contains `channelId`, `quota`, `upstreamTaskID`, selected key, raw result URL, or base URL -> fail privacy test.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: admin creates a disabled Duomi live draft from channel `12`, validates/dry-runs with `noProviderCall=true`, saves, enables after channel readiness passes, and users submit typed `size/quality` params through `/creative/relay/v1/images/tasks`.
+- Good: admin dry-runs a Duomi draft whose visible default `size` is `21:9`; dry-run shows `requestBody.size == "1792x768"`, and live submit sends the same normalized value.
 - Good: GrsAI `gpt-image-2-vip` uses its own parameter template where the visible quality-like values are `1K/2K/4K`; regular GrsAI `gpt-image-2` does not inherit VIP-only values.
+- Bad: Duomi dry-run shows raw `size:"21:9"` while live submit silently sends `1792x768`; administrators can no longer trust dry-run previews.
 - Base: provider accepts a task as `pending`; submit returns a sanitized local task id and future fetch polls using the stored upstream id/key/endpoint snapshot.
 - Bad: validation rotates the channel's key index; polling uses a newly selected key after the channel base URL was changed; DTO returns the provider's signed image URL directly; SVG result is proxied to the browser.
 
 ### 6. Tests Required
 
 - Adapter mapper/parser tests for Duomi submit/poll and GrsAI submit/poll, including accepted, pending/running, success, failure, malformed success, and provider-error responses.
+- Adapter mapper tests must assert Duomi `size=21:9` becomes provider `size=1792x768` and raw `21:9` is not present in outbound provider JSON.
 - Capability tests for live manifests, parameter templates, visible schema non-empty rules, provider-template/model allowlists, GrsAI VIP vs non-VIP schema separation, and live catalog tags.
+- Dry-run tests must assert Duomi preview mapping mirrors live submit for `21:9 -> 1792x768`, `quality=auto` is omitted, and GrsAI GPT image `auto`/`imageSize` omission mirrors live adapter behavior.
 - Admin binding tests for channel readiness success/failure, explicit-base-URL requirement, no available key, unsupported provider model, runtime drift tolerance on stored read, strict validate/save behavior, and no `GetNextEnabledKey()` side effects.
 - Submit tests for selected-key/endpoint snapshot persistence, idempotency replay/conflict, provider accepted + local insert/finalize failure refunds, no duplicate provider calls, DTO privacy, and submit-billing outbox creation.
 - Poll/fetch tests for missing key/upstream/endpoint fail-closed refund, endpoint mismatch fail-closed refund, terminal CAS loser reload, malformed terminal provider success refund, and sanitized public DTOs.
