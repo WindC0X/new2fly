@@ -609,3 +609,181 @@ Current conclusion:
 - GrsAI parameter contract is locally and staging verified for schema/admin/UI/dry-run paths.
 - Real paid provider generation with non-auto GrsAI `quality` is not claimed in this report; run only after explicit cost authorization.
 - Before declaring publish-ready, commit the new-api backend/dist changes, commit this validation/spec record, and push/record the OpenTU commit used by embedded dist provenance.
+
+
+## Follow-up fix validation — Duomi split params, 21:9 sizing, canvas image rendering
+
+Date/time: 2026-06-21 Asia/Hong_Kong
+
+Context: after manual UI feedback, the previous staging binding/schema evidence with `size`/`quality` is superseded. The current accepted staging state uses schema-backed `aspectRatio` / `imageSize` / `quality` for Duomi, GrsAI GPT image, and GrsAI GPT image VIP.
+
+### Local build / regression
+
+Commands run:
+
+```bash
+python3 scripts/creative_release_gate.py build-sync-check \
+  --opentu /mnt/f/CODE/Project/opentu \
+  --new-api /mnt/f/CODE/Project/new-api \
+  --source-diff-check
+
+go test -count=1 ./service ./controller
+
+pnpm --filter @aitu/drawnix exec vitest run \
+  src/utils/__tests__/creative-image-display-size.test.ts \
+  src/utils/__tests__/image-generation-anchor-submission.test.ts \
+  src/hooks/__tests__/useAutoInsertToCanvas.test.ts
+```
+
+Results:
+
+- OpenTU `build:web` and SW build completed.
+- Embedded Creative dist synced to both `new-api/web/creative/dist` and `new-api/router/web/creative/dist`.
+- Release gate artifact contract passed: index/static refs, idle-prefetch refs, brand/static cleanup, file identity across three dists, version provenance, no sourcemaps, text hygiene, and git diff checks.
+- `go test -count=1 ./service ./controller`: pass.
+- Drawnix vitest targeted suite: 3 files / 16 tests pass.
+
+### Staging deployment refresh
+
+Existing local staging container was replaced with a newly built image while preserving existing named volumes:
+
+- Container: `newapi-opentu-staging-new-api`
+- URL: `http://127.0.0.1:39084/creative/`
+- New image tag during run: `new-api-creative-embed:staging-next`
+- Preserved volumes:
+  - `newapi-opentu-staging_newapi_opentu_staging_data:/data`
+  - `newapi-opentu-staging_newapi_opentu_staging_logs:/app/logs`
+- No `down -v`; no staging user/channel data wipe.
+
+Health and unauthenticated route smoke:
+
+- `GET /api/status`: HTTP 200.
+- `GET /creative/`: HTTP 200.
+- unauthenticated `GET /creative/api/bootstrap`: HTTP 401.
+- unauthenticated `GET /creative/api/models`: HTTP 401.
+
+### Staging Creative Model Bindings migration
+
+Initial post-deploy issue:
+
+- `GET /api/creative/model-bindings` returned HTTP 500 because stored staging binding `duomi:gpt-image-2:live-smoke` still had stale `parameterSchema` field `size`, which is now rejected by `duomi_image_live + duomi_gpt_image`.
+
+Migration performed through authenticated root dashboard session and Creative nonce, not by direct DB editing:
+
+- Existing channels used:
+  - Duomi channel `4` (`duomi-live-smoke`) supports `gpt-image-2`.
+  - GrsAI channel `3` (`grsai-live-smoke`) supports `gpt-image-2`, `gpt-image-2-vip`.
+- Saved current bindings:
+  - `duomi:gpt-image-2:live-smoke` -> channel `4`, `duomi_image_live`, `duomi_gpt_image`.
+  - `grsai:gpt-image-2:live-smoke` -> channel `3`, `grsai_image_live`, `grsai_gpt_image`.
+  - `grsai:gpt-image-2-vip:live-smoke` -> channel `3`, `grsai_image_live`, `grsai_gpt_image_vip`.
+
+No-provider admin validation results:
+
+- `POST /api/creative/model-bindings/validate`: HTTP 200, `success=true`, `valid=true`.
+- `POST /api/creative/model-bindings/dry-run`: HTTP 200, `success=true`, `noProviderCall=true`, 3 bindings, offline/redacted previews.
+- `PUT /api/creative/model-bindings`: HTTP 200, `success=true`.
+- `GET /api/creative/model-bindings`: HTTP 200 after migration.
+- `GET /creative/api/models`: HTTP 200 after migration.
+
+Current `/creative/api/models` live binding schemas:
+
+- `duomi:gpt-image-2:live-smoke`
+  - params: `aspectRatio` (`图片尺寸`) / `imageSize` (`图片分辨率`) / `quality` (`质量`)
+  - `aspectRatio` includes `21:9`; `imageSize` only `1K`; `quality` includes `auto, low, medium, high`.
+- `grsai:gpt-image-2:live-smoke`
+  - params: `aspectRatio` / `imageSize` / `quality`
+  - `imageSize` only `1K`.
+- `grsai:gpt-image-2-vip:live-smoke`
+  - params: `aspectRatio` / `imageSize` / `quality`
+  - `imageSize` includes `1K, 2K, 4K`.
+
+### Browser UI smoke
+
+Python Playwright smoke used authenticated staging session. No real provider call was made in this stage.
+
+Results:
+
+- `/creative/` loaded with title `New API Creative - 我的画板1`; no page errors or console errors.
+- Same browser context `GET /creative/api/models`: HTTP 200.
+- Parameter popup evidence: clicking parameter summary showed three distinct groups in one popup:
+  - `图片尺寸` with ratio options including `21:9 超宽`
+  - `图片分辨率` with `1K`
+  - `质量` with `自动 / 快速 / 标准 / 高清`
+- Model dropdown evidence: showed `Duomi GPT Image 2`, `GrsAI GPT Image 2`, and `GrsAI GPT Image 2 VIP`.
+
+No-provider route-intercepted submit smoke:
+
+- Playwright intercepted `/creative/relay/v1/images/tasks` and returned local mock content; the request did not reach backend/provider.
+- Selected model: `duomi:gpt-image-2:live-smoke`.
+- Selected params: `21:9`, `1K`, `auto`.
+- Intercepted submit body:
+
+```json
+{
+  "model": "duomi:gpt-image-2:live-smoke",
+  "prompt": "ui smoke 21:9 placeholder ratio test",
+  "userParams": {
+    "aspectRatio": "21:9",
+    "imageSize": "1K",
+    "quality": "auto"
+  }
+}
+```
+
+- Legacy `params` was not present.
+- Canvas inserted/selected node showed toolbar dimensions `W 400`, `H 171`, matching 21:9 local display ratio.
+- Node rendered as visible mock image content, not a blank node.
+
+Screenshots retained temporarily under `/tmp/creative-ui-smoke/` during this session:
+
+- `creative-loaded.png`
+- `after-0-params-summary.png`
+- `after-1-model-summary.png`
+- `mock-submit-after-send.png`
+
+### Dynamic workflow re-audit
+
+Workflow file:
+
+```text
+.codex-flow/generated/creative-duomi-params-staging-reaudit.workflow.ts
+```
+
+Run command:
+
+```bash
+codex-flow run .codex-flow/generated/creative-duomi-params-staging-reaudit.workflow.ts
+```
+
+Journal:
+
+```text
+.codex-flow/journal/creative-duomi-params-staging-reaudit.jsonl
+```
+
+Parallel read-only branches:
+
+1. `backend-schema-adapter`
+2. `frontend-ui-sizing-rendering`
+3. `staging-smoke-evidence`
+
+Result:
+
+- All 3 branches completed.
+- `mustFix: []`.
+
+Residual risks recorded by the workflow:
+
+- This follow-up staging verification was no-provider except for earlier documented real Duomi/GrsAI smoke; VIP and non-auto quality real provider paths were not newly exercised in this follow-up.
+- Temporary `/tmp` artifacts must not be committed or externalized.
+- Production deployment remains a separate gate.
+
+### Current conclusion after follow-up fix
+
+- Duomi parameter UI/schema: fixed and staging-verified.
+- GrsAI GPT/VIP parameter UI/schema: staging-verified.
+- 21:9 generated anchor/canvas sizing: staging-verified with route-intercepted no-provider submit (`400x171`).
+- Blank canvas image node regression: staging smoke with mocked content rendered visible node; source uses `RetryImage` fallback for ordinary image nodes.
+- Dynamic workflow re-audit: pass, `mustFix=[]`.
+- Production/VPS: not deployed in this follow-up; requires separate authorization.

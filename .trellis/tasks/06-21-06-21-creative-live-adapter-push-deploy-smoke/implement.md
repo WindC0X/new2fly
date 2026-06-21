@@ -30,7 +30,7 @@
 - [x] Run authenticated `/creative/api/bootstrap` and `/creative/api/models` smoke.
 - [x] Run Creative Model Bindings validate/dry-run smoke without provider call.
 - [x] Run browser smoke for logged-in `/creative` model catalog and parameter panel.
-- [ ] Optional: run mock/no-provider image task smoke. (not needed for live-binding staging gate)
+- [x] Optional: run mock/no-provider image task smoke. (Playwright route-intercepted no-provider submit smoke run for 21:9 payload/canvas ratio)
 - [x] Optional: run real Duomi/GrsAI provider smoke only after explicit authorization.
 
 ## Phase 6 — production decision gate
@@ -41,7 +41,7 @@
 
 ## Phase 7 — record and finish
 
-- [ ] Record pushed refs, deployed commit, smoke evidence, and open risks.
+- [x] Record pushed refs, deployed commit, smoke evidence, and open risks.
 - [ ] If code/docs changed, run Trellis check/update-spec/commit/finish-work.
 
 ## Verification commands

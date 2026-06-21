@@ -278,16 +278,16 @@ if (isCreativeEmbeddedMode()) {
 
 - For schema-backed image models, OpenTU submits the backend catalog `id` as `model`/binding id and carries only typed `userParams` derived from backend schema IDs.
 - Runtime `parameterSchema` is authoritative. If it is present, `getCompatibleParams()` must use it and must not merge static params from `providerModelId`, `id`, or any billing field.
-- A schema-backed GrsAI GPT Image model parameter popup must render all schema groups from the same selected model. For current GrsAI live templates this means `图片尺寸` + `图片分辨率` + `质量` in one popup; normal `gpt-image-2` has only `1K`, while `gpt-image-2-vip` has `1K/2K/4K`.
+- A schema-backed GPT Image model parameter popup must render all schema groups from the same selected model. For current Duomi and GrsAI live templates this means `图片尺寸` + `图片分辨率` + `质量` in one popup; Duomi and normal GrsAI `gpt-image-2` expose only `1K`, while GrsAI `gpt-image-2-vip` exposes `1K/2K/4K`.
 - Direct New API channel catalog models can be `creativeManaged=true` without a runtime schema, for example a channel-provided `Gpt-image-2`. In that case OpenTU may show static image parameters only when `providerModelId` or the catalog `id` matches a known safe static model such as `gpt-image-2` after normal model-id lookup. For GPT Image 2 static fallback, ordinary `gpt-image-2` exposes only the `1K` resolution tier while `gpt-image-2-vip` exposes `1K`, `2K`, and `4K`; do not share VIP resolution tiers with the ordinary model.
 - Unknown `creativeManaged` models without runtime schema remain parameterless (`[]`) and fail closed; do not infer parameters from labels, short codes, tags, defaults, user preferences, or standalone provider profiles.
 - `priceModelId` must stay distinct from `providerModelId`: a known static `priceModelId` must not cause parameter controls to appear for an unknown executable binding.
 - Runtime schema preferences are scoped by binding/selection key, not by `providerModelId`; two bindings that share one upstream provider model must keep separate defaults and saved params.
-- Schema-backed image requests must not legacy-rewrite or pass through OpenTU `params`, `size`, `resolution`, `quality`, `inputFidelity`, `background`, `outputFormat`, `outputCompression`, `count`, aspect/duration defaults, callback/webhook/header/url/provider/channel/model override fields, or frontend callbacks as provider parameters.
+- Schema-backed image requests must not legacy-rewrite or pass through OpenTU `params`, `size`, `resolution`, `quality`, `inputFidelity`, `background`, `outputFormat`, `outputCompression`, `count`, aspect/duration defaults, callback/webhook/header/url/provider/channel/model override fields, or frontend callbacks as provider parameters. OpenTU may derive a local display-only ratio from typed `userParams.aspectRatio`/`userParams.size` for anchors and canvas insertion, but that value must not be serialized as provider `size` for schema-backed execution.
 - `buildCreativeUserParams()` may collect only IDs that survived `normalizeCreativeParameterSchema()`; unsafe/control schema IDs are dropped before they become UI params.
 - Existing standalone/default image adapters are not schema-backed adapters. A schema-backed request may call an adapter only when that adapter explicitly sets `supportsCreativeUserParams: true` and implements the managed new-api contract.
 - If no adapter explicitly supports typed `userParams`, schema-backed image generation fails locally before provider/network calls. This is intentional for Phase A/B/C1 no-provider-call gates.
-- `creativeManaged=true` is a semantic marker, not a convenience flag. If a schema-backed binding produces an empty typed payload, OpenTU must still preserve `creativeManaged=true` and an empty `userParams: {}` through parse → workflow → retry → queue → executor; do not collapse it back to legacy `params` or drop it because the object is empty.
+- `creativeManaged=true` is a semantic marker, not a convenience flag. If a schema-backed binding produces an empty typed payload, OpenTU must still preserve `creativeManaged=true` and an empty `userParams: {}` through parse → workflow → retry → queue → executor; do not collapse it back to legacy `params` or drop it because the object is empty. Canvas rendering of cached generated images must use a virtual-media-aware image component/fallback so `/__aitu_cache__/...` results still display when the embedded service worker is disabled or out of scope.
 
 ### 4. Validation & Error Matrix
 
@@ -296,7 +296,7 @@ if (isCreativeEmbeddedMode()) {
 - Managed binding `providerModelId="gpt-image-2"` and no schema -> static `gpt-image-2` image controls may render while the executable model id remains the binding id.
 - Managed binding `priceModelId="gpt-image-2"` with unknown/missing `providerModelId` and no schema -> no static parameter fallback; return `[]`.
 - Unknown managed catalog/binding model and no schema -> no static parameter fallback; return `[]`.
-- Schema-backed model has `options.params.size` or prompt `-size=` -> do not legacy-normalize into `size`; keep provider-specific size only as a typed schema field when schema ID allows it.
+- Schema-backed model has `options.params.size` or prompt `-size=` -> do not legacy-normalize into executable `size`; keep provider-specific size only as a typed schema field when schema ID allows it. Local display can normalize `aspectRatio=21:9` to `21x9` for geometry only.
 - Schema-backed request reaches an adapter without `supportsCreativeUserParams === true` -> throw a local error before image preprocessing, adapter `generateImage`, or provider relay.
 - Async MCP image execution follows the same gate: managed/schema-backed image requests must stop before a non-managed adapter's `generateImage()` runs, even if the call path is not queue-based.
 - Non-schema standalone image model -> keep existing static params/default behavior.
@@ -315,8 +315,8 @@ if (isCreativeEmbeddedMode()) {
 
 - Model-config tests: typed enum/string/number/integer/boolean cast; dangerous schema IDs are filtered; static fallback still works for non-schema models.
 - Model-config tests: runtime schema priority over static fallback; managed providerModelId fallback; managed direct catalog id fallback including case variants such as `Gpt-image-2`; priceModelId non-fallback; unknown managed no-schema returns `[]`.
-- Parser/workflow tests: schema-backed image steps serialize `userParams` and do not serialize legacy `params`/`size`.
-- Generation service tests: persisted task params and executor params include typed `userParams` and strip legacy adapter/provider fields when `userParams` is present.
+- Parser/workflow tests: schema-backed image steps serialize `userParams` and do not serialize legacy `params`/`size`; anchor/auto-insert tests assert `userParams.aspectRatio` drives local preview dimensions.
+- Generation service tests: persisted task params and executor params include typed `userParams` and strip legacy adapter/provider fields when `userParams` is present; canvas image component tests/smoke must verify virtual cached URLs render through blob fallback when SW interception is unavailable.
 - Executor/adapter tests: supported managed adapter receives typed `userParams`; unsupported adapter rejects before `generateImage` is called.
 - Preference tests: two runtime bindings with the same `providerModelId` but different binding ids/default schemas keep separate scoped params; A -> B -> A never applies A params to B.
 - Future managed adapter tests: prove the final new-api request body contains `model=<bindingId>` plus typed `userParams`, with no provider credentials, arbitrary URLs, headers, callbacks, channel/provider overrides, or legacy OpenTU `params`.
