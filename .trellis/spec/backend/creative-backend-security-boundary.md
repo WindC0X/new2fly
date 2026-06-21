@@ -212,6 +212,11 @@ OpenTU selector -> one logical model ID from /creative/api/models; channel routi
 
 - `creative.model_bindings` is a privileged backend config; generic `/api/option` must reject direct writes to this key.
 - Binding config JSON is versioned; only version `1` is accepted until a migration path exists.
+- GrsAI live GPT Image templates are schema-backed, not static OpenTU fallback controlled:
+  - `grsai_gpt_image` must expose `aspectRatio`, `imageSize`, and `quality`; `imageSize` is `1K` only.
+  - `grsai_gpt_image_vip` must expose `aspectRatio`, `imageSize`, and `quality`; `imageSize` is `1K`, `2K`, `4K`.
+  - The user-facing `quality` label/shortLabel is `质量`; `quality=auto` is omitted from provider bodies, while `low`/`medium`/`high` are forwarded.
+  - UI aspect-ratio options are the supported product list (`auto`, `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`), not every provider-internal pixel mapping.
 - Dedicated admin writes must persist canonical JSON, not merely validate and echo raw input. Trim and normalize binding/schema fields such as ids, modality, presets/templates, canary groups, and schema type before storage and dry-run.
 - Raw binding config parsing must fail closed on unknown keys and forbidden admin/config keys before struct unmarshalling can silently drop them.
 - `binding.id`, `providerModelId`, and `priceModelId` are separate fields. Tests should include distinct values.

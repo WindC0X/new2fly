@@ -458,3 +458,154 @@ Current conclusion:
 - Creative Duomi `gpt-image-2` parameter UI, dry-run, live adapter, and staging provider smoke are aligned for `21:9` and default/auto handling.
 - Creative GrsAI normal `gpt-image-2` parameter UI, dry-run, live adapter, and staging provider smoke are aligned for default/auto handling.
 - Creative GrsAI VIP remains schema/dry-run/browser verified only; live provider smoke is intentionally not claimed.
+
+## Staging v7 GrsAI complete parameter UI correction
+
+User-reported issue after v6:
+
+- The expected GrsAI GPT Image parameter control is a single model parameter popup containing all three groups: `图片尺寸`, `图片分辨率`, and `质量`.
+- GrsAI accepts `quality` even if some public documentation omits it.
+- GrsAI `gpt-image-2` supports only `1K` resolution; `gpt-image-2-vip` supports `1K/2K/4K`.
+
+Implementation updates:
+
+- `new-api/service/creative_model_capability.go`
+  - `grsai_gpt_image` exposes `aspectRatio`, `imageSize`, `quality`.
+  - `grsai_gpt_image` `imageSize` options are `1K` only.
+  - `grsai_gpt_image_vip` `imageSize` options are `1K`, `2K`, `4K`.
+  - GrsAI `quality` label/shortLabel changed from `画质` to `质量`.
+  - Dry-run omits `quality=auto` and sends non-auto `quality`.
+- `new-api/service/creative_image_adapter.go`
+  - GrsAI live adapter sends non-empty, non-`auto` `quality` in the provider request body.
+- `opentu/packages/drawnix/src/constants/model-config.ts`
+  - Static GPT Image quality label/shortLabel changed to `质量` for direct managed no-schema fallback consistency.
+
+Local verification:
+
+- `go test -count=1 ./service -run 'TestCreativeAdapterManifestRegistryExposesSafeTemplates|TestBuildCreativeModelBindingsDryRunMirrorsGrsAIGPTImageLiveMapping|TestBuildCreativeModelBindingsDryRunOmitsGrsAIGPTImageAutoAspectRatioLikeLiveAdapter|TestCreativeGrsAIGPTImageMapsUiAspectAndResolutionToPixelAspectRatio'` passed.
+- `go test -count=1 ./service` passed.
+- `go test -count=1 ./middleware` passed.
+- `pnpm --filter @aitu/drawnix exec vitest run src/constants/__tests__/model-config.test.ts` passed: 16 tests.
+- `python3 scripts/creative_release_gate.py build-sync-check --opentu /mnt/f/CODE/Project/opentu --new-api /mnt/f/CODE/Project/new-api --run-new-api-tests --source-diff-check`:
+  - OpenTU `web:typecheck`, Vite app build, SW build, dist sync, artifact contract, and source diff checks passed.
+  - Final broad `go test ./controller` portion failed on existing controller test DB fixture isolation (`no such table: channels` / `database is closed`), so this broad package gate is not claimed green.
+- Follow-up focused gate passed:
+  - `python3 scripts/creative_release_gate.py check --opentu /mnt/f/CODE/Project/opentu --new-api /mnt/f/CODE/Project/new-api --source-diff-check`.
+  - `go test -count=1 ./service ./middleware ./router ./model ./relay ./relay/common ./relay/constant`.
+
+Staging deploy/update:
+
+- Rebuilt local staging image and recreated the staging container without deleting named volumes.
+- Image id: `sha256:ba345850d05d1b13bdacf3178f01e5d15cae5d5d2d95ab17c513ad725e80da0c`.
+- Container health: `healthy`.
+- Refreshed saved Creative Model Bindings from current adapter manifests using admin `validate -> dry-run -> put` with session CSRF/nonce; no provider call was made.
+- Refresh results:
+  - validate: `success=true`, `valid=true`.
+  - dry-run: `success=true`, `noProviderCall=true`.
+  - put: `success=true`.
+
+Staging `/creative/api/models` v7 evidence:
+
+- `grsai:gpt-image-2:live-smoke`
+  - `aspectRatio` label `图片尺寸`, options `auto`, `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`.
+  - `imageSize` label `图片分辨率`, options `1K` only.
+  - `quality` label `质量`, options `auto`, `low`, `medium`, `high`.
+- `grsai:gpt-image-2-vip:live-smoke`
+  - `aspectRatio` label `图片尺寸`, options `auto`, `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`.
+  - `imageSize` label `图片分辨率`, options `1K`, `2K`, `4K`.
+  - `quality` label `质量`, options `auto`, `low`, `medium`, `high`.
+
+Browser UI smoke v7:
+
+- Script: `/tmp/newapi-staging-smoke-FvfQLt/ui_param_probe_v7.cjs`.
+- Evidence JSON: `/tmp/newapi-staging-smoke-FvfQLt/ui_param_probe_v7.json`.
+- Opened logged-in `/creative/`, opened the parameter dropdown for the current GrsAI image model.
+- Result:
+  - `paramsTriggers=1`.
+  - Same popup contained `图片尺寸`, `图片分辨率`, and `质量`.
+  - Popup contained `21:9`.
+  - Popup did not contain forbidden/extreme options `9:21`, `1:3`, `3:1`, `1:2`, `2:1`.
+  - The visible menu text was:
+    - `图片尺寸`: `自动`, `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`.
+    - `图片分辨率`: `1K`, `2K`, `4K` for the selected VIP model.
+    - `质量`: `自动`, `快速`, `标准`, `高清`.
+
+Provider smoke status:
+
+- No v7 live GrsAI provider generation was run automatically because it may incur cost.
+- Previous v4 staging provider smoke verified GrsAI normal default generation completed with PNG output, but it did not test non-auto `quality`.
+- `quality` live-provider acceptance remains to be confirmed by an explicitly authorized GrsAI real-generation smoke, e.g. normal `gpt-image-2` with `userParams={"aspectRatio":"1:1","imageSize":"1K","quality":"low"}`.
+
+## Staging v8/v9 GrsAI parameter contract recheck and fallback closure
+
+Additional user clarification:
+
+- GrsAI `quality` is accepted in live behavior even if some docs omit it.
+- GrsAI `gpt-image-2` is constrained to `1K` output.
+- GrsAI `gpt-image-2-vip` supports `1K`, `2K`, and `4K`.
+
+Follow-up fix after dynamic workflow v8:
+
+- Dynamic workflow v8 journal: `.codex-flow/journal/creative-grsai-param-v8-reaudit.jsonl`.
+- v8 parallel branches found backend/staging/config pass, but flagged one real fallback gap: OpenTU static fallback still grouped `gpt-image-2` and `gpt-image-2-vip` under the same `1k/2k/4k` resolution options.
+- Fixed in OpenTU commit `17cea8a4fdd19780545c67ef454c01bbea0b2cb1`:
+  - `gpt-image-2` static fallback resolution is now `1k` only.
+  - `gpt-image-2-vip` static fallback resolution remains `1k`, `2k`, `4k`.
+  - Both retain `quality` label/shortLabel `质量` and options `auto`, `low`, `medium`, `high`.
+  - Case-variant fallback such as `Gpt-image-2` is tested to resolve to ordinary `gpt-image-2` and only expose `1k` resolution.
+
+Local verification after the fallback fix:
+
+- `pnpm --filter @aitu/drawnix exec vitest run src/constants/__tests__/model-config.test.ts` passed: 17 tests.
+- `python3 scripts/creative_release_gate.py build-sync-check --opentu /mnt/f/CODE/Project/opentu --new-api /mnt/f/CODE/Project/new-api --source-diff-check` passed.
+  - Embedded dist provenance now points to OpenTU commit `17cea8a4fdd19780545c67ef454c01bbea0b2cb1`.
+- Restored OpenTU source-side generated `apps/web/public/version.json` after build; OpenTU worktree is clean.
+- `go test -count=1 ./service ./middleware ./router ./model ./relay ./relay/common ./relay/constant` passed.
+- `go test -count=1 ./controller -run 'TestCreativeImageTaskSubmitGrsAILiveForcesAsyncAndBearerAuth'` passed.
+- `python3 scripts/creative_release_gate.py check --opentu /mnt/f/CODE/Project/opentu --new-api /mnt/f/CODE/Project/new-api --source-diff-check` passed.
+
+Staging v8 redeploy and smoke:
+
+- Rebuilt local staging image after dist provenance changed and recreated staging container without deleting named volumes.
+- Final staging image id: `sha256:83dc469d99ab650508bf7c1c8477aafe63b31db1ca4187ec84d92da9dff23716`.
+- Container health: `healthy`.
+- Re-ran smoke scripts using renewed admin session; authentication material was not recorded in this report.
+
+Staging v8 API/admin evidence:
+
+- Evidence files:
+  - `/tmp/newapi-staging-smoke-FvfQLt/v8_probe_admin_summary.json`
+  - `/tmp/newapi-staging-smoke-FvfQLt/v8_validate_dryrun_summary.json`
+  - `/tmp/newapi-staging-smoke-FvfQLt/v8_modified_dryrun_summary.json`
+  - `/tmp/newapi-staging-smoke-FvfQLt/ui_param_probe_v8.json`
+- `/api/creative/adapter-manifests` exposes `grsai_gpt_image` and `grsai_gpt_image_vip` with schema IDs `aspectRatio`, `imageSize`, `quality`.
+- `/creative/api/models` exposes both GrsAI live bindings with the same schema IDs.
+- Saved binding config validate/dry-run/put all returned HTTP 200 success.
+- Default dry-run omits `quality` and `imageSize` when defaults are `auto/1K/auto`.
+- Modified non-persisted dry-run with non-auto params proved provider preview behavior:
+  - ordinary `gpt-image-2`, `16:9 + 1K + quality=high` -> provider body includes `aspectRatio=1672x941`, `quality=high`, and no `imageSize`.
+  - VIP `gpt-image-2-vip`, `16:9 + 4K + quality=high` -> provider body includes `aspectRatio=3840x2160`, `quality=high`, and no `imageSize`.
+
+Staging v8 browser UI evidence:
+
+- Logged-in `/creative/` UI smoke opened the parameter popup.
+- Result:
+  - `paramsTriggers=1`.
+  - Same popup contains `图片尺寸`, `图片分辨率`, and `质量`.
+  - `forbiddenVisible=[]` for `9:21`, `1:3`, `3:1`, `1:2`, `2:1`.
+  - Visible VIP popup includes `1K`, `2K`, `4K`, and quality labels `自动`, `快速`, `标准`, `高清`.
+
+Dynamic workflow v9 recheck:
+
+- Workflow: `.codex-flow/generated/creative-grsai-param-v9-recheck.workflow.ts`.
+- Journal: `.codex-flow/journal/creative-grsai-param-v9-recheck.jsonl`.
+- Branch results:
+  - `static-fallback`: pass; no path found where ordinary `gpt-image-2` static fallback still shows `2k/4k`.
+  - `backend-and-admin-contract`: pass; no must-fix for backend/admin schema or adapter mapping.
+  - `staging-and-artifact`: functional evidence pass, but publish gate fail until dirty new-api dist/backend changes and OpenTU provenance commit are committed/pushed or explicitly recorded.
+
+Current conclusion:
+
+- GrsAI parameter contract is locally and staging verified for schema/admin/UI/dry-run paths.
+- Real paid provider generation with non-auto GrsAI `quality` is not claimed in this report; run only after explicit cost authorization.
+- Before declaring publish-ready, commit the new-api backend/dist changes, commit this validation/spec record, and push/record the OpenTU commit used by embedded dist provenance.
