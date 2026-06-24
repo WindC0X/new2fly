@@ -1,0 +1,46 @@
+{
+  "workflows": [
+    ".codex-flow/generated/creative-final-goal-audit-v21a-opentu-runtime-2026-06-23.workflow.ts",
+    ".codex-flow/generated/creative-final-goal-audit-v21a2-taskqueue-2026-06-23.workflow.ts",
+    ".codex-flow/generated/creative-final-goal-audit-v21b2-backend-lifecycle-2026-06-23.workflow.ts",
+    ".codex-flow/generated/creative-final-goal-audit-v21b4-admin-split-2026-06-23.workflow.ts",
+    ".codex-flow/generated/creative-final-goal-audit-v21b-backend-admin-release-2026-06-23.workflow.ts"
+  ],
+  "validBranches": [
+    {
+      "branch": "opentu-submit-poll",
+      "verdict": "material_findings",
+      "findings": [
+        {"id":"OTU-ABORT-001","severity":"high","title":"remoteId persisted then AbortError terminally fails task","evidence":"fallback-adapter-routes abort paths after remoteId persistence can reach failTask IMAGE_GENERATION_ERROR","impact":"refresh/unmount abort after provider accepted may lose resumability"},
+        {"id":"OTU-IDEMP-001","severity":"medium","title":"retryAttempt not included in default image idempotency key","evidence":"createCreativeImageTaskIdempotencyKey supports retryAttempt but execute defaults do not pass it","impact":"fresh retry may dedupe to old backend task"}
+      ]
+    },
+    {
+      "branch": "opentu-cache-canvas-e2e",
+      "verdict": "material_findings",
+      "findings": [
+        {"id":"OTU-CACHE-001","severity":"medium","title":"canvas cache-readiness path lacks slow-content retry","evidence":"generated-media-cache single rehydrate attempt vs RetryImage bounded retries","impact":"completed provider with delayed content can recover in previews but fail canvas/insert readiness"}
+      ]
+    },
+    {
+      "branch": "opentu-taskqueue-refresh-retry",
+      "verdict": "material_findings",
+      "findings": [
+        {"id":"OTU-SYNC-001","severity":"high","title":"storage sync path bypasses retry attempt late-write guards","evidence":"syncTaskFromStorage merges storageTask fields without retryAttempt/startedAt guard","impact":"old attempt storage sync can overwrite new retry remoteId/result"},
+        {"id":"OTU-VIDEO-001","severity":"medium","title":"refresh recovery revives remote video tasks without restarting polling","evidence":"useTaskStorage flips failed video remote task to processing; useTaskExecutor excludes video remote resume in inspected path","impact":"failed video remote task may remain processing after refresh"}
+      ]
+    },
+    {"branch":"new-api-backend-lifecycle","verdict":"pass","findings":[]},
+    {"branch":"new-api-admin-binding-helper","verdict":"pass","findings":[]},
+    {"branch":"opentu-param-schema","verdict":"pass","findings":[]},
+    {
+      "branch": "release-provenance-gate",
+      "verdict": "material_findings",
+      "findings": [
+        {"id":"REL-PROV-001","severity":"high","title":"dirty worktree provenance not release-ready","evidence":"new2fly/opentu/new-api all have large uncommitted/untracked changes; Docker embeds current dist","impact":"cannot prove remote branch/image equals audited candidate"},
+        {"id":"REL-GATE-001","severity":"medium","title":"release gate passes dirty tree because it is artifact-only","evidence":"creative_release_gate.py checks artifact/hash/text/go tests but not clean worktree/provenance","impact":"can be mistaken for full release readiness"},
+        {"id":"REL-STAGE-001","severity":"high","title":"latest dirty candidate lacks staging/prod deployment evidence","evidence":"docs still mark final dynamic audit pending; production not deployed; latest candidate only locally gated","impact":"cannot call latest current worktree staging/prod ready"}
+      ]
+    }
+  ]
+}

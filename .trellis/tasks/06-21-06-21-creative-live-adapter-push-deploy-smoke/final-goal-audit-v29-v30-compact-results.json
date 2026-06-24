@@ -1,0 +1,364 @@
+{
+  "v29_valid_branches": [
+    {
+      "branchId": "release artifact/staging/product-doc drift",
+      "verdict": "needs-fix",
+      "findings": [
+        {
+          "id": "REL-001",
+          "severity": "medium",
+          "title": "Artifact 同步通过，但源码到发布物的 provenance 仍依赖 dirty state",
+          "confidence": 0.9,
+          "evidence": "/mnt/f/code/project/new2fly/.trellis/spec/frontend/creative-embedded-release-artifact.md:67-80 和 :92-96 要求三份 dist 字节一致、OpenTU 源码改动后必须 rebuild/resync。当前 `creative_release_gate.py check --source-diff-check` 通过，三份 dist 均为 173 files 且 version provenance 为 `3f139164...`；但 OpenTU 和 new-api 当前都有大量未提交源码/运行时变更，`check` 未 rebuild、未运行测试、未证明 dirty source 可由该 gitCommit 复现。",
+          "impact": "当前嵌入 artifact 本身同步通过，但生产前不能把 `version.json.gitCommit` 或旧 staging 证据当作当前 dirty workspace 的完整可复现证明。下一次部署可能按记录 commit 重建而漏掉当前修复，或发布一个没有可追溯源码提交的 dirty artifact。",
+          "recommendation": "生产前二选一：提交并 pin OpenTU/new-api 当前源码后运行 `build-sync-check` 与相关测试；或明确声明仅发布当前已生成 artifact，并阻止按 `3f139164...` 重建来替代该 artifact。"
+        },
+        {
+          "id": "DOC-001",
+          "severity": "medium",
+          "title": "Trellis implement.md 的最终审计门状态自相矛盾",
+          "confidence": 0.9,
+          "evidence": "/mnt/f/code/project/new2fly/.trellis/tasks/06-21-06-21-creative-live-adapter-push-deploy-smoke/implement.md:97 和 :108 仍标记 final/post-fix runtime lifecycle re-audit pending；同文件 :128-129 又记录 v27/v28 closure、Trellis check fallback 和 release gate PASS。",
+          "impact": "同一个 Trellis 任务文档同时表达“生产前 re-audit pending”和“审计/检查已闭合”。这会误导下一位部署者对 production gate 的判断。",
+          "recommendation": "把已被 supersede 的 unchecked 项收敛为一个当前生产门状态：列出最后有效日期、命令、artifact/source refs、仍未运行项。"
+        },
+        {
+          "id": "REL-002",
+          "severity": "medium",
+          "title": "Staging-pass 记录不再覆盖当前 dirty workspace",
+          "confidence": 0.86,
+          "evidence": "/mnt/f/code/project/new2fly/.trellis/tasks/06-21-06-21-creative-live-adapter-push-deploy-smoke/implement.md:23-33 标记 staging deploy/smoke 已完成；但当前 OpenTU/new-api 均有后续大量未提交 runtime/source 变更。本轮按要求未做 live staging calls。",
+          "impact": "文档里的 staging pass 不能证明当前 on-disk 状态已经 staging 验证；若直接进入 production decision，会把历史环境证据套到新 workspace。",
+          "recommendation": "将既有 staging 证据标注为仅适用于当时 commit/artifact；当前状态生产前至少重新跑本地 no-live gate，并在获得授权后重新跑 staging route/browser smoke。"
+        },
+        {
+          "id": "RUNTIME-001",
+          "severity": "low",
+          "title": "Slow provider timing 代码路径存在，但真实 provider 时序未被离线证据关闭",
+          "confidence": 0.78,
+          "evidence": "Backend 使用 detached bounded submit context：/mnt/f/code/project/new-api/controller/creative_image_tasks.go:40-49、:362-387；ambiguous/in-flight 90 分钟过期逻辑在 /mnt/f/code/project/new-api/service/task_polling.go:37-39、:162-189、:328-359。OpenTU submit timeout 为 60s：/mnt/f/code/project/opentu/packages/drawnix/src/constants/TASK_CONSTANTS.ts:20-27；backend 测试覆盖 provider 超时后保持 in_progress/ambiguous：/mnt/f/code/project/new-api/controller/creative_test.go:2349-2464。",
+          "impact": "代码对慢 provider 有 bounded/ambiguous 设计，但离线代码无法证明 Duomi/GrsAI 真实 submit 会在 60s/120s 窗口内稳定返回可恢复 task id。provider 在 backend timeout 后才接受的情况仍只能进入 ambiguous，最终可能失败关闭而无法取回 late success。",
+          "recommendation": "生产前把该项作为显式风险：用非生产授权渠道收集 provider submit latency/SLA，或实现 provider request-id lookup/reconcile 后再把 slow-provider gate 标为完全关闭。"
+        },
+        {
+          "id": "PASS-001",
+          "severity": "info",
+          "title": "当前 dist identity gate 通过",
+          "confidence": 0.95,
+          "evidence": "`python3 scripts/creative_release_gate.py check --source-diff-check` 当前通过：三份 dist 173 files、index/manifest/static brand/text hygiene/provenance 检查通过；new-api 两份 dist 关键文件 sha256 一致。",
+          "impact": "当前嵌入式 dist 三方同步契约在已有生成文件层面未发现差异。",
+          "recommendation": "保留该 gate；生产前补跑会写入的 `build-sync-check` 与测试/浏览器 smoke。"
+        }
+      ],
+      "gaps": [
+        "按硬性要求未做 live provider calls、部署、push、staging/production HTTP route check、CDN/S3/provider/payment/channel health check。",
+        "未运行会写入构建产物的 `build-sync-check`，因为当前会话为 read-only；只运行了 read-only `check --source-diff-check`。",
+        "未运行 Go/Vitest/Playwright 测试；当前审计基于代码、测试文件、docs、release gate 静态检查。",
+        "三个探索 subagent 在审计窗口内未完成，已关闭；最终结论只使用主线程本轮读取的当前 on-disk 证据。",
+        "真实生产环境 env、FRONTEND_BASE_URL 模式、Docker image digest、远端分支 refs 均未验证，因此均不能算 pass。"
+      ]
+    },
+    {
+      "branchId": "embedded access/auth/cloud-sync boundary",
+      "verdict": "pass",
+      "findings": [],
+      "gaps": [
+        "没有执行 live provider 调用，符合用户硬性要求；慢供应商结论基于当前源码和本地测试代码，不代表真实供应商 SLA/网络路径已验证。",
+        "没有执行测试命令；本轮只读审计了测试代码与实现路径。上线前仍应在可写 CI/本地环境运行 new-api Go tests、OpenTU vitest、embedded Playwright lifecycle gate。",
+        "三个已启动的只读子代理在可用时间内未返回，已关闭；最终结论来自主线程当前磁盘证据。",
+        "/mnt/f/code/project/new-api 与 /mnt/f/code/project/opentu 当前都有大量未提交/未跟踪改动，包括 dist 产物变更；本结论只覆盖当前 on-disk 状态，不证明已提交分支或最终发布包与当前代码完全一致。"
+      ]
+    },
+    {
+      "branchId": "model binding/provider parameter compatibility",
+      "verdict": "needs-fix",
+      "findings": [
+        {
+          "id": "F-001",
+          "severity": "medium",
+          "title": "Creative managed catalog 初始化失败后缺少生产重试路径",
+          "confidence": 0.86,
+          "evidence": "/mnt/f/code/project/new-api/controller/creative.go:174-250 说明 bootstrap/models 均要求 session；/mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx:362-366 只在 app mount 初始化一次；/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:627-692 在 401/错误时安装 unavailable catalog 并返回 error；同文件 :696-701 用 initializationPromise 缓存结果，:704-705 只有 test reset。",
+          "impact": "同一 SPA 会话里，如果嵌入页先以未登录/过期 session 打开，Creative model catalog 会被固定为 unavailable；之后用户登录或 session 恢复时，当前代码没有生产路径重试 bootstrap/models，模型列表可能继续为空，影响 logged-out -> logged-in 可用性。",
+          "recommendation": "不要缓存失败初始化，或在登录/session 恢复、visibility/focus、401 后重试入口、手动刷新模型入口中清空 initializationPromise 并重新 bootstrap；补充同页 401 后恢复成功的回归测试。"
+        },
+        {
+          "id": "F-002",
+          "severity": "low",
+          "title": "不支持参考图的 managed models 在 UI 层未提前阻断",
+          "confidence": 0.9,
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/ai-image-generation.tsx:1056-1069 对所有模型显示 ReferenceImageUpload；同文件 :743-747、:781-808、:869-898 会把 uploadedImages/referenceImages 带入 schema-backed creativeManaged 任务；/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:737-742 在执行时才抛出 unsupported reference images；backend 也在 /mnt/f/code/project/new-api/controller/creative_image_tasks.go:184-187 拒绝 images。",
+          "impact": "安全上是 fail-closed 且不会调用 provider，但产品体验仍允许用户给不支持参考图的 managed models 上传图片并创建队列任务，随后任务失败。对 Duomi/GrsAI gpt-image-2/nano banana 这类当前未支持参考图的模型，属于可避免的运行时失败。",
+          "recommendation": "在模型 schema/catalog 中显式暴露 reference image capability，或至少在 OpenTU 当前模型为 creativeManaged/schema-backed 且不支持 references 时禁用/隐藏上传控件，并在 createTask 前阻止提交。"
+        }
+      ],
+      "gaps": [
+        "未执行测试：当前环境是只读 sandbox，测试可能写入缓存/临时文件；本次以当前代码和现有测试文件审计为依据。",
+        "未进行 live provider call、部署、push，也未验证真实 Duomi/GrsAI 网络响应；slow-provider 结论仅来自代码路径和本地测试覆盖。",
+        "子代理在超时前未返回可整合结果，已关闭；最终判断未依赖历史审计报告或子代理输出。"
+      ]
+    },
+    {
+      "branchId": "backend durable task/provider contract in new-api",
+      "verdict": "pass",
+      "findings": [],
+      "gaps": [
+        "未执行 live provider call、部署、push，符合本次硬性约束；真实 Duomi/GrsAI 生产 payload 变体未在线验证。",
+        "未运行自动化测试；当前环境为只读审计，结论基于当前代码和测试文件检查。",
+        "生产实际环境变量未读取；代码默认 TASK_TIMEOUT_MINUTES 为 1440 分钟，但若生产覆盖为更短值，accepted 后端任务的全局超时行为会随配置变化。",
+        "OpenTU 本地“取消”只取消本地任务/轮询，不调用后端/provider cancel；后端已有 request cancel after accept 的 durable 测试，但产品文案需避免让用户误解为已撤销 provider 侧计费。"
+      ]
+    }
+  ],
+  "v29_invalid": [
+    "opentu-runtime-state-machine timeout/null",
+    "cache-canvas-refresh-chain timeout/null",
+    "synthesis null",
+    "verification null"
+  ],
+  "v30_valid_branches": [
+    {
+      "branchId": "06-21-creative-live-adapter-push-deploy-smoke / new-api:e3b7662(feat/creative-embed), opentu:3f139164(feat/creative-embed), new2fly:894b850(master); all three worktrees dirty",
+      "verdict": "needs-fix",
+      "findings": [
+        {
+          "id": "OTU-LEGACY-ASYNC-TRANSIENT-001",
+          "severity": "medium",
+          "title": "Legacy async image-api still terminal-fails on one transient poll error",
+          "confidence": 0.78,
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/image-api.ts:303-320 throws on the first non-OK async image query during initial polling; /mnt/f/code/project/opentu/packages/drawnix/src/services/media-api/image-api.ts:377-389 does the same on resume. Managed Creative avoids this branch through /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:468-496, but `image-api` was explicitly in audit scope.",
+          "impact": "Non-Creative async image tasks can become false terminal failures after a single transient provider/gateway query error. This is not a managed Creative blocker, but it is a remaining OpenTU image runtime issue.",
+          "recommendation": "Align legacy `media-api/image-api.ts` polling with bounded transient tolerance used in `/mnt/f/code/project/opentu/packages/drawnix/src/services/async-image-api-service.ts:341-345` or managed Creative polling in `/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:679-685`."
+        },
+        {
+          "id": "MANAGED-CREATIVE-STATE-001",
+          "severity": "info",
+          "title": "Managed Creative image path meets the audited runtime goal in code",
+          "confidence": 0.84,
+          "evidence": "Managed Creative submit is routed to `/creative/relay/v1/images/tasks` in /mnt/f/code/project/new-api/router/web-router.go:110-115; synchronous image route rejects managed image bindings in /mnt/f/code/project/new-api/controller/creative_image_tasks.go:147-166. OpenTU detects schema-backed Creative image tasks and routes them to `executeCreativeManagedImageTask` instead of legacy sync/async image paths in /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-executor.ts:345-372 and /mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:1220-1337. Backend idempotency replay short-circuits to existing task in /mnt/f/code/project/new-api/contro",
+          "impact": "No current on-disk evidence of duplicate provider calls, lost remoteId after acceptance, false terminal timeout, or stale callback overwrite on the managed Creative image path.",
+          "recommendation": "Keep managed Creative on this dedicated task route and preserve the retry/idempotency/storage guard tests when changing task runtime code."
+        }
+      ],
+      "gaps": [
+        "未做 live provider、部署、push 或 secret-dependent 验证；真实 Duomi/GrsAI latency and provider response variance remain unverified by design.",
+        "三个仓库都有未提交变更；本结论只针对当前 on-disk state，不等同于任何 clean commit/release artifact。",
+        "Cache Storage 可用性、quota exhaustion、browser eviction 行为没有运行时证据；代码路径显示会重试/保持可恢复，但实际浏览器环境仍是未验证项。"
+      ]
+    },
+    {
+      "branchId": "new-api feat/creative-embed@e3b7662 dirty=211; opentu feat/creative-embed@3f139164 dirty=135; new2fly master@894b850 dirty=37",
+      "verdict": "needs-fix",
+      "findings": [
+        {
+          "id": "slow-provider-submit-timeout-split",
+          "severity": "high",
+          "title": "慢 provider 提交超时前后端状态语义不一致",
+          "confidence": 0.87,
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/constants/TASK_CONSTANTS.ts:21-26 sets Creative image submit timeout to 60s. /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:139-185 aborts submit and raises INTERRUPTED_DURING_SUBMISSION on timeout/network abort; executeCreativeManagedImageTask only treats TIMEOUT or acceptedRemoteTaskWasLocallyAborted as recoverable polling at 817-841, otherwise failStoredTask writes failed at 843-860. Backend keeps Creative provider submit ambiguous/in-flight for 90 minutes in /mnt/f/code/project/new-api/service/task_polling.go:36-39, defers global timeout at 76-79/202-203, and only expires ambiguous/no-upst",
+          "impact": "慢 provider 如果 60 秒内未返回 task id，前端会把本地任务落为 failed，而后端仍把对应提交视作可恢复/未决。刷新自动恢复只覆盖 processing SUBMITTING 无 remoteId 的任务，不覆盖这个已失败路径；用户可能看到失败并手动重试，状态语义与后端 90 分钟窗口不一致。",
+          "recommendation": "统一前端 60s submit interruption 与后端 ambiguous/in-flight 状态机：要么保持 processing/recoverable 并复用 idempotency key 自动恢复，要么明确把 failed submit 纳入 useTaskStorage 自动恢复路径。"
+        },
+        {
+          "id": "partial-first-terminal-guard-coverage",
+          "severity": "medium",
+          "title": "first-terminal-wins 保护只覆盖部分写入口",
+          "confidence": 0.81,
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/task-storage-writer.ts:292-316 implements terminal/retryAttempt/startedAt guarded writes and first-terminal-wins is tested at packages/drawnix/src/services/__tests__/task-storage-writer.test.ts:180-221. But TaskQueueService.persistTaskInternal directly calls taskStorageWriter.saveTask at /mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:636-641; updateTaskStatus/updateTaskProgress then persist unconditionally at 2387-2437 and 2456-2476. Video resume first writes guarded storage in /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-executor.ts:1494-1507, then call",
+          "impact": "first-terminal-wins and monotonic attempt guards are not enforced at the service-level persistence boundary. Existing tests cover writer guards and selected image sync cases, but a stale caller that reaches updateTaskStatus/updateTaskProgress can still persist a newer updatedAt snapshot without writer CAS semantics.",
+          "recommendation": "Move terminal/attempt/updatedAt checks into the single TaskQueueService persistence boundary or add guarded save semantics to saveTask/persistTaskInternal; add cross-media stale write tests for video/audio resume callbacks, not only writer helpers and image sync."
+        },
+        {
+          "id": "audio-cache-miss-lifecycle-gap",
+          "severity": "medium",
+          "title": "Cache Storage miss 恢复缺少 audio 覆盖",
+          "confidence": 0.9,
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:836-865 and 891-939 cache audio URLs into Cache Storage before completion. /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-utils.ts:303-341 actively caches remote audio while image/video remote URLs normally return unchanged unless forceRemoteCache is set. Cache miss recovery is limited to GeneratedMediaType 'image' | 'video' in /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:20, infers only image/video at 79-92, and matches only TaskType.VIDEO or TaskType.IMAGE at 208-240. Tests also cover image/video cache miss recovery at packages/draw",
+          "impact": "音频任务虽然写入 Cache Storage，但刷新后或 Cache Storage 条目丢失时没有与 image/video 同等的 rehydrate/retry 生命周期。audio 结果可能保留一个不可播放的本地/远程地址，且不会通过当前 generated media cache miss 机制恢复。",
+          "recommendation": "把 generated media cache miss 机制扩展到 audio，或明确音频使用独立恢复路径并补测试覆盖 Cache Storage miss、reload、retry。"
+        },
+        {
+          "id": "split-audio-video-reload-resume",
+          "severity": "low",
+          "title": "reload resume state machine is split between video and audio paths",
+          "confidence": 0.76,
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskStorage.ts:91-128 keeps processing image/video/audio tasks only when each is resumable, and marks the rest failed at 129-158. Failed remote tasks are moved back to processing at 163-193. DrawnixDeferredRuntime later calls fallbackMediaExecutor.resumePendingTasks at /mnt/f/code/project/opentu/packages/drawnix/src/components/startup/DrawnixDeferredRuntime.tsx:118-155. That executor filters only video tasks at /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-executor.ts:1376-1403; audio resume depends on useTaskExecutor’s separate processing scan at /mnt/f/code/project/opentu/packages/drawnix/src/hooks/",
+          "impact": "reload recovery for video and audio is split across two schedulers. It may work in normal startup order, but the state machine is harder to reason about and has no single cross-layer contract proving image/video/audio stale writes are handled equivalently.",
+          "recommendation": "Document and test the division explicitly: useTaskStorage -> TaskQueueService -> video resume executor vs audio useTaskExecutor. Add reload tests that include concurrent stale writes for image, video, and audio in one scenario."
+        }
+      ],
+      "gaps": [
+        "未运行测试、provider 调用、部署、push 或 secret 读取；本次只读审计基于当前磁盘代码。",
+        "工作区包含大量未提交/未跟踪文件，结论代表当前 on-disk 状态，不代表已合并基线。",
+        "未找到覆盖 audio Cache Storage miss rehydrate 的测试；按 unknown/null 计为缺口。",
+        "未找到对 TaskQueueService.updateTaskStatus/updateTaskProgress 直接写入口的通用 first-terminal-wins/CAS 测试；现有覆盖主要在 writer helper 与部分 image sync 场景。"
+      ]
+    },
+    {
+      "branchId": "opentu:feat/creative-embed; new-api:feat/creative-embed; new2fly:master",
+      "verdict": "needs-fix",
+      "findings": [
+        {
+          "id": "AUDIT-MEDIUM-001",
+          "severity": "medium",
+          "title": "视频插入完成标记早于媒体可显示验证",
+          "confidence": 0.91,
+          "evidence": "视频 auto-insert 路径：/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:1510-1524 对每个视频只 await quickInsert('video', url)，随后 /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:1540-1548 立即 completePostProcessing + finalizeTaskInsertion；finalizeTaskInsertion 在 /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:162-165 调 markAsInserted，/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:3085-3106 持久化 insertedToCanvas:true。实际视频可播放性在渲染层才知道：/mnt/f/code/project/opentu/packages/drawnix/src/plugins/components/video.tsx:81-98 监听 loadeddata/error，/mnt/f/code/project/opentu/packages/drawnix/src/pl",
+          "impact": "慢 provider、Cache Storage 未命中或视频 blob 不可读时，任务会先被标记为已插入，但画布节点仍可能是 loading、error 或空视频，命中目标里“marking inserted before media is displayable / empty node”的风险。",
+          "recommendation": "为视频补齐与图片等价的插入前验证：确保生成视频 cache URL 或 contentUrl 可读，至少等待可获取非空 blob/metadata 或首帧可解码后，再 completePostProcessing/markAsInserted；失败时 release insertion 并进入可重试状态。"
+        },
+        {
+          "id": "AUDIT-MEDIUM-002",
+          "severity": "medium",
+          "title": "视频 canvas 节点未持久化生成媒体 metadata",
+          "confidence": 0.84,
+          "evidence": "视频 canvas insertion API 有 metadata 参数但视频分支未使用：/mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/media-quick-insert.ts:52-64 只把 metadata 传给 image，video 调 insertVideoFromUrl；/mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/canvas-insertion.ts:168-205 insertVideoToCanvas 无 metadata 参数，/mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/canvas-insertion.ts:390-397 和 :487-494 调用时也只传 content/dimensions。Frame 插入视频只写 url/width/height/isVideo/videoType：/mnt/f/code/project/opentu/packages/drawnix/src/utils/frame-insertion-utils.ts:749-763；普通视频插入同样只写这些字段：/mnt/f/code/project/opentu/packages/drawnix/src/data/video.ts:283-289。渲染层虽会读",
+          "impact": "视频节点缺少 durable Creative metadata，后续 selected content、cache miss recovery、跨刷新恢复只能依赖 URL 推断或任务库匹配；一旦 URL 不是 /__aitu_cache__/video/{remoteId} 形态、任务被清理或节点被复制，恢复链路会退化。",
+          "recommendation": "像图片一样把 contentUrl、remoteTaskId、providerTaskId、mimeType 写入视频 task.result 和 canvas node；frame insertion、quickInsert、executeCanvasInsertion、insertVideoFromUrl 都应透传 metadata。"
+        },
+        {
+          "id": "AUDIT-LOW-003",
+          "severity": "low",
+          "title": "选中视频预览不是缩略图且缺少 rehydrate 保护",
+          "confidence": 0.79,
+          "evidence": "SelectedContentPreview 对图片使用 RetryImage + resolveGeneratedImageContentUrl：/mnt/f/code/project/opentu/packages/drawnix/src/components/shared/SelectedContentPreview.tsx:51-90；对视频 hover 直接用 <video src>：/mnt/f/code/project/opentu/packages/drawnix/src/components/shared/SelectedContentPreview.tsx:208-219，主缩略图只是 icon placeholder：/mnt/f/code/project/opentu/packages/drawnix/src/components/shared/SelectedContentPreview.tsx:265-274。AIInputBar 虽把 video url 放进 selection：/mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/AIInputBar.tsx:744-761 和 :3083-3085，但没有视频 thumbnail/rehydrate 等价逻辑。",
+          "impact": "目标要求的 selected thumbnail 对视频未达成：选中视频显示的是占位图标，不是可验证缩略图；Cache 丢失时 hover preview 也没有图片路径那种 rehydrate 保护。",
+          "recommendation": "为 generated video 生成或持久化 poster/thumbnail，并让 selected preview 使用可恢复的 thumbnail；hover video 也应复用 contentUrl/remoteTaskId 的 rehydrate 生命周期。"
+        }
+      ],
+      "gaps": [
+        "只读审计，未运行测试、浏览器或 provider；结论基于当前磁盘代码。",
+        "e2e 覆盖集中在 Creative image：/mnt/f/code/project/opentu/apps/web-e2e/src/embedded/creative-lifecycle.spec.ts:445-556 覆盖 refresh/slow image resume，:558-702 覆盖 image cache miss + viewport；当前未看到 video auto-insert displayability、video selected thumbnail、video Cache Storage 生命周期的 e2e 覆盖。",
+        "new-api 当前定位到的是 Creative image live task 状态机；未在 new-api 中确认同等 video relay/task 后端状态机，视频链路主要在 opentu 前端/session-broker 代码中。"
+      ]
+    },
+    {
+      "branchId": "new-api feat/creative-embed@e3b7662; opentu feat/creative-embed@3f139164; new2fly master@894b850",
+      "verdict": "needs-fix",
+      "findings": [
+        {
+          "id": "F-001",
+          "severity": "medium",
+          "title": "普通 /__aitu_cache__ miss 未统一触发生成媒体恢复",
+          "confidence": 0.86,
+          "evidence": "/mnt/f/code/project/opentu/apps/web/src/sw/index.ts:4937-5052 的 handleCacheUrlRequest 在普通 /__aitu_cache__/... Cache Storage miss 时直接返回 404；同函数只在 thumbnail 命中但原图缺失时调用 notifyImageCacheFailed，见 :4981-4992。SW 失败事件最终只写 unified cache warning，未派发 creative:generated-media-cache-miss，见 /mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts:520-535,596-624。真正触发 generated-media recovery 的路径是画布图片错误后的 asset-cleanup 事件，见 /mnt/f/code/project/opentu/packages/drawnix/src/utils/asset-cleanup.ts:50-73,85-105，以及 hook 监听 window event，见 /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:564-581。",
+          "impact": "普通 /__aitu_cache__ 原图 miss 不是一个自恢复入口。当前画布路径和使用 RetryImage 且传入 rehydrate 元数据的历史/媒体库路径可以补救，但裸 img、未来 surface、或只经 SW 404 的预览会先出现 broken/blank 状态，且不会统一触发 task/history/canvas metadata repair。",
+          "recommendation": "在 handleCacheUrlRequest 对 generated image/video cache URL 的普通 miss 分支中发送可恢复事件，至少包含 normalized URL、mediaType、从 URL 提取的 taskId；或把 cache:imageCacheFailed 桥接到 generated-media recovery。补一条原图 miss、无 thumbnail 命中的单测/E2E。"
+        },
+        {
+          "id": "F-002",
+          "severity": "low",
+          "title": "恢复路径写 Cache Storage 早于本地图片解码验证",
+          "confidence": 0.74,
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/retry-image.tsx:217-250 会在本地 Cache Storage miss 后用 broker content rehydrate 并立即 cacheMediaFromBlob，再以 blob URL 交给 img 加载；成功状态仍等 onLoad，见 :261-268，但 Cache Storage 写入发生在浏览器图片加载验证之前。主生成完成路径有 decodeGeneratedImageBlobDimensions 防线，见 /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:564-581 和 /mnt/f/code/project/opentu/packages/drawnix/src/utils/generated-media-cache.ts:419-427；后端资产创建也会 sniff MIME，见 /mnt/f/code/project/new-api/service/creative_asset.go:299-304,1110-1140。",
+          "impact": "风险较低，因为 managed Creative 正常路径和后端资产层会验证内容；但恢复路径本身只检查 blob 非空和 MIME/URL，Cache Storage 可能先写入，若未来 contentUrl 来源绕过后端资产校验，可能留下损坏缓存并导致重复失败。",
+          "recommendation": "让 rehydrateGeneratedImageCacheUrl 在 cacheMediaFromBlob 前复用 decodeGeneratedImageBlobDimensions，或至少对 image blob 做一次 decode smoke；保持 RetryImage onLoad 作为 UI 成功条件。"
+        }
+      ],
+      "gaps": [
+        "按用户限制未运行 live provider、部署、push、生产/ staging smoke；slow provider timing 结论只来自当前磁盘代码和既有 mock/no-provider 测试。",
+        "未执行测试命令；只读取源码和既有测试文件。",
+        "未审计生成 dist 与 new-api 两份 embedded dist 的字节一致性，本次范围集中在 generated media cache recovery 源码链路。",
+        "未发现 Creative managed path 的签名 URL 公开 DTO 泄露：new-api DTO 返回 /creative/relay/v1/images/tasks/:id/content，同源资产 URL 返回 /creative/api/assets/:id/content；但 generic 非 managed adapter 的远程 URL 缓存策略不在本次核心判定内。"
+      ]
+    },
+    {
+      "branchId": "opentu: feat/creative-embed; new-api: feat/creative-embed; new2fly: master",
+      "verdict": "needs-fix",
+      "findings": [
+        {
+          "id": "F-OPENTU-VIDEO-CACHE-001",
+          "severity": "high",
+          "title": "生成视频远程 URL 未强制落本地缓存",
+          "confidence": 0.91,
+          "evidence": "opentu/packages/drawnix/src/services/media-executor/fallback-utils.ts:277-309 明确对非 audio 的 http(s) URL 在未传 forceRemoteCache 时直接 return 原 URL；fallback-executor.ts:947-953、1477-1483 和 fallback-adapter-routes.ts:1169-1176 都以 mediaType='video' 调 cacheRemoteUrl 但未传 forceRemoteCache；data/video.ts:279-306 会把该 URL 直接加 #video 插入画布并标为 external；generated-media-cache.ts:356-390 的重水化只处理 /__aitu_cache__/video/*。",
+          "impact": "视频 provider 返回签名/临时 http(s) URL 时，任务完成、刷新、重试或离线后可能只剩过期远程链接；Cache Storage 生命周期目标不满足，用户会看到视频丢失或无法播放。",
+          "recommendation": "视频生成完成路径要么强制缓存远程视频 Blob 到稳定 /__aitu_cache__/video/{taskId}.mp4，要么统一返回 same-origin contentUrl 并把 rehydrate metadata 写入任务/画布。"
+        },
+        {
+          "id": "F-OPENTU-VIDEO-ABORT-001",
+          "severity": "high",
+          "title": "视频 adapter/legacy path 丢失 AbortSignal 与迟到回调保护",
+          "confidence": 0.88,
+          "evidence": "model-adapters/types.ts:82-92 的 VideoGenerationRequest 没有 signal，而 AudioGenerationRequest 在 103-114 有 signal/onProgress/onSubmitted；generation-api-service.ts:711-780 接收 signal 但 adapter.generateVideo 请求未携带 signal，且 onProgress/onSubmitted 直接写 task；default-adapters.ts:258-278 调 videoAPIService.generateVideoWithPolling 时未传 signal；video-api-service.ts:97-105 PollingOptions 无 signal，618-660/667-715/722-814 submit、resume、poll、sleep 全链路无 abort check。",
+          "impact": "用户取消、本地 TIMEOUT、retry 或页面生命周期结束后，legacy/video adapter polling 仍可能继续请求 provider；迟到 status response 仍可能触发 progress/terminal 回调。当前 TaskQueueService 部分 writeGuard 能挡住一些写回，但底层 provider 调用和 legacy generation-api path 仍不满足 AbortSignal-after-status-response 目标。",
+          "recommendation": "把 signal 提升为 VideoGenerationRequest/PollingOptions 的一等字段；submit、query、sleep、response.json 后、onProgress 前、终态返回前都检查 abort；video onProgress/onSubmitted 使用和 audio 相同的 attempt/remoteId guard。"
+        },
+        {
+          "id": "F-OPENTU-SLOW-TIMEOUT-001",
+          "severity": "medium",
+          "title": "远端 audio/video 慢任务超时会先变成终态失败",
+          "confidence": 0.84,
+          "evidence": "TASK_CONSTANTS.ts:33-39 设置 VIDEO=90min、AUDIO=30min；task-utils.ts:170-190 的 isTaskTimeout 只豁免 Creative remote image，不豁免 video/audio；useTaskExecutor.ts:323-345 markTaskTimedOut 会 abort 并写 FAILED/TIMEOUT；task-queue-service.ts:1548-1588 只把 Creative image TIMEOUT 保持为 PROCESSING，video/audio 进入 FAILED；恢复仅在 task-utils.ts:192-219、useTaskStorage.ts:163-193 初始化恢复或 task-queue-service.ts:2748-2802 手动 retry_remote。",
+          "impact": "慢 provider 实际仍在远端处理时，OpenTU UI 会先显示终态失败；用户必须刷新或点 retry 才恢复轮询。这是 false terminal failure，且会误导用户新建重复任务。",
+          "recommendation": "对带 remoteId 的 video/audio TIMEOUT 采用与 managed image 类似的 paused/processing-polling 状态，或在超时 UI 上明确显示可恢复轮询而不是终态失败。"
+        }
+      ],
+      "gaps": [
+        "未运行测试、未发起 live provider 调用，按用户只读/禁 live provider 约束执行；实际 provider 慢响应时序未做实测。",
+        "new2fly 当前命中主要是 PRODUCT/ops/release gate 文档与历史 workflow，未发现 OpenTU audio/video runtime 代码；运行时结论主要来自 opentu 与 new-api。",
+        "new-api 后端未发现 submit duplicate provider call 的直接证据：router/web-router.go:120-134、controller/creative.go:93-144/808-939、controller/relay.go:499-666、relay/relay_task.go:411-460/522-590、model/task.go:538-650、service/task_polling.go:237-278/660-755 提供正向证据。"
+      ]
+    },
+    {
+      "branchId": "new-api feat/creative-embed@e3b7662; opentu feat/creative-embed@3f139164; new2fly master@894b850. Embedded Creative dist version 0.9.6 build 2026-06-23T14:58:27.975Z points to open",
+      "verdict": "needs-fix",
+      "findings": [
+        {
+          "id": "F1-video-remoteid-state-loss",
+          "severity": "high",
+          "title": "视频 adapter 接单后 remoteId 未同步到 TaskQueueService，失败写回可破坏重试/恢复",
+          "confidence": 0.9,
+          "evidence": "executeVideoViaAdapter 在 [fallback-adapter-routes.ts](/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:1123) lines 1123-1152 给 adapter 注入的 onSubmitted 只调用 updateStoredRemoteId，没有调用 TaskQueueService 的 executionOptions.onSubmitted；而后者才会更新内存 task.remoteId、PROCESSING 和 POLLING ([task-queue-service.ts](/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:1183) lines 1183-1203)。video 执行确实传入 executionOptions ([task-queue-service.ts](/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:1368) lines 1368-1388)。失败 catch 后 TaskQueueService 用 localTask 写 failedTask ([task-queue-service.ts](/mnt/f/code/pr",
+          "impact": "视频在 provider 已接单后若轮询超时/中断，IndexedDB 可能短暂有 remoteId，但内存任务没有；最终失败写回可能把 remoteId 覆盖为空。结果是刷新/重试无法 resume remote task，而是表现为普通失败或重新提交，直接破坏 cross-layer state machine 与 retry after failure。",
+          "recommendation": "video adapter 的 onSubmitted 在 updateStoredRemoteId 后也调用 options.onSubmitted，或在失败写回前从存储合并 remoteId/invocationRoute；补覆盖测试：provider submit 后抛 TIMEOUT/INTERRUPTED，断言 failed/resumed task 保留 remoteId 并走 resume。"
+        },
+        {
+          "id": "F2-video-result-url-lifetime",
+          "severity": "high",
+          "title": "adapter 视频结果 URL 未稳定化，缩略图和后续播放会受 provider URL 生命周期影响",
+          "confidence": 0.88,
+          "evidence": "executeVideoViaAdapter 把 adapter result.url 交给 cacheRemoteUrl 后完成任务 ([fallback-adapter-routes.ts](/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:1169) lines 1169-1187)，但 cacheRemoteUrl 对非 audio 的 http/https 默认直接返回原 URL ([fallback-utils.ts](/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-utils.ts:277) lines 277-309)。Kling/Seedance adapter 返回 provider 视频 URL ([kling-adapter.ts](/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/kling-adapter.ts:552) lines 552-564; [seedance-adapter.ts](/mnt/f/code/project/opentu/packages/drawnix/src/services/model-adapters/seedance-adapter.ts:288) lines 28",
+          "impact": "adapter 视频结果可能依赖会过期的 provider 签名 URL；dock、媒体库、history、canvas 后续播放/缩略图会随 URL 失效而坏。外部视频 URL 被追加 thumbnail 参数时，也可能生成无效缩略图请求。",
+          "recommendation": "对生成视频强制落 Cache Storage 或经同源 broker/asset content URL 物化，任务 result 同时保存 contentUrl、remoteTaskId/providerTaskId、mimeType；thumbnail 逻辑对未缓存外部视频不要盲目追加 thumbnail。"
+        },
+        {
+          "id": "F3-media-library-refresh-stale",
+          "severity": "medium",
+          "title": "媒体库未跟随任务完成事件刷新，TTL 会放大 stale items/thumbnails",
+          "confidence": 0.86,
+          "evidence": "AssetContext.loadAssets 有 8s TTL，命中时直接 return ([AssetContext.tsx](/mnt/f/code/project/opentu/packages/drawnix/src/contexts/AssetContext.tsx:70) line 70; [AssetContext.tsx](/mnt/f/code/project/opentu/packages/drawnix/src/contexts/AssetContext.tsx:659) lines 659-672)，实际读取 completed tasks 与 Cache Storage 只发生在 loadAssets run 内 ([AssetContext.tsx](/mnt/f/code/project/opentu/packages/drawnix/src/contexts/AssetContext.tsx:679) lines 679-795)。MediaLibraryModal 只在 isOpen 时调用 loadAssets，上传后也只是手动再调一次 ([MediaLibraryModal.tsx](/mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryModal.tsx:65) lines 65-71; [MediaLibraryModal.tsx](/mnt/f/code/project/opentu/packages/drawnix/",
+          "impact": "媒体库打开期间任务完成不会自动出现；刚完成后 8s 内重新打开也可能被 TTL 抑制，导致 items/grid/inspector 缩略图和列表状态落后于任务队列。",
+          "recommendation": "让 AssetContext 订阅 taskQueueService.observeTaskUpdates，completed/failed/delete/archive 事件触发失效或增量合并；用户打开媒体库、任务完成、手动刷新应绕过 TTL。"
+        },
+        {
+          "id": "F4-history-selected-video-thumbnail-gap",
+          "severity": "medium",
+          "title": "generation-history/SelectedContentPreview 的视频缩略图 fallback 不一致",
+          "confidence": 0.78,
+          "evidence": "useGenerationHistory 的视频 imageUrl 只取 thumbnailUrl/thumbnailUrls/previewImageUrl，不用视频 URL 生成 poster ([useGenerationHistory.ts](/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGenerationHistory.ts:85) lines 85-106)；GenerationHistory 无 imageUrl 时直接显示 placeholder ([generation-history.tsx](/mnt/f/code/project/opentu/packages/drawnix/src/components/generation-history/generation-history.tsx:80) lines 80-104)。TaskItem 和媒体库项/inspector 则使用 VideoPosterPreview，可生成/回退 poster ([TaskItem.tsx](/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:770) lines 770-782; [AssetItem.tsx](/mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/AssetItem.tsx:22",
+          "impact": "同一生成视频在 dock/媒体库可能有 poster，但 generation-history 和 selected content compact 仍显示占位，用户会认为历史缩略图坏了；若 result 没有 previewImageUrl，这不是网络问题而是投影层没接入 fallback。",
+          "recommendation": "history 与 selected video preview 复用 VideoPosterPreview 或 useThumbnailUrl，并传递 poster/rehydrate 元数据；保持 TaskItem、media library、history 的视频缩略图策略一致。"
+        },
+        {
+          "id": "F5-media-library-video-insert-metadata-loss",
+          "severity": "low",
+          "title": "媒体库视频插入画布丢失 rehydrate 元数据",
+          "confidence": 0.74,
+          "evidence": "assetToUnifiedMediaItem 只对 AI_GENERATED image 挂 rehydrateCacheUrl/source/metadata，video 不挂 ([media-library-projection.ts](/mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/media-library-projection.ts:191) lines 191-236)。MediaLibraryGrid 从 viewer 插入视频时只调用 insertVideoFromUrl(board, item.url) ([MediaLibraryGrid.tsx](/mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryGrid.tsx:1231) lines 1231-1249)，insertVideoFromUrl 创建元素只保留 url/width/height/isVideo/videoType ([video.ts](/mnt/f/code/project/opentu/packages/drawnix/src/data/video.ts:279) lines 279-289)。canvas video 的 cache miss recovery 会读取 element/task metadata 来恢复 content URL ([video.tsx]",
+          "impact": "从媒体库插入生成视频到画布后，如果本地 Cache Storage 丢失或虚拟 URL 失效，元素缺少 contentUrl/remoteTaskId/providerTaskId/mimeType，恢复链路只能靠 URL 猜 taskId，可靠性低于图片。",
+          "recommendation": "视频 asset projection 和插入路径也携带 rehydrate metadata，并把这些字段写入 video element；与 generated-media-cache 的 video rehydrate contract 对齐。"
+        }
+      ],
+      "gaps": [
+        "未运行单元测试、E2E、浏览器截图或 live provider 调用；用户明确要求只读、禁止 live provider/deploy/push/secrets。运行时表现为基于当前磁盘代码推断。",
+        "三个仓库均为 dirty worktree；本审计结论针对当前 on-disk 状态，不等同于已部署版本。",
+        "new2fly 本次只提供 Trellis/任务上下文，未发现需要作为 Creative runtime 证据引用的代码路径。"
+      ]
+    }
+  ],
+  "v30_invalid": [
+    "synthesis null",
+    "verification null"
+  ]
+}

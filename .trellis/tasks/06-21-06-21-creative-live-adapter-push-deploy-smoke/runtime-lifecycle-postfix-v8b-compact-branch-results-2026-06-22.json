@@ -1,0 +1,328 @@
+[
+  {
+    "idx": 0,
+    "branch": "feat/creative-embed",
+    "verdict": "fail",
+    "summary": "只读审计完成。主要剩余风险在 useTaskExecutor 与 TaskQueueService 之间的执行所有权边界：hook 可能恢复同会话仍由 service 拥有的 Creative managed image，并且 managed resume 的 stale 写回门禁没有复用 attempt freshness。",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "MEDIUM",
+        "title": "新提交的 Creative managed image 会被 hook 当作恢复任务再次轮询",
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2178 会在 createTask 后立即 fire-and-forget executeTask；同文件 :1027-1035 在 onSubmitted 时写入 PROCESSING+remoteId，:2243-2248 随即 emit taskUpdated。/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:840-867 订阅 taskUpdated 后，只要本 hook 本地 executingTasksRef 没有该 id，就会 enqueue PROCESSING+remoteId 的 image resume；而 executingTasksRef 只在 hook 自己 beginTaskExecution 时设置（:256-262），不知道 TaskQueueService 正在执行同一个任务。",
+        "whyItMatters": "这不会重复提交生成请求，但会重复远端轮询/物化。同一个 remoteId 同时由原 executor 和 hook resume 驱动时，hook 分支若先遇到错误，会在 useTaskExecutor.ts:546-555 把任务标失败，即使原 executor 仍可能成功。",
+        "fix": "给 hook resume 增加所有权/恢复来源门禁：只恢复 restore/load 得到的远端任务，或让 TaskQueueService 暴露当前执行中的 task id 并在 hook 中跳过；至少避免对同会话刚 onSubmitted 的任务启动 resumeCreativeManagedImageTask。",
+        "test": "新增 hook/service 集成单测：挂载 useTaskExecutor，创建 Creative managed image，让 TaskQueueService onSubmitted 写入 remoteId，断言原 executor 未结束前 resumeCreativeManagedImageTask 不被调用。"
+      },
+      {
+        "id": "F2",
+        "severity": "MEDIUM",
+        "title": "Managed resume 写回门禁弱于普通执行门禁",
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:322-345 已有 isTaskStillProcessingAttempt，会比较 retryAttempt、startedAt 和 remoteId；但 Creative managed resume 分支在 progress/completion/error 写回分别使用只检查 status+remoteId 的 isTaskStillProcessingRemote（:306-315、:446-456、:461-480、:535-555）。同时 retryTask 会显式改变 retryAttempt 和 startedAt，并清理 remoteId（/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2417-2447）。",
+        "whyItMatters": "当前代码只靠 remoteId 区分新旧执行。若恢复/重试/存储同步后同一 remoteId 仍出现在当前任务上，旧 resume 的进度、成功或失败可以写入新 attempt；这正是其他执行路径用 retryAttempt/startedAt 防住的 stale execution race。",
+        "fix": "Managed Creative image resume 写回也应使用 attempt snapshot 校验，至少比较 retryAttempt 和 startedAt；onProgress、completion、catch 三处保持同一 freshness gate。",
+        "test": "扩展 useTaskExecutor managed resume 测试：启动一个 managed resume 后，把当前 task 改成同 remoteId 但 retryAttempt/startedAt 已变化的新 attempt，再 resolve/reject 旧 resume，断言不会写 progress/completed/failed。"
+      }
+    ],
+    "rejectedClaims": [
+      {
+        "claim": "restoreTasks 多任务 emit 本身会导致同一任务重复执行。",
+        "reason": "按当前源码，restore 多 emit 是为了覆盖多个不同任务；未找到仅由 restoreTasks 对同一 task id 造成重复执行的源码证据。",
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2631-2644 对每个 active restored task 发 taskCreated；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:774-782 对 executing/pending 中已有的同 id 任务去重。测试 /mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/task-queue-service-image-retry.test.ts:799-844 只断言两个不同 restored task 都被 emit。"
+      },
+      {
+        "claim": "失败重试会复用旧 provider request。",
+        "reason": "当前源码和测试支持 fresh request 语义。",
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2417-2447 retryTask 递增 retryAttempt、清 result/completedAt/remoteId，并切到 SUBMITTING；:193-200 生成 attempt-scoped idempotency key。测试 /mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/task-queue-service-image-retry.test.ts:645-679 断言 retry-1 key。"
+      },
+      {
+        "claim": "completed 后的普通后处理会无授权触发重新生成。",
+        "reason": "未找到生产源码中对 completed 任务传 allowCompleted 的调用；普通 markAsInserted/markAsSaved 只是同状态 update。",
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2402-2413 只有 options.allowCompleted 且状态为 COMPLETED 时才允许 retry completed；allowCompleted 的唯一命中是测试 /mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/task-queue-service-image-retry.test.ts:738。"
+      }
+    ],
+    "coverageGaps": [
+      {
+        "gap": "未运行测试。用户要求只读且当前沙箱为 read-only，测试运行可能写缓存/临时文件。",
+        "howToClose": "在可写工作区运行相关 Vitest 目标，并新增针对 mounted useTaskExecutor + TaskQueueService active submit 的回归测试。"
+      },
+      {
+        "gap": "未调用 live provider、部署、推送或读取密钥。",
+        "howToClose": "按用户另行授权后，在隔离 staging 环境做真实远端轮询/恢复烟测。"
+      }
+    ]
+  },
+  {
+    "idx": 1,
+    "branch": "new2fly: master; opentu: feat/creative-embed",
+    "verdict": "fail",
+    "summary": "只读源码审计完成，保留 2 个源码支持的剩余 lifecycle 缺口：素材库手动插入生成图未走 cache rehydrate；selected dock 重新选中画布生成图时 metadata 丢失。未修改文件、未推送、未部署、未调用 live provider。",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "HIGH",
+        "title": "素材库手动插入生成图绕过 rehydrate，刷新后可能插入失败或空白",
+        "evidence": "`creation-toolbar.tsx:292-294` 和 `quick-creation-toolbar.tsx:206-208` 从素材库插入图片时直接 `insertImageFromUrl(board, asset.url)`；`insertImageFromUrl` 只会预缓存 http/https/data URL，`/__aitu_cache__/image/...` 会直接进入 `loadHTMLImageElementWithRetry`（`data/image.ts:339-405`）。相对地，任务队列手动插入在 `TaskQueuePanel.tsx:603-624` 先调用 `ensureGeneratedImageCacheUrlReady` 并携带 `contentUrl/remoteTaskId/providerTaskId`。",
+        "whyItMatters": "这正落在 blank canvas node/display recovery chain：任务队列插入已加保护，但素材库作为同一生成资产的恢复入口仍会在本地缓存丢失后直接加载虚拟 cache URL。",
+        "fix": "把素材库插入 IMAGE 入口改成与任务队列一致：当 `asset.url` 是 generated cache URL 且有 `asset.contentUrl`/remote/provider task id 时，先 `ensureGeneratedImageCacheUrlReady`，再插入 ready URL；为两个 toolbar 入口加 cache-miss/rehydrate 单测。",
+        "test": "新增 toolbar/media-library 插入测试：给 AI generated asset 设置 `url=/__aitu_cache__/image/x.png`、`contentUrl=/creative/relay/v1/images/tasks/r/content`，mock cache miss，断言先 rehydrate/cache，再调用 `insertImageFromUrl`。"
+      },
+      {
+        "id": "F2",
+        "severity": "MEDIUM",
+        "title": "selected dock 重新选中画布生成图时丢失 rehydrate 元数据",
+        "evidence": "`SelectedContentPreview` 支持 `contentUrl/remoteTaskId/providerTaskId/mimeType` 并在有 rehydrate source 时使用 `RetryImage`（`SelectedContentPreview.tsx:66-89`）。但 `SelectionWatcher` 构造 selected dock 内容时只传 `url/maskImage/name/type/width/height`（`AIInputBar.tsx:744-757`），没有转发 metadata；其来源 `processSelectedContentForAI` / `extractImagesFromElement` 的图片类型也只有 `{ url, name, width, height }`（`selection-utils.ts:127-134`, `selection-utils.ts:786-829`）。",
+        "whyItMatters": "用户刷新或 Cache Storage miss 后，任务历史/媒体库能依赖 metadata 恢复，但从画布重新选中同一生成图进入 dock 时 metadata 被截断，缩略图恢复链断开。",
+        "fix": "让画布图片元素保存并暴露 generated media metadata，或在 `extractImagesFromElement` 中从元素/缓存 metadata 读取 `contentUrl/remoteTaskId/providerTaskId/mimeType`，再由 `SelectionWatcher` 传给 `SelectedContentPreview`；补 selected dock cache-miss rehydrate 单测。",
+        "test": "新增 SelectionWatcher/SelectedContentPreview 级测试：选中一个 generated cache URL 图片元素，带 remote/content metadata；清空本地 cache 后断言 dock thumbnail 通过 `RetryImage` rehydrate，而不是裸 `<img>`/无 source fallback。"
+      }
+    ],
+    "rejectedClaims": [
+      {
+        "claim": "`RetryImage.tsx` 是当前精确文件名。",
+        "reason": "按实际模块审计，不能声称请求的精确文件存在。",
+        "evidence": "窄查 `packages/drawnix/src` 没有 `RetryImage.tsx`；实际文件是 `components/retry-image.tsx`，并被 TaskItem/PromptHistory/SelectedContentPreview 引用。"
+      },
+      {
+        "claim": "generated placeholder/ratio 链路仍缺基础处理。",
+        "reason": "当前源码和测试支持该链路，未找到可源码证明的剩余缺口。",
+        "evidence": "`creative-image-display-size.ts` 规范化 schema `aspectRatio/size`；`useAutoInsertToCanvas.ts:308-340` 优先 actual dimensions、target dimensions、schema ratio；测试覆盖 21:9、actual/target dimensions、preview fit 和 grouped per-image ratios。"
+      },
+      {
+        "claim": "任务历史图片刷新后一定失败。",
+        "reason": "源码显示恢复链存在；未做浏览器刷新验证，因此只保留运行态覆盖缺口，不报缺陷。",
+        "evidence": "`task-storage-reader.ts:371-439` 保留 `contentUrl/remoteTaskId/providerTaskId/mimeType`；`prompt-history-service.ts:207-218` 写入 image preview；`PromptHistoryTool.tsx:125-148` 和 `:870-910` 把 rehydrate props 传给 `RetryImage`。"
+      }
+    ],
+    "coverageGaps": [
+      {
+        "gap": "未做运行态刷新/浏览器验证。当前是 read-only 源码审计，未启动应用、未调用 provider、未跑测试。",
+        "howToClose": "用本地 fixture 或 Playwright 复现：生成图完成后清空 Cache Storage/刷新，验证任务历史、素材库、selected dock、手动插入和自动插入。"
+      },
+      {
+        "gap": "viewport/pan/zoom 持久化不在给定文件集内完整闭环。",
+        "howToClose": "继续追踪 board 初始化和 viewport 持久化 owner；本轮只确认到插入后 `scrollToPointIfNeeded` / `scrollToResult: true` 会移动视口，未看到 durable restore 代码。"
+      }
+    ]
+  },
+  {
+    "idx": 2,
+    "branch": "master",
+    "verdict": "fail",
+    "summary": "只读源码审计发现 1 个中等风险合同缺口：GrsAI nano-banana 扩展比例没有按模型系列区分。Duomi 21:9、GrsAI GPT/VIP 1K/4K、quality 转发未发现源码支撑的缺陷。",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "MEDIUM",
+        "title": "GrsAI nano-banana 扩展比例未按模型系列收口",
+        "evidence": ".trellis research 记录 GrsAI nano-banana common ratios 到 `21:9`，并注明只有 nano-banana-2 series 额外支持 `1:4`,`4:1`,`1:8`,`8:1`（provider-api-contracts.md:65-81）。但共享模板 `grsai_nano_banana` 对所有 nano model 都暴露这些扩展比例（creative_model_capability.go:553-580），provider model 白名单同时包含非 2 系列如 `nano-banana`,`nano-banana-fast`,`nano-banana-pro`（creative_model_capability.go:1724-1734），allowed-values 校验也不按 providerModelId 分流（creative_model_capability.go:2035-2065）。",
+        "whyItMatters": "非 2 系列 nano-banana 绑定可能向用户展示并接受 provider 未声明支持的比例，随后 live submit 会原样转发，造成 provider 侧失败或不可预测输出。",
+        "fix": "把 nano-banana schema/校验按 provider model family 分流：非 `nano-banana-2*` 只允许 common ratios，`nano-banana-2*` 才允许 `1:4/4:1/1:8/8:1`；补正反向测试。",
+        "test": "新增配置校验测试：`nano-banana-pro` + `1:8` 应拒绝；`nano-banana-2` + `1:8` 应通过，并断言 adapter body 转发。"
+      }
+    ],
+    "rejectedClaims": [
+      {
+        "claim": "Duomi `gpt-image-2` 21:9 会把原始 `21:9` 或 `imageSize` 混发给 provider。",
+        "reason": "源码和测试均不支持该缺陷判断。",
+        "evidence": "`creativeDuomiSizeParam` 将 `21:9` 映射为 `1792x768`，submit 只写 `size` 和非 auto `quality`；测试断言 body 包含 `\"size\":\"1792x768\"` 且不包含 raw `21:9`/`imageSize`。"
+      },
+      {
+        "claim": "GrsAI `gpt-image-2-vip` 4K 会把 `imageSize` 单独转发，导致和 pixel `aspectRatio` 共存。",
+        "reason": "当前实现按合同把 1K/4K 档位编码进 pixel aspectRatio。",
+        "evidence": "`creativeGrsAIImageSizeParam` 对 `gpt-image-2`/`gpt-image-2-vip` 返回空；测试断言 VIP 4K body 为 `\"aspectRatio\":\"3840x2160\"`、`quality:\"high\"`，且不包含 `imageSize`。"
+      },
+      {
+        "claim": "`quality` 参数没有被接受或没有转发。",
+        "reason": "源码路径和测试覆盖都支持 quality 的接受与转发；nano-banana 模板没有 quality 属于当前 schema 设计。",
+        "evidence": "Duomi、GrsAI GPT、GrsAI VIP schema 均暴露 `auto/low/medium/high`；adapter 对非 `auto` quality 写入 request body；测试覆盖 Duomi high 和 GrsAI VIP high。"
+      }
+    ],
+    "coverageGaps": [
+      {
+        "gap": "未运行 Go 测试，也未调用 live provider；本轮按用户要求保持只读、无部署、无 provider 调用。",
+        "howToClose": "在可写/可测试环境运行目标测试，例如 `go test ./service -run 'Creative.*(GrsAI|Duomi|Nano|ImageProvider|ModelBindings)'`，live provider 仍需单独授权。"
+      },
+      {
+        "gap": "没有看到专门覆盖 nano-banana `21:9` submit 的测试；源码 schema/allowed-values/adapter 转发路径支持它，但测试主要覆盖 auto、3:4、1K。",
+        "howToClose": "加一个 nano-banana `aspectRatio=21:9,imageSize=1K` 的 adapter/request-preview 测试，断言 body 转发 `aspectRatio:\"21:9\"` 和 `imageSize:\"1K\"`。"
+      }
+    ]
+  },
+  {
+    "idx": 3,
+    "branch": "feat/creative-embed",
+    "verdict": "fail",
+    "summary": "只读审计发现 1 个剩余前端生命周期缺口：编辑任务时同名顶层 legacy/display 字段会覆盖 schema userParams。参数 UI 多项同时展示和 schema-backed 请求不透传 legacy params 在当前源码/测试中有支持证据。",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "MEDIUM",
+        "title": "编辑任务时顶层 size/resolution/quality 会覆盖已保存的 schema userParams",
+        "evidence": "ai-image-generation.tsx:629-638 在 handleEditTask 中先合并 task.params.params，再合并 normalizeCreativeImageEditableUserParams(task.params.userParams)，最后合并顶层 task.params.size/resolution/quality，因此同名顶层字段会覆盖 schema userParams。ai-generation-preferences-service.ts:208-220 随后按当前模型的 size options 校验并在无效时回退默认值。creative-image-task-params.test.ts:102-118 只测试 raw userParams normalization，没有覆盖 edit-dialog 的合并顺序。",
+        "whyItMatters": "用户从任务列表重新编辑 schema-backed Creative 图片任务时，原先选择的 provider 参数可能被 legacy/display 字段替换或回退默认值，二次提交会偏离原请求。",
+        "fix": "在 handleEditTask 中让 schema-backed userParams 优先于 legacy/display 顶层别名，或仅当 normalized userParams 缺少同名 key 时才补入 task.params.size/resolution/quality。补一条测试覆盖 userParams.size 与顶层 size 冲突。",
+        "test": "构造 task.params = { userParams: { size: '1024x1024' }, size: '1x1', model: '<runtime schema model>' }，触发编辑后断言 mjSelectedParams.size 仍为 '1024x1024'，再生成时 buildCreativeImageRuntimeTaskParams 仍产出该 userParams。"
+      }
+    ],
+    "rejectedClaims": [
+      {
+        "claim": "参数 UI 无法在同一区域同时呈现 size/resolution/quality。",
+        "reason": "当前源码支持同一个 dropdown 区域展示多个 schema/compatible 参数；未找到只能显示一个参数的源码证据。",
+        "evidence": "ai-image-generation.tsx:1061-1071 和 batch-image-generation.tsx:2822-2844 都使用 ParametersDropdown；ParametersDropdown.tsx:346-471 对 compatibleParams 全量 map 成多个 section，triggerLabel 在 152-177 汇总所有已选参数。model-config.ts:2357-2423 同一 GPT image 模型族存在 size/resolution/quality 参数配置。"
+      },
+      {
+        "claim": "schema-backed 请求会把 legacy params 一起发给 adapter/managed route。",
+        "reason": "当前源码和测试都支持“schema-backed params only”的请求合同。",
+        "evidence": "creative-image-task-params.ts:37-52 只把 buildCreativeUserParams 结果放入 userParams；model-config.ts:2931-2961 只接受 runtimeSchema 参数 id 并 cast 值。fallback-adapter-routes.ts:774-797 在 schemaBacked 时将 size/params/inputFidelity 等 legacy 字段置 undefined，仅传 userParams；managed route 在 627-631 的 POST body 只有 model、prompt、userParams。media-executor.test.ts:519-531、560-567 也断言 params/body.params 为 undefined。"
+      },
+      {
+        "claim": "必须把所有 quality 文案改成 画质 才能满足当前源码合同。",
+        "reason": "源码显示 runtime schema label 会原样展示，批量输入也兼容两个中文别名；当前任务文档未给出必须统一显示为 '画质' 的可验证合同，因此不作为缺陷定性。",
+        "evidence": "ParametersDropdown.tsx:360-362 直接显示 param.label；runtime schema normalization 在 model-config.ts:2843-2864 保留 item.label/shortLabel。静态 GPT Image quality 在 model-config.ts:2407-2423 写为 label/shortLabel '质量'，批量解析在 batch-image-generation.tsx:194-204 同时接受 '画质'、'图片质量'、'质量' 作为 quality aliases。"
+      }
+    ],
+    "coverageGaps": [
+      {
+        "gap": "未运行测试或 UI runtime，只按用户要求做当前源码/测试的只读审计。",
+        "howToClose": "允许执行窄范围 vitest 后，运行 creative-image-task-params、media-executor 以及新增 edit-merge 覆盖。"
+      },
+      {
+        "gap": "用户给出的 /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/media-executor.test.ts 不存在；实际检查的是 /mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/media-executor.test.ts。",
+        "howToClose": "确认是否还有另一个目标测试文件；若没有，更新任务文件路径引用。"
+      },
+      {
+        "gap": "现有测试覆盖 userParams builder 和 executor request sanitization，但没有覆盖 ai-image-generation 编辑任务时的合并顺序。",
+        "howToClose": "新增一个 edit task helper/component 测试：schema userParams 与顶层 size 同名冲突时，编辑表单仍保留 userParams 值。"
+      }
+    ]
+  },
+  {
+    "idx": 4,
+    "branch": "opentu: feat/creative-embed",
+    "verdict": "fail",
+    "summary": "3 个候选中确认 2.5 个：Prompt History 绕过 sanitizer 成立；sanitizer 对 `provider rejected prompt` 过宽成立，但 quota/content-policy 只能部分支持；TaskItem 漏 `originalError` 成立，`code` 部分驳回。未修改文件、未推送/部署、未调用 live provider。",
+    "findings": [
+      {
+        "id": "PH-ERR-001",
+        "severity": "HIGH",
+        "title": "Prompt History 失败预览绕过错误 sanitizer",
+        "evidence": "/mnt/f/CODE/Project/opentu/packages/drawnix/src/services/prompt-history-service.ts:185-189 对 FAILED 直接返回 `task.error?.message || '任务失败'`；/mnt/f/CODE/Project/opentu/packages/drawnix/src/components/prompt-history/PromptHistoryTool.tsx:922-923 直接渲染 `resultPreviewText(record.resultPreview)`；/mnt/f/CODE/Project/opentu/packages/drawnix/src/services/prompt-history-service.test.ts:314-322 还断言失败预览原样等于 `失败原因`。",
+        "whyItMatters": "任务历史会持久化并在列表中显示/搜索失败原因；当前路径会把已在 TaskItem/batch/anchor 里被过滤的敏感错误重新暴露出来。",
+        "fix": "在 `buildPromptHistoryResultPreview` 中使用 `sanitizeTaskErrorDisplayMessage`，并优先/回退处理 `details.originalError` 时也走同一 sanitizer；补充包含 URL/apiKey/provider callback 的失败历史测试。",
+        "test": "新增 prompt-history-service 测试：FAILED task 的 `error.message` 为 `Authorization Bearer ... https://...` 时，resultPreview.text 应为安全 fallback，而不是原文。"
+      },
+      {
+        "id": "SAN-ERR-001",
+        "severity": "MEDIUM",
+        "title": "Sanitizer 过宽隐藏可行动的 provider 拒绝原因",
+        "evidence": "/mnt/f/CODE/Project/opentu/packages/drawnix/src/services/creative-error-sanitizer.ts:1-2 的敏感词正则包含普通词 `provider`；同文件 15-16 命中即返回 fallback。/mnt/f/CODE/Project/opentu/packages/drawnix/src/services/__tests__/media-executor.test.ts:1176-1184 构造 backend `fail_reason: 'provider rejected prompt'`，并在 1227-1232 期望该错误被写入任务；/mnt/f/CODE/Project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:675-685 会把 `error.message` 写为 task error message。",
+        "whyItMatters": "Creative managed image 失败时，用户需要知道是 prompt 被拒绝而不是泛化的“生成失败”；过度隐藏会削弱重试/改 prompt 的可操作性。",
+        "fix": "把 sanitizer 从单个宽泛正则拆成明确 secret/URL/header/callback 规则；不要仅因 `provider` 一词回退。为 `provider rejected prompt` 加保留测试，同时继续红action `Authorization`、`apiKey`、URL、callback/webhook/notifyHook。",
+        "test": "creative-error-sanitizer 测试应断言 `sanitizeCreativeFailureMessage('provider rejected prompt','生成失败') === 'provider rejected prompt'`，并保留现有敏感字段回退断言。"
+      },
+      {
+        "id": "TI-MEMO-001",
+        "severity": "MEDIUM",
+        "title": "TaskItem memo 漏比较 originalError 导致详情可能不刷新",
+        "evidence": "/mnt/f/CODE/Project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:461-465 计算 `safeTaskOriginalError`，1081-1090 在 `[详情]` tooltip 中渲染它；但 memo comparator 1116-1125 只比较 `task.error?.message`，没有比较 `task.error?.details?.originalError`。",
+        "whyItMatters": "异步任务可能先写泛化 message，再补充原始错误详情；当前 memo 会阻止组件重绘，用户看到的错误详情可能停留在旧值或缺失。",
+        "fix": "在 comparator 中加入 `prev.task.error?.details?.originalError === next.task.error?.details?.originalError`，或先生成稳定的 sanitized display fields 并比较这些实际渲染输入。",
+        "test": "新增 TaskItem rerender 测试：同一 task id/status/message 下仅 `details.originalError` 改变时，应更新 `[详情]` tooltip 内容。"
+      }
+    ],
+    "rejectedClaims": [
+      {
+        "claim": "sanitizer 会隐藏 quota 文案。",
+        "reason": "按当前源码不能确认。只有 quota 文案同时包含 `provider`、URL、apiKey 等命中词时才会被当前规则隐藏。",
+        "evidence": "/mnt/f/CODE/Project/opentu/packages/drawnix/src/services/creative-error-sanitizer.ts:1-2 的正则不包含 `quota`；窄范围搜索只看到 `insufficient_user_quota` 在 auth/error 测试中出现，未看到它经过该 sanitizer 的 source-backed 证据。"
+      },
+      {
+        "claim": "sanitizer 一定隐藏所有 content policy 文案。",
+        "reason": "广义说法不成立；但 `provider ... content policy ...` 这类含 `provider` 的文案会被隐藏，已由 SAN-ERR-001 覆盖。",
+        "evidence": "/mnt/f/CODE/Project/opentu/packages/drawnix/src/services/creative-error-sanitizer.ts:1-2 的正则不包含 `policy` 或 `content`。"
+      },
+      {
+        "claim": "TaskItem memo 漏比较 `code` 是当前可见 UI bug。",
+        "reason": "comparator 确实不比较 code，但当前 TaskItem 没有 source-backed 证据表明 code 变化会影响渲染。",
+        "evidence": "/mnt/f/CODE/Project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:1076-1107 的失败 UI 使用 sanitized message/originalError；未发现 `task.error.code` 在 TaskItem 渲染中被读取。"
+      }
+    ],
+    "coverageGaps": [
+      {
+        "gap": "未运行测试或浏览器复现；本轮按用户要求只做当前源码/测试的只读审计。",
+        "howToClose": "后续可运行定向 Vitest：creative-error-sanitizer、prompt-history-service、TaskItem 渲染/重渲染测试。"
+      },
+      {
+        "gap": "未调用 live providers，无法确认真实供应商 quota/content-policy 文案的具体形态。",
+        "howToClose": "用脱敏 fixture 或 mock backend task status 覆盖典型 fail_reason，而不是 live 调用。"
+      }
+    ]
+  },
+  {
+    "idx": 5,
+    "branch": "new2fly: master; opentu: feat/creative-embed",
+    "verdict": "needs-runtime-verification",
+    "summary": "未发现最多 4 个以内的源码级剩余生命周期缺陷。主要结论是：URL 白名单、decoded dimension 优先级、双 content endpoint 接受路径在当前源码中成立；风险集中在负向/端到端回归测试不足。未修改文件、未推送/部署、未调用 live provider。",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "LOW",
+        "title": "audio/video 缩略图投射缺少回归测试",
+        "evidence": "`media-library-projection.ts:62-68` 会为非 image 类型返回 `thumbnailUrl`/`previewImageUrl` 原值，`media-library-projection.ts:217` 将其作为 `posterUrl` 投射到 unified media item；但 `media-library-projection.test.ts:9-130` 的 describe 和用例都只覆盖 generated image。",
+        "whyItMatters": "这块刚好是你点名的回归面；如果后续把 image cache normalization/rehydrate 逻辑继续抽到 shared projection，audio/video preview 很容易被误处理或丢 poster。",
+        "fix": "为 audio/video 增加 projection 测试，锁定非 image 缩略图是否允许进入 `posterUrl`，并断言 `rehydrateCacheUrl`/`rehydrateSourceUrl` 只出现在 AI generated image。",
+        "test": "新增 `media-library-projection.test.ts` audio/video 用例。"
+      },
+      {
+        "id": "F2",
+        "severity": "LOW",
+        "title": "restore 多事件恢复缺少执行器去重回归测试",
+        "evidence": "`task-queue-service-image-retry.test.ts:799-845` 只断言 `restoreTasks` 对两个 active image task 发出两个 `taskCreated`。真实执行器还会监听 `taskCreated/taskUpdated` 并 enqueue（`useTaskExecutor.ts:840-875`），同时 mount 后 2 秒调用 `processPendingTasks` 再扫一遍（`useTaskExecutor.ts:879-881`）。源码有去重保护（`useTaskExecutor.ts:774-779`），但没有测试覆盖 restore event + startup sweep 的组合。",
+        "whyItMatters": "当前源码看不到重复执行的直接缺陷，但缺少端到端测试会让未来改动重新引入重复 provider call 风险。",
+        "fix": "增加 `useTaskExecutor` 级测试，模拟 `restoreTasks` 发多任务事件后推进启动 timer，断言同一 task 只执行/恢复一次。",
+        "test": "新增 `useTaskExecutor` restore resume 去重测试，覆盖 pending image、processing remote image/audio。"
+      }
+    ],
+    "rejectedClaims": [
+      {
+        "claim": "non-cache contentUrl readiness 会 fetch 任意远程 URL。",
+        "reason": "当前源码不支持该缺陷结论；缺的是负向测试，不是可证实的任意远程 fetch。",
+        "evidence": "`normalizeSafeCreativeContentUrl` 在 `generated-media-cache.ts:66-76` 解析 URL 后要求 `parsed.origin === window.location.origin`，且 pathname 必须以 `/creative/relay/v1/images/tasks/` 或 `/creative/api/assets/` 开头并以 `/content` 结尾；`fetchCreativeContentBlob` 只接收该 safe URL（`generated-media-cache.ts:269-275`）。"
+      },
+      {
+        "claim": "targetWidth/targetHeight 覆盖 decoded/actual dimensions。",
+        "reason": "当前源码和测试都显示 actual/decoded dimensions 优先。",
+        "evidence": "`ensureGeneratedImageCacheForTask` 在 `generated-media-cache.ts:280-281`、`312-313` 都先用 decoded/verified width/height，再 fallback 到 result width/height，最后才用 targetWidth/targetHeight；`useAutoInsertToCanvas.ts:817-823` 会把 verified decoded dimensions 写回插入尺寸。测试 `useAutoInsertToCanvas.test.ts:370-416` 覆盖 actual width/height 优先于 target。"
+      },
+      {
+        "claim": "只接受 `/creative/api/assets/:id/content` 或只接受 `/creative/relay/v1/images/tasks/:task/content` 其中一个。",
+        "reason": "当前源码接受两种内容 URL。",
+        "evidence": "`generated-media-cache.ts:6-7` 定义了两个 prefix，`normalizeSafeCreativeContentUrl` 在 `generated-media-cache.ts:69-72` 同时接受两个路径；hook 测试分别覆盖 relay rehydrate（`useAutoInsertToCanvas.test.ts:636-691`）和 asset direct contentUrl（`useAutoInsertToCanvas.test.ts:693-744`）。"
+      },
+      {
+        "claim": "restoreTasks 的多 taskCreated emit 已能证明会重复执行。",
+        "reason": "源码支持“多任务逐个恢复”，但不足以证明重复执行；应归为测试覆盖缺口。",
+        "evidence": "`restoreTasks` 对每个 executable restored task 发 `taskCreated`（`task-queue-service.ts:2631-2640`）；executor 的 `enqueueTask` 在 `useTaskExecutor.ts:774-779` 同时检查 executing map 和 pending queue，`executeTask` 入口也用 `beginTaskExecution` 防重（`useTaskExecutor.ts:696-700`）。"
+      }
+    ],
+    "coverageGaps": [
+      {
+        "gap": "缺少直接覆盖 `normalizeSafeCreativeContentUrl`/`resolveGeneratedImageContentUrl` 拒绝跨域 URL 的单元测试。现有代码在 `generated-media-cache.ts:66-76` 要求 same-origin 且路径只能是 `/creative/relay/v1/images/tasks/.../content` 或 `/creative/api/assets/.../content`，但相关测试主要覆盖正向 rehydrate/fetch。",
+        "howToClose": "给 `generated-media-cache.ts` 增加 utility 级测试：`https://evil.example/creative/api/assets/a/content`、`//evil.example/...`、`https://same-host-different-origin` 必须返回 `undefined` 且 hook 路径不调用 `fetch`。"
+      },
+      {
+        "gap": "缺少 `restoreTasks` 到 `useTaskExecutor` 的端到端去重测试。当前 `restoreTasks` 会对每个 pending/processing 恢复任务发 `taskCreated`（`task-queue-service.ts:2631-2640`），executor 也会在启动延迟后扫一次全部 pending/resumable 任务（`useTaskExecutor.ts:879-881`）。源码有 `executingTasksRef` 和 pending 队列去重（`useTaskExecutor.ts:774-779`），但现有测试只断言恢复事件被逐个发出。",
+        "howToClose": "新增 hook/集成测试：恢复两个 active image/audio 任务，推进超过 `STARTUP_DELAY_MS`，断言每个 remote resume/generate 只启动一次。"
+      },
+      {
+        "gap": "media library projection 缺少 audio/video 缩略图回归测试。`getTaskThumbnailUrl` 对非 image 返回原始 thumbnail/preview（`media-library-projection.ts:62-68`），`assetToUnifiedMediaItem` 对所有类型设置 `posterUrl`（`media-library-projection.ts:217`），但现有 `media-library-projection.test.ts` 只覆盖 image。",
+        "howToClose": "补 audio clip、single audio、video 任务测试，明确 poster/thumbnail 是否应保留、是否不触发 image rehydrate 字段。"
+      },
+      {
+        "gap": "没有运行测试命令。本轮按用户要求只读、窄范围审计，未执行 vitest/typecheck。",
+        "howToClose": "后续可只跑目标测试：`pnpm vitest packages/drawnix/src/hooks/__tests__/useAutoInsertToCanvas.test.ts packages/drawnix/src/services/__tests__/task-queue-service-image-retry.test.ts packages/drawnix/src/services/__tests__/media-library-projection.test.ts packages/drawnix/src/services/creative-error-sanitizer.test.ts`。"
+      }
+    ]
+  }
+]

@@ -787,3 +787,105 @@ Residual risks recorded by the workflow:
 - Blank canvas image node regression: staging smoke with mocked content rendered visible node; source uses `RetryImage` fallback for ordinary image nodes.
 - Dynamic workflow re-audit: pass, `mustFix=[]`.
 - Production/VPS: not deployed in this follow-up; requires separate authorization.
+
+## 2026-06-24 staging refresh after SQLite migration repair
+
+A staging refresh to image `sha256:28ba17f4cc20471b7d7e49c5045a57005cf341ea14aa0a80d950c39cea950214` exposed a preserved-SQLite migration blocker: GORM attempted to add `logs.task_billing_outbox_id` as a UNIQUE column on an existing SQLite table. SQLite rejects that shape. The database and volumes were preserved.
+
+Fix deployed in rebuilt image `sha256:93bdeee160637d7a6a22398550b4596e73d427080dc5e62dc0b0d2dd2de46cbe`:
+
+- manually add nullable SQLite column first;
+- then let/force the unique index creation separately;
+- cover normal DB migration, fast migration, and separate LOG_DB migration.
+
+Verification evidence:
+
+- `go test -count=1 ./model -run TestEnsureSQLiteLogTaskBillingOutboxColumnAllowsAutoMigrateExistingLogs`: PASS.
+- `go test -count=1 ./controller ./service ./relay`: PASS.
+- Docker staging container replaced by deleting the container only; named volumes remained mounted.
+- Container health: healthy.
+- Route/header smoke: `/api/status` 200; `/creative/` 200; `/creative/version.json` 200; unauth `/creative/api/bootstrap` and `/creative/api/models` 401 JSON/no-store; wrong relay GET 404 JSON/no-store.
+- Authenticated no-provider smoke: bootstrap/models 200; model bindings GET/validate/dry-run 200; dry-run reported `noProviderCall=true` and 3 bindings.
+- Browser smoke: `/creative/` loaded; parameter popup contained `图片尺寸` / `图片分辨率` / `质量` in one panel with `21:9 超宽`, `1K`, and quality options; model dropdown contained Duomi and both GrsAI live bindings.
+
+No live provider call was made in this post-repair smoke. Production/VPS deployment remains outside this step.
+
+## 2026-06-25 release gate rerun after staging migration repair
+
+Command:
+
+```bash
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py build-sync-check --run-new-api-tests --source-diff-check
+```
+
+Result: PASS, exit code 0.
+
+Evidence observed in this run:
+
+- OpenTU `pnpm build:web` completed: typecheck, Vite app build, SW build, and embedded Creative postprocess passed.
+- Embedded dist synced from `/mnt/f/code/project/opentu/dist/apps/web` into both new-api embedded targets:
+  - `new-api/web/creative/dist`
+  - `new-api/router/web/creative/dist`
+- Embedded artifact contract passed:
+  - index `/creative/assets` refs present;
+  - idle-prefetch manifest refs present;
+  - static brand contract holds;
+  - file count 173 in all three locations;
+  - provenance `version=0.9.6`, `gitCommit=3f13916427a6234239db437fdf8db07966b343a5`;
+  - no generated sourcemaps;
+  - embedded dist text hygiene holds.
+- Source diff check passed:
+  - `git diff --check` in `new2fly`, `opentu`, and `new-api` with generated-output exclusions.
+- new-api tests/build passed:
+  - `go test -count=1 .`
+  - `go test -count=1 ./router ./middleware ./controller ./model ./service ./relay/...`
+  - `go build ./...`
+- Gate completed with `[done] no-secrets Creative release gate completed`.
+
+Notes:
+
+- Build emitted existing Sass/Browserslist/chunk-size warnings; they did not fail the release gate.
+- This release gate did not perform live provider calls.
+- Production/VPS deployment remains a separate unauthorized gate.
+
+## 2026-06-25 release gate rerun after committing OpenTU source
+
+Reason: the prior release gate was green, but its embedded provenance pointed at the previous OpenTU HEAD while OpenTU source changes were still uncommitted. To avoid a provenance/source mismatch, OpenTU source was committed first, then the release gate was rerun.
+
+OpenTU source commit used for this rerun:
+
+```text
+57d328340acee6ba5d775296433d0d909cc6ddfe fix(creative): stabilize generated media lifecycle
+```
+
+Command:
+
+```bash
+cd /mnt/f/code/project/new2fly
+python3 scripts/creative_release_gate.py build-sync-check --run-new-api-tests --source-diff-check
+```
+
+Result: PASS, exit code 0.
+
+Evidence observed in this run:
+
+- OpenTU `pnpm build:web` completed: typecheck, Vite app build, SW build, and embedded Creative postprocess passed.
+- Embedded dist synced into both new-api embedded targets.
+- Embedded artifact contract passed with `file count: 173` and provenance:
+  - `version=0.9.6`
+  - `gitCommit=57d328340acee6ba5d775296433d0d909cc6ddfe`
+- No generated sourcemaps found.
+- Embedded dist text hygiene holds.
+- `git diff --check` passed for new2fly/opentu/new-api with generated-output exclusions.
+- new-api passed:
+  - `go test -count=1 .`
+  - `go test -count=1 ./router ./middleware ./controller ./model ./service ./relay/...`
+  - `go build ./...`
+- Gate completed with `[done] no-secrets Creative release gate completed`.
+
+Notes:
+
+- Existing Sass/Browserslist/chunk-size warnings remain non-blocking warnings.
+- OpenTU `apps/web/public/version.json` was restored after the build because it is a source-side build metadata side effect; the committed embedded new-api dist carries the correct provenance.
+- This gate did not perform live provider calls. Production/VPS deployment remains a separate unauthorized gate.

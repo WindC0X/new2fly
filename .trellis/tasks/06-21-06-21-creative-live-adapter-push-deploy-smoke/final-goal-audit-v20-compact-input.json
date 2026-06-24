@@ -1,0 +1,173 @@
+[
+  {
+    "branch": "frontend-opentu-executor-retry-slow-provider",
+    "summary": "审计发现 2 个 medium 级剩余问题；未发现需要调用 live providers 才能确认的前端主路径阻塞。",
+    "goalAssessment": "大部分 Creative executor/retry/resume 目标已实现：remoteId 与 invocationRoute 持久化、90min Creative remote timeout、429/5xx status retry、content/cache materialization retry、refresh resume、recoverable TIMEOUT resume、retryAttempt/idempotency guard、旧 attempt 写回保护、manual retry 的 resume-vs-regenerate 分支和 no-provider embedded E2E 都有明确源码与测试证据。剩余材料问题集中在同页 submit 前 remoteId 的挂起/网络失败，以及 remote status polling 的 fetch-level 网络失败没有按 recoverable remote lifecycle 处理。",
+    "blocked": null,
+    "findings": [
+      {
+        "confidence": 0.88,
+        "evidence": "../opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:664-679 sends POST /creative/relay/v1/images/tasks with only the caller signal and no bounded request timeout. ../opentu/packages/drawnix/src/utils/task-utils.ts:147-158 makes processing Creative managed submit tasks with no remoteId never time out. ../opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:849-854 only auto-resumes processing image tasks when isResumableAsyncImageTask(task), which requires remoteId at task-utils.ts:92-102. ../opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:270-273 and 1080-1093 only expose retry for failed/cancelled tasks.",
+        "id": "OTU-CREATIVE-001",
+        "impact": "If the same-page submit request hangs before returning task_id, the task can remain processing/submitting indefinitely with no remoteId, no auto replay, and no retry button. Refresh recovery exists, but the in-page slow/hung submit path does not meet the recoverable-timeout/manual-retry goal.",
+        "recommendedFix": "Add a bounded submit-phase timeout for Creative managed image POST. On timeout or ambiguous network submit failure, keep the task recoverable and either schedule same-page replay via resumeSubmitInterruptedTask using the original opentu-image-${task.id} idempotency key, or expose a resume/retry action that reuses the original key instead of incrementing retryAttempt. Add a fake-timer test for a hanging submit and an E2E/unit test proving same-page recovery without refresh.",
+        "reproOrReasoning": "Mock POST /creative/relay/v1/images/tasks to never resolve. TaskQueueService starts executeCreativeManagedImageTask, progress is submitting, remoteId is never written, isTaskTimeout returns false forever for recoverable Creative submit tasks, and useTaskExecutor does not enqueue it because it lacks remoteId.",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "Creative submit can hang forever before remoteId and has no same-page recoverable retry"
+      },
+      {
+        "confidence": 0.84,
+        "evidence": "../opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:584-601 awaits the status fetch without a try/catch; only HTTP 429/500/502/503/504 responses are treated as temporary. The thrown error then reaches executeCreativeManagedImageTask catch at lines 720-759, which persists IMAGE_GENERATION_ERROR for non-TIMEOUT. TaskQueueService catch at ../opentu/packages/drawnix/src/services/task-queue-service.ts:1404-1441 persists a failed task with EXECUTION_ERROR unless the error is TIMEOUT. Manual retry only resumes recoverable remote failures at lines 2508-2530; otherwise lines 2551-2583 increment retryAttempt and clear remoteId for a fresh submit.",
+        "id": "OTU-CREATIVE-002",
+        "impact": "A transient browser/network rejection during GET /creative/relay/v1/images/tasks/{remoteId} can turn an already-submitted provider job into a terminal frontend failure. Manual retry then starts a new provider task with a new idempotency key, risking duplicate generation/cost and losing the late success from the original remote task.",
+        "recommendedFix": "Wrap the status polling fetch in the same recoverable policy used for temporary HTTP responses and content materialization: rethrow AbortError, but retry fetch-level network errors until the Creative remote timeout budget. If a terminal local failure is still needed, use a recoverable code such as RESUME_FAILED for remoteId tasks so manual retry resumes polling instead of regenerating. Add tests for status fetch throwing once then recovering, plus manual retry after a failed remote polling network error.",
+        "reproOrReasoning": "Mock the first status GET for a remote Creative image task to throw TypeError('Failed to fetch') and the next one to return completed. Current code never reaches the second response because the thrown fetch exits pollCreativeManagedImageTask and is persisted as a non-recoverable failure.",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "Status polling fetch rejections are terminal and break idempotent resume semantics"
+      }
+    ]
+  },
+  {
+    "branch": "refresh-retry-cache-canvas-e2e-state-chain",
+    "summary": "发现 3 个中等严重度覆盖缺口，均为 E2E 证明不足；当前审计未确认前端或后端核心实现存在材料级代码 bug。",
+    "goalAssessment": "代码层面未发现已证实的核心链路实现缺口：刷新后任务从 IndexedDB 恢复，Creative managed image 通过 session-broker 轮询远端状态，完成后拉取 content 并写入 Cache Storage + drawnix-unified-cache，cache miss 能用 contentUrl 重建缓存并给 canvas image URL 加 _retry，viewport restore guard 能避免刷新噪声覆盖已恢复视口；后端也有 owner-scoped fetch/content/materialization 与 no-store 边界。主要问题是现有 E2E 不足以“真正证明”完整端到端链，尤其后端真实 status/content、失败/超时重试、任务/历史/缩略图显示。",
+    "blocked": null,
+    "findings": [
+      {
+        "confidence": 0.94,
+        "evidence": "../opentu/apps/web-e2e/src/embedded/creative-lifecycle.spec.ts:139-224 的 installNoProviderCreativeRoutes 直接 fulfill /creative/api/bootstrap、/creative/api/models、/creative/relay/v1/images/tasks/** 和 /content；实际后端处理函数 ../new-api/controller/creative_image_tasks.go:534-604 的 CreativeRelayImageTaskFetch/CreativeRelayImageTaskContent 不会被该 E2E 命中。",
+        "id": "RLC-E2E-001",
+        "impact": "现有 embedded lifecycle E2E 能验证前端 refresh/restore/cache/canvas 行为，但不能证明前后端 status/content DTO、no-store header、owner-scoped content、后端 materialization/reconcile 在真实组合下可工作。后端 Go 测试有覆盖，但不是端到端链路覆盖。",
+        "recommendedFix": "增加一个不 mock Creative relay status/content 的 embedded E2E 变体，使用本地 new-api no-provider/fixture task 路由或测试专用后端 fixture，让页面刷新后真实命中 CreativeRelayImageTaskFetch 和 CreativeRelayImageTaskContent，再断言 Cache Storage、统一元数据和 canvas URL 更新。",
+        "reproOrReasoning": "E2E 中的 mandatory chain 的“remote status/content”目前由 Playwright route mock 返回，不经过 new-api controller/service 层；因此后端回归不会让该 E2E 失败。",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "embedded lifecycle E2E mock 掉了后端 remote status/content 链路"
+      },
+      {
+        "confidence": 0.93,
+        "evidence": "对 ../opentu/apps/web-e2e/src/embedded/creative-lifecycle.spec.ts 和 creative-embedded.spec.ts 搜索 retryTask/TIMEOUT/task_click_retry/failed，仅命中类型声明和 poll timeout 参数；实际测试只有 refresh resume、slow in_progress->completed、cache-miss rehydrate 三个用例（creative-lifecycle.spec.ts:445-702）。对应逻辑只在单测覆盖：useTaskExecutor.test.ts:282-335 验证 TIMEOUT 后继续 processing 并 30s 后 resume，task-queue-service.ts:2508-2548 处理 recoverable remote failure retry。",
+        "id": "RLC-E2E-002",
+        "impact": "用户可见的“失败/超时后重试”没有 E2E 保护。单元测试能保护函数级逻辑，但无法捕获刷新后 IndexedDB 恢复、任务队列按钮、真实轮询恢复、Cache Storage materialization 之间的集成断裂。",
+        "recommendedFix": "在 creative-lifecycle.spec.ts 增加至少一个失败/超时恢复用例：seed 一个 status=failed、remoteId 存在、error.code=TIMEOUT 或 RESUME_FAILED 的 Creative image task，刷新后断言 useTaskStorage 将其恢复为 processing，后续 mock status/content 完成并 materialize；另加一个点击任务队列“重试”的 E2E 覆盖 fresh retryAttempt/remoteId 清理路径。",
+        "reproOrReasoning": "现有 E2E 的 slow case 是 processing 状态继续轮询，不是 failed/timeout 后 retry；cache-miss case 是已完成任务的图片加载失败恢复，也不是任务失败/超时重试。",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "E2E 未覆盖 retry after failure/timeout"
+      },
+      {
+        "confidence": 0.9,
+        "evidence": "E2E 只检查 IndexedDB task、Cache Storage、unified metadata、canvas img attachment 和 board viewport（creative-lifecycle.spec.ts:484-515, 641-701）；没有打开 TaskQueuePanel、GenerationHistory 或断言 thumbnail URL。UI 代码存在但未被 E2E 验证：TaskItem 使用 useThumbnailUrl 和 RetryImage rehydrate（../opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:490-495, 707-712），GenerationHistory 传 rehydrate metadata（generation-history.tsx:77-87）。",
+        "id": "RLC-E2E-003",
+        "impact": "task/history/thumb display 属于用户要求的 mandatory chain，但现有 E2E 不能发现任务面板缩略图、历史缩略图、RetryImage rehydrate props、thumbnail 参数或可见状态文案的集成回归。",
+        "recommendedFix": "扩展 embedded lifecycle E2E：完成恢复后打开任务队列并断言完成任务、prompt/status、缩略图 img[src] 或成功 load；打开生成历史入口并断言历史项缩略图可见。必要时等待 thumbnail fallback 或直接断言 RetryImage 使用 cache URL + rehydrate 后可显示。",
+        "reproOrReasoning": "源码有 UI 支持和若干单测，但 Playwright lifecycle spec 没有覆盖这些可见 UI 表面；mandatory chain 中的 task/history/thumb display 只能通过代码推断，不能由现有 E2E 证明。",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "E2E 未验证任务/历史/缩略图显示"
+      }
+    ]
+  },
+  {
+    "branch": "new2fly: master; new-api: feat/creative-embed (current workspace; user-stated branch model-params-provider-adapter-ui was not checked out here)",
+    "summary": "1 confirmed medium UX/config issue; no live provider calls or secret inspection performed.",
+    "goalAssessment": "The backend adapter/configuration goal is mostly met: live bindings are channel-backed, Duomi/GrsAI presets and gpt-image-2/nano-banana templates are registered and validated, dry-run is offline, catalog/policy paths include stored bindings, and live submit uses locked channel credentials/BaseURL without exposing them. The material gap is frontend/admin builder drift from backend channel model-mapping semantics; it does not break manual JSON or backend execution, but it does block a supported admin workflow.",
+    "blocked": null,
+    "findings": [
+      {
+        "confidence": 0.82,
+        "evidence": "Backend supports mapped channel models: service/creative_model_capability.go:1586 builds channel model/mapping support and service/creative_model_capability.go:1612 accepts a mapped source model resolving to providerModelId. Test evidence: service/creative_model_capability_test.go:1331, especially lines 1352-1357, verifies models=\"logical-image\" with model_mapping {\"logical-image\":\"gpt-image-2\"} passes ValidateCreativeModelBindingsConfig. Frontend builder blocks the same valid setup: web/default/src/features/system-settings/models/creative-model-bindings-section.tsx:630-640 rejects when selectedChannelModels does not directly include providerModelId.",
+        "id": "CMB-UI-001",
+        "impact": "Admins using normal NewAPI channel model mapping cannot create a valid channel-backed Creative binding through the guided builder, even though backend validate/dry-run/save accepts it via JSON. This undermines the admin UX for channel-backed model catalog sync and future provider/channel extensibility; workaround is manual JSON editing.",
+        "recommendedFix": "Make the builder mapping-aware by including sanitized channel model_mapping resolution in /api/creative/channel-summaries, or change the direct model-list check to a warning and let backend validate/dry-run decide. Keep save gated on backend validation and noProviderCall=true.",
+        "reproOrReasoning": "Create a channel whose exposed model list is logical-image and model_mapping resolves logical-image -> gpt-image-2. Backend validation accepts a binding with providerModelId gpt-image-2, but the guided builder refuses to add the draft before validation because gpt-image-2 is not literally in selectedChannelModels.",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "Guided binding builder blocks backend-supported channel model mappings"
+      }
+    ]
+  },
+  {
+    "branch": "new2fly: master@894b850 dirty; new-api: feat/creative-embed@e3b7662 dirty; opentu: feat/creative-embed@3f139164 dirty",
+    "summary": "未发现 /creative 运行时权限绕过、匿名可用模型、SPA HTML fallback 泄入 API/relay、/__aitu_cache__ 网络回退、SW 默认启用、云同步生产误开或 secrets 打印的实质缺陷。确认 1 个发布就绪问题：当前候选不可复现，需先清理/提交/重建/重跑门禁后再进入 staging/production 发布判断。",
+    "goalAssessment": "Runtime /creative integration looks release-shaped for auth/bootstrap/models, SPA fallback boundaries, cache/SW lifecycle, managed model fail-closed behavior, cloud-sync config fail-closed, and no-secrets hygiene based on current code and tests. The material blocker is release readiness/provenance: current dirty new-api/opentu/new2fly worktrees prevent claiming a reproducible production-ready candidate. No live staging/production route smoke, provider calls, Go test suite, or Playwright suite was run in this read-only session.",
+    "blocked": "Production/release-candidate readiness is blocked by REL-001 until dirty worktrees/provenance are resolved. Live staging/production smoke was not executed in this read-only session.",
+    "findings": [
+      {
+        "confidence": 0.88,
+        "evidence": ".trellis/tasks/06-21-06-21-creative-live-adapter-push-deploy-smoke/prd.md:20-22 requires preserving repository hygiene and confirming clean worktrees. .trellis/spec/frontend/creative-embedded-release-artifact.md:69-80 and 94-96 require byte-identical dist plus provenance that matches the source commit, and treat source changes after dist sync as release-readiness failure. Current /mnt/f/code/project/opentu/dist/apps/web/version.json:3-4 and /mnt/f/CODE/Project/new-api/web/creative/dist/version.json:3-4 both report gitCommit 3f13916427a6234239db437fdf8db07966b343a5, but `git -C /mnt/f/code/project/opentu status --porcelain` shows many modified/untracked source files, and `git -C /mnt/f/CODE/Project/new-api status --porcelain` shows modified backend source plus changed/deleted/untracked web/creative/dist and router/web/creative/dist assets.",
+        "id": "REL-001",
+        "impact": "The current runtime artifact identity checks pass, but this checkout cannot be treated as a reproducible release candidate. A production/staging image could package uncommitted source or generated dist state that is not represented by version.json.gitCommit or any immutable ref, making rollback, audit, and candidate parity weak.",
+        "recommendedFix": "Before any release claim or deploy, settle the worktrees: commit the intended source and dist changes or remove unrelated/untracked artifacts, rebuild OpenTU from the fixed source commit with VITE_BASE_URL=/creative/, sync both new-api dist targets, rerun `python3 scripts/creative_release_gate.py check --source-diff-check --run-new-api-tests` plus the relevant frontend smoke/tests, then record immutable git refs and image ID/digest.",
+        "reproOrReasoning": "Run `git -C /mnt/f/code/project/opentu status --porcelain`, `git -C /mnt/f/CODE/Project/new-api status --porcelain`, and inspect the three dist version.json files. The dist trees are internally identical, but the surrounding source/dist worktrees are dirty, so the published provenance only proves the committed OpenTU HEAD, not the current candidate contents.",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "Dirty source/dist worktrees block reproducible release readiness despite passing artifact identity gate"
+      }
+    ]
+  },
+  {
+    "branch": "tests-gates-user-repro-coverage",
+    "summary": "发现 3 个 material coverage gaps：admin 配置 UI 未测、模型参数 UI 真实交互未测、release gate 默认可给 runtime 覆盖假信心。",
+    "goalAssessment": "当前测试对后端 live task lifecycle 覆盖较强：慢 provider/长轮询、submit timeout 保持 pending、后台 polling eventual success、rate-limit 绕过、CAS/billing、failure reason/redaction、channel/key affinity、session-only access 均有 Go 测试。OpenTU runtime 也有较强的 no-provider E2E 与 Vitest 覆盖：refresh resume、cache rehydrate、history/thumbnail metadata、viewport preservation、recoverable timeout/retry。主要缺口在“用户实际配置/操作界面”和“发布 gate 是否强制跑完整 runtime 套件”，不是核心后端状态机。",
+    "blocked": null,
+    "findings": [
+      {
+        "confidence": 0.88,
+        "evidence": "web/default/src/features/system-settings/models/creative-model-bindings-section.tsx 是当前 channel-backed Creative Model Bindings 管理界面；当前 web/default 下只发现 web/default/src/components/ui/dropdown-menu.test.tsx，未发现该 section 或 admin flow 的单元/E2E 测试。后端有 controller/creative_model_bindings_test.go 覆盖 validate/dry-run/PUT，但不覆盖 UI 选择 channel/template、生成 binding、保存、错误展示。",
+        "id": "COV-001",
+        "impact": "channel adapter configuration 可能在后端 API 正确时仍因前端表单/状态/保存 wiring 失效；现有 gate 会给出配置链路已覆盖的假信心。",
+        "recommendedFix": "为 web/default/src/features/system-settings/models/creative-model-bindings-section.tsx 增加组件测试或浏览器 E2E：mock manifests/channels/current config，选择 Duomi/GrsAI preset、channelId、parameterTemplate，执行 validate/dry-run/save，并断言请求 payload 与错误/成功状态。",
+        "reproOrReasoning": "任务目标要求通过 admin surface 配置 live adapters；当前测试只证明 API contract，不证明 admin UI 能生成并提交正确 config。",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "Creative Model Bindings 管理 UI 配置链路缺测试"
+      },
+      {
+        "confidence": 0.82,
+        "evidence": "apps/web-e2e/src/embedded/creative-lifecycle.spec.ts:171 mock /creative/api/models 返回 parameterSchema: []；该 E2E 覆盖 refresh/resume/cache/viewport，但不打开生成 UI 断言 aspectRatio/imageSize/quality 控件或中文标签。packages/drawnix/src/components/ttd-dialog/creative-image-task-params.test.ts 只覆盖参数构造/回填逻辑。",
+        "id": "COV-002",
+        "impact": "模型参数 UI 的可见控件、标签、默认值和用户选择到 userParams 的真实交互仍可能回归；尤其是用户反馈过 square size label 与 21:9/分辨率展示问题。",
+        "recommendedFix": "给 embedded E2E 或 TTD dialog 组件测试加入非空 schema：aspectRatio/imageSize/quality，打开图片生成面板，断言控件与标签可见，选择 21:9/4K/high 后提交，断言 /creative/relay/v1/images/tasks payload.userParams 正确。",
+        "reproOrReasoning": "后端 schema/template 和纯函数参数 builder 已覆盖，但没有测试真实 UI 从 /creative/api/models schema 渲染控件并提交选择。",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "模型参数 UI 只有逻辑覆盖，缺真实渲染/提交覆盖"
+      },
+      {
+        "confidence": 0.86,
+        "evidence": "scripts/creative_release_gate.py:531 将 --run-new-api-tests 设为可选；scripts/creative_release_gate.py:534 将 --embedded-smoke-url 设为可选；run_new_api_tests 只执行 Go test/build；run_embedded_smoke 才执行 pnpm e2e:creative-embedded。implement.md 记录 v19 用完整参数跑过，但同文件仍标记 final dynamic workflow re-audit pending。",
+        "id": "COV-003",
+        "impact": "单独运行默认 release gate 会验证 artifact hygiene，却不会强制慢 provider/refresh/cache/viewport E2E，也不会强制 Drawnix Vitest runtime lifecycle tests；发布前容易把 artifact gate pass 误读成 runtime goal pass。",
+        "recommendedFix": "新增 publish-ready/full gate 模式，强制 --run-new-api-tests、--embedded-smoke-url、targeted Drawnix Vitest runtime suite、apps/web viewport test；若缺少 embedded URL 则明确 fail 或输出 non-publish-ready。",
+        "reproOrReasoning": "当前完整覆盖依赖人工传参和任务记录，而不是 gate 默认契约；这属于 release gate false-confidence 风险。",
+        "severity": "medium",
+        "status": "confirmed",
+        "title": "Release gate 默认不强制运行 runtime lifecycle 与前端单元覆盖"
+      }
+    ]
+  },
+  {
+    "branch": "backend-auth-routing-bootstrap",
+    "summary": "Current source and tests show /creative API/relay are explicitly registered, FRONTEND_BASE_URL preserves API/relay behavior, anonymous bootstrap/models fail auth, access-token auth is rejected by creative session-only handlers, unsafe requests require same-origin plus CSRF/nonce, relay uses session broker without accepting API keys, and SPA fallback excludes API/relay/assets. No material finding is supported by current evidence.",
+    "goalAssessment": "No material backend auth/routing/bootstrap/model-catalog boundary issue found from current source/tests/task docs within the requested scope.",
+    "blocked": null,
+    "findings": []
+  },
+  {
+    "branch": "backend-image-task-lifecycle-billing",
+    "summary": "findings 为空。现有源码与测试覆盖了 submit/fetch/content、channel/key/endpoint affinity、idempotency replay、CAS/outbox/refund、timeout sweep、rate limit、owner scope、failure reason sanitization 与 materialized asset serving 的主要业务风险。",
+    "goalAssessment": "已完成限定范围的只读审计；基于当前源码、测试和任务文档，未发现 material backend Creative image task lifecycle/billing 缺陷。",
+    "blocked": null,
+    "findings": []
+  },
+  {
+    "branch": "backend-bindings-adapters-provider-contracts",
+    "summary": "Backend Creative Model Bindings 与 Duomi/GrsAI provider adapter contracts 静态审计完成；未调用 live providers，未读取或输出 secrets。",
+    "goalAssessment": "未发现当前审计范围内的 material backend issue。残余限制：仓库当前有既有未提交改动，且只读沙箱阻止运行 Go 测试。",
+    "blocked": "Targeted Go tests could not run in this read-only sandbox: go test failed creating /tmp/go-build... with \"read-only file system\".",
+    "findings": []
+  }
+]

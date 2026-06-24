@@ -1,0 +1,323 @@
+{
+  "sourceJournal": ".codex-flow/journal/creative-runtime-lifecycle-postfix-recheck-2026-06-22.jsonl",
+  "branches": [
+    {
+      "nodeKey": "executor-timeout-retry-attempt-guards",
+      "verdict": "pass",
+      "summary": "未发现当前磁盘状态下可复现的源级缺陷。审计覆盖了慢 provider/本地超时后 late success、前后端 Creative 状态机、retryAttempt 防旧写、retry 释放旧执行槽、刷新后 Cache Storage miss 回源恢复、画布插入前 cache 验证和后端安全失败消息。",
+      "findings": [],
+      "coverageGaps": [
+        "只读源审计，未重新运行测试或启动应用。",
+        "按要求未调用 live providers。"
+      ],
+      "validatedPasses": [
+        "remoteId 在前端 submit 成功后、poll 前写入：fallback-adapter-routes.ts 625-639；fallback-executor.ts 312-345 先置 processing 再进入 managed route。",
+        "managed Creative poll/materialization 使用 15 分钟 IMAGE timeout，不再是 120 秒：TASK_CONSTANTS.ts 11；fallback-adapter-routes.ts 483-549。",
+        "content materialization 对 429/5xx 和 thrown fetch errors 标记 retryable 并重试到总超时：fallback-adapter-routes.ts 318-329、396-470、505-517。",
+        "backend fetch/status/content 状态链匹配前端假设：CreativeRelayImageTaskFetch 会 reconcile live task，Content 仅 success 后返回 bytes，失败原因经 safe fail reason 输出。",
+        "retryAttempt stale-write guard 覆盖 remoteId/complete/fail：task-storage-writer.ts 245-260、285-360；fallback-adapter-routes.ts 193-241、584、658-672。",
+        "retryTask 会 abort/delete 旧 executing slot，清 result/remoteId，递增 retryAttempt，并立即启动新执行：task-queue-service.ts 2369-2439。",
+        "useTaskExecutor 的 timeout/late-success 路径会 abort managed resume，并在 late resolve 后保持 failed，不覆盖终态：useTaskExecutor.ts 259-265、415-425、480-507、782-804；useTaskExecutor.test.ts 175-223。",
+        "刷新后 canvas image cache miss 可通过 task/result remoteId 或 result URL 找回任务，再用安全 contentUrl rehydrate 到原 cache URL：useGeneratedMediaCacheMissRecovery.ts 46-112、198-229；generated-media-cache.ts 69-115。"
+      ]
+    },
+    {
+      "nodeKey": "backend-contract-adapter-boundary",
+      "verdict": "fail",
+      "summary": "源码审计未发现 owner/platform scoping、公开 DTO 泄密、content 代理、Duomi/GrsAI 映射与 dry-run parity 的明显回归；但 mandatory gate (1) 的慢 provider/late success 语义仍失败。这个后端状态机缺口会向前端刷新、重试和 Cache Storage rehydrate 链路传播，因为没有 upstream id 或 pending 状态可恢复。",
+      "findings": [
+        {
+          "evidence": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go:333-359 先持久化本地 SUBMITTED 任务，随后调用 provider submit；任意 submit error 都调用 fail-close 并返回 502。/mnt/f/code/project/new-api/service/creative_image_adapter.go:440-442 将所有 http.Do 错误统一成 provider request failed，不能区分本地超时与明确未受理。/mnt/f/code/project/new-api/controller/creative_image_tasks.go:98 在 durableCreated 后保留幂等记录，:712-725 replay 会直接返回该本地任务，:551-553 已失败任务不会再 reconcile。Duomi/GrsAI submit body 也没有可用于 provider 侧去重/查询的任务幂等字段。复现状态转移：POST K -> 本地任务 T 已创建 -> provider 实际受理但响应晚于本地上下文 -> NewAPI 收到 transport error -> T 被写成 FAILURE 且无 upstream id -> 用户 retry K 只拿到旧失败 T，不会发新请求，也不能 poll late success。",
+          "id": "NAPI-CREATIVE-001",
+          "impact": "这直接覆盖已知复现类：provider finishes after local timeout; retry shows old result or fails without new request。结果可能是 provider 侧生成成功并产生费用，但 NewAPI/前端永久显示失败，刷新、重试、Cache Storage rehydrate 都没有恢复入口。",
+          "recommendation": "把 live submit transport timeout/context cancellation 建模为 ambiguous acceptance，不要写终态 FAILURE。保留 pending/retryable 状态并让 GET/reconciler 能继续恢复；同时尽量把浏览器幂等 key 或后端 task id 传给 provider 支持的幂等/metadata 字段，用于超时后按同一 key 查询或安全重试。",
+          "severity": "high",
+          "status": "verified_issue",
+          "title": "live submit 超时会被终态失败，late success 无法恢复"
+        },
+        {
+          "evidence": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go:757-772 只写 result.url/contentUrl/targetWidth/targetHeight/targetAspectRatio/targetResolution；/mnt/f/code/project/new-api/controller/creative_test.go:2084-2088 还显式断言 status DTO 不包含 mimeType。OpenTU 在 /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:461-467 从 content blob 推导 mimeType。",
+          "id": "NAPI-CREATIVE-002",
+          "impact": "当前前端链路可在 content fetch 后补齐 MIME，但这与“后端 DTO 暴露 result mimeType”的合同表述不一致。若外部消费者或任务历史只依赖状态 DTO，会拿不到 MIME。",
+          "recommendation": "明确合同：若 MIME 只应由 content 响应决定，文档和验收项应写成 status DTO 不承诺 mimeType；若必须由状态 DTO 暴露，则需要新增安全的 mimeType 来源或持久化 content fetch 后的类型。",
+          "severity": "low",
+          "status": "needs_runtime_verification",
+          "title": "status DTO 的 mimeType 合同存在歧义"
+        }
+      ],
+      "coverageGaps": [
+        "未调用 live provider，符合审计约束；因此 late-success 结论基于源码状态转移，不包含真实供应商时序验证。",
+        "未重新运行测试或浏览器 E2E；本次是只读源码与测试覆盖审计。",
+        "NewAPI 状态 DTO 当前不暴露 result.mimeType；OpenTU 源码会在拉取 content blob 后用 blob.type 补齐，但若后端合同要求状态 DTO 直接给 mimeType，需要产品/合同确认。"
+      ],
+      "validatedPasses": [
+        "owner/platform/content scoping：creativeGetOwnedImageTask 按 user_id 查询后过滤 creative_image platform 与 CreativeManaged metadata，status/content 共用该入口；相关测试覆盖 wrong owner/wrong platform/unmanaged。",
+        "公开 DTO/内容代理：状态 DTO 不暴露 provider result URL、channelId、private_data、quota；content 通过 same-origin 路径代理并设置 private no-store/nosniff，FetchCreativeImageProviderContent 有 URL 校验、内容类型白名单和大小上限。",
+        "正常 replay：同一 Idempotency-Key 且 payload 一致时，已有 task_id 会 replay 同一任务，不重复 provider submit；已覆盖 accepted 后本地失败 replay。",
+        "跨层刷新链：OpenTU submit 后保存 remoteId，processing+remoteId 任务刷新后会 resume poll；完成后拉取 content blob 写入 Cache Storage；cache miss recovery 可用 contentUrl 重新 hydrate 并刷新画布图片 URL。",
+        "Duomi/GrsAI adapter boundary：Duomi 21:9 映射到 provider pixel size，GrsAI gpt-image-2/vip 将 UI aspect+resolution 映射为像素 aspectRatio，nano-banana auto aspect 在 live 和 dry-run 均省略；配置校验限制模板/模型/参数值并要求 live channel ready。"
+      ]
+    },
+    {
+      "nodeKey": "cache-canvas-refresh-rehydrate-chain",
+      "verdict": "pass",
+      "summary": "未发现当前磁盘状态在指定分支焦点上存在可复现源码缺陷。三个强制门槛均有源码级闭环：slow-provider/late-success 有 attempt 和 remoteId guard；前后端 live image state machine 有 durable task、CAS 更新和 idempotency/billing guard；refresh/retry/Cache Storage lifecycle 从 contentUrl 回灌、重试加载、canvas 恢复和防删除链路完整。",
+      "findings": [
+        {
+          "evidence": "RetryImage.tryFallbackToBlobUrl reads Cache Storage, then calls rehydrateGeneratedImageCacheUrl when rehydrateSourceUrl is present and the URL is generated-cache backed; handleError recomputes canRehydrateGeneratedContent on every image error before scheduling the next retry. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/components/retry-image.tsx:195 and :260. Test coverage explicitly exercises repeated 503 then success. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/components/retry-image.test.tsx.",
+          "id": "GM-001",
+          "impact": "Generated thumbnails/task thumbnails can recover after backend content materializes after earlier image load failures; this addresses the 'retry shows old result or fails without new request' cache-miss class at the image component layer.",
+          "recommendation": "No change required for this gate.",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "RetryImage rehydrates generated content across load retries"
+        },
+        {
+          "evidence": "useGeneratedMediaCacheMissRecovery first checks memory, then direct task id, then findImageTaskIdByResultUrl(includeArchived:true), then stored image tasks includeArchived. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:78. The URL lookup uses a createdAt cursor over image tasks with includeArchived default true and limit MAX_RETAINED_TASKS*10, not the default active 200 page. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/services/task-storage-reader.ts:856.",
+          "id": "GM-002",
+          "impact": "Canvas cache-miss recovery can find archived generated image tasks by result URL instead of depending on the truncated active task list.",
+          "recommendation": "No change required for the default-200 truncation gate; consider documenting the 1000 image-task cap if very large local histories become a product requirement.",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "Archived generated image task lookup avoids default active-list truncation"
+        },
+        {
+          "evidence": "useAutoInsertToCanvas calls verifyGeneratedImagesBeforeCanvasInsert before image insertion; failures call failPostProcessing and continue without quickInsert/completePostProcessing. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:315 and :773. ensureGeneratedImageCacheForTask rehydrates via contentUrl, rejects empty blobs, and decodes dimensions. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/utils/generated-media-cache.ts:69 and :117.",
+          "id": "GM-003",
+          "impact": "Canvas post-processing is not marked complete until generated media cache and decode are verified, reducing empty image after refresh/insert risk.",
+          "recommendation": "No change required for this gate.",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "Canvas completion is gated on generated cache/decode verification"
+        },
+        {
+          "evidence": "TaskQueueService retryTask aborts any prior execution, clears result/remoteId/insertedToCanvas, increments retryAttempt, and starts a fresh attempt. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2369. Old writeback is guarded by retryAttempt+startedAt snapshots before progress/final writes. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:545 and :1294. Storage writes also skip terminal tasks and mismatched retryAttempt. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/task-storage-writer.ts:245.",
+          "id": "SM-001",
+          "impact": "A provider result arriving after local timeout or after a manual retry should not overwrite the newer retry or resurrect an old result in the local task state.",
+          "recommendation": "No change required for this gate.",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "Late success and retry writeback are attempt-guarded"
+        },
+        {
+          "evidence": "Creative managed image resume uses remoteId polling with AbortController and checks the task is still processing the same remoteId before completion; timeouts abort managed resume and mark TIMEOUT. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:370 and :782. Backend fetch reconciles non-terminal live tasks via provider affinity and CAS-like status update/billing outbox, then reloads on lost terminal race. Evidence: /mnt/f/code/project/new-api/controller/creative_image_tasks.go:551 and :614.",
+          "id": "SM-002",
+          "impact": "Refresh/retry/late-provider state transitions have both frontend and backend guards against stale terminal overwrites and duplicate billing settlement/refund.",
+          "recommendation": "No change required for this gate.",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "Cross-layer live image state machine is guarded"
+        },
+        {
+          "evidence": "asset-cleanup checks Cache Storage after finite virtual URL retries; for generated cache URLs it dispatches GENERATED_MEDIA_CACHE_MISS_EVENT and returns instead of removing the element. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/utils/asset-cleanup.ts:47 and :186. DrawnixDeferredRuntime installs useGeneratedMediaCacheMissRecovery when task storage is ready. Evidence: /mnt/f/code/project/opentu/packages/drawnix/src/components/startup/DrawnixDeferredRuntime.tsx:540.",
+          "id": "GM-004",
+          "impact": "Generated canvas images are not silently deleted on Cache Storage miss; refresh miss can rehydrate from contentUrl and retrigger image load with _retry.",
+          "recommendation": "No change required for this gate.",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "Generated media cache misses rehydrate instead of deleting canvas elements"
+        }
+      ],
+      "coverageGaps": [
+        "按用户要求未调用 live providers。",
+        "本轮为只读源码审计，未重新运行 Vitest/Go/browser E2E；主会话已报告相关 focused regressions 通过。",
+        "task-storage-reader 的 result URL 反查已绕开默认 200 条活跃任务页，但仍有显式上限 STORAGE_LIMITS.MAX_RETAINED_TASKS * 10，即 1000 个 image tasks；未发现这违反本次“非默认 200 截断”门槛。"
+      ],
+      "validatedPasses": [
+        "OpenTU 工作树当前为 dirty，包含目标分支的大量修改和新增测试；本轮按当前磁盘状态审计，未修改文件。",
+        "RetryImage generated rehydrate props are forwarded by LazyImage and task/media preview call sites reviewed.",
+        "useGeneratedMediaCacheMissRecovery can rehydrate from task.result.contentUrl and updates canvas node URL with _retry to force reload.",
+        "AutoInsert generated image path fails post-processing instead of completing when cache/decode verification fails.",
+        "Backend Creative image DTO exposes broker content URL and public metadata, while provider result URLs/credentials remain in private task data.",
+        "Backend Creative image fetch/content paths are owner-scoped/browser-session scoped and tests assert no provider URL/key/signature leakage in DTO bodies."
+      ]
+    },
+    {
+      "nodeKey": "media-dock-history-selected-preview",
+      "verdict": "fail",
+      "summary": "只读审计发现 3 个高风险问题和 1 个中风险元数据遗漏。显示层主路径已有 rehydrate 能力，但提交、超时恢复和手动 reinsert 仍有跨层状态机断点。",
+      "findings": [
+        {
+          "evidence": "`pollCreativeManagedImageTask` 只在 `Date.now() - startedAt <= TASK_TIMEOUT.IMAGE` 内轮询，超时抛出 `creative image task timed out`；`useTaskExecutor` 的 timeout checker 对所有 processing task 调用 `generationAPIService.cancelRequest`、`abortTaskExecution`、`abortManagedResumeTask` 并写 `FAILED`；`isTaskTimeout` 只是基于 `startedAt` 的硬超时，没有 remoteId/resumable 例外。现有 `useTaskExecutor.test.ts` 还把“managed resume 超时后 abort，late success 不得覆盖 FAILED”固化为期望。复现状态：Creative image 已提交并持久化 remoteId，provider 超过 15 分钟后成功，本地任务先被写成 FAILED，刷新后不再自动 resume 该 remote task。",
+          "id": "F2",
+          "impact": "provider 晚成功不可恢复，用户会看到终态失败；后续重试也会从 fresh submission 走起，容易触发“provider finishes after local timeout; retry shows old result or fails without new request”的 repro class。",
+          "recommendation": "将带 remoteId 的 Creative managed image 本地超时改为可恢复状态或 remote_processing/needs_resume 语义；timeout checker 不应把 resumable remote task 写成终态 FAILED。retry UI 需要显式区分“继续轮询 existing remoteId”和“新建请求”。",
+          "severity": "high",
+          "status": "verified_issue",
+          "title": "本地超时把有 remoteId 的 Creative 图片任务写成终态失败"
+        },
+        {
+          "evidence": "AIInputBar prefill/media-library selection 会保留 `contentUrl/remoteTaskId/providerTaskId/mimeType`，但提交时 `selection.images` 只由 URL 字符串构成，随后 `referenceImages = [...selection.images, ...selection.graphics]`。下游 `async-image-api-service.normalizeImageFormValue` 只能对 `/__aitu_cache__/...` 调 `unifiedCacheService.getImageForAI(value)`，`gpt-image-adapter.imageInputToBlob` 则直接 `fetch(normalized)`；两者都拿不到已丢失的 contentUrl。复现：刷新后 Cache Storage miss，从媒体库选择已生成图作为参考图，预览可通过 RetryImage rehydrate，但提交图生图/编辑任务只带裸 `/__aitu_cache__/...`。",
+          "id": "F1",
+          "impact": "刷新后使用生成图作为参考图可能失败，或者把 provider 无法解析的本地虚拟 URL 传入请求链路；UI 显示恢复和实际提交恢复不一致。",
+          "recommendation": "把 AIInputBar 的 selection/referenceImages 扩展为携带 rehydrate metadata 的结构，或在构建 workflow 前用 contentUrl 将 generated cache URL 转为可提交的 data URL/blob。增加 refresh + cache miss + media-library generated image + image edit submit 回归测试。",
+          "severity": "high",
+          "status": "verified_issue",
+          "title": "AIInputBar 提交流程丢弃 generated image rehydrate 元数据"
+        },
+        {
+          "evidence": "`insertDialogTaskResultToBoard` 只从 `task.result.url/urls` 取字符串并调用 `insertImageFromUrl(board, url)`；`insertImageFromUrl` 通过 `loadHTMLImageElementWithRetry` 加载该 URL，但没有 task/result/contentUrl 参数，也没有调用 `ensureGeneratedImageCacheForTask`。复现：完成的 generated image task 有 `result.contentUrl`，刷新后本地 Cache Storage 缺失，在 DialogTaskList/任务历史手动插入该结果，路径只加载裸 `/__aitu_cache__/...`。",
+          "id": "F3",
+          "impact": "任务历史/对话任务列表手动重新插入生成图时，刷新后 cache miss 无法用 contentUrl 恢复，可能插入失败或画布出现空图。",
+          "recommendation": "在手动 insert/reinsert 前对 image task 调用 `ensureGeneratedImageUrlsReadyForCanvas(task, urls)`，或让 `insertImageFromUrl` 接收 rehydrate metadata。增加 completed generated task + contentUrl + cache miss + manual reinsert 测试。",
+          "severity": "high",
+          "status": "verified_issue",
+          "title": "任务历史手动 reinsert 路径未使用 contentUrl 恢复 cache"
+        },
+        {
+          "evidence": "`PromptHistoryTaskSummary.result` 类型包含 `providerTaskId`，但 `convertSWTaskToPromptHistorySummary` 只复制 `url/contentUrl/mimeType/remoteTaskId` 等字段，未复制 `swTask.result.providerTaskId`；随后 `buildPromptHistoryResultPreview` 用 `result.providerTaskId || result.remoteTaskId`，PromptHistoryTool 再把该值写入 rehydrate metadata。复现：任务结果中 `remoteTaskId !== providerTaskId`，打开 PromptHistoryTool，preview metadata 中 providerTaskId 被替换为 remoteTaskId。",
+          "id": "F4",
+          "impact": "Prompt history 仍可通过 contentUrl 显示/恢复图片，但 providerTaskId 元数据契约未完整流入 task history，影响诊断、cache metadata 和后续基于 provider id 的行为。",
+          "recommendation": "在 `convertSWTaskToPromptHistorySummary` 中复制 `providerTaskId: swTask.result.providerTaskId`，并补充 remoteTaskId 与 providerTaskId 不同的回归测试。",
+          "severity": "medium",
+          "status": "verified_issue",
+          "title": "Prompt history projection 丢失 providerTaskId"
+        }
+      ],
+      "coverageGaps": [
+        "未运行测试或浏览器场景；本轮按只读审计当前磁盘源码，不调用 live providers。",
+        "未验证真实 Cache Storage/SW runtime，只做源代码级 refresh/cache-miss 状态机审计。",
+        "未依赖主会话既有通过报告作为事实，只用当前工作树源码核对。"
+      ],
+      "validatedPasses": [
+        "LazyImage 委托 RetryImage；RetryImage 在 generated image cache miss 且提供 contentUrl 时会 fetch same-origin contentUrl 并写回 unified cache。",
+        "AssetItem、TaskItem、TaskQueuePanel/DialogTaskList 的预览显示路径已把 contentUrl/remoteTaskId/providerTaskId/mimeType 传给 RetryImage 或媒体预览项。",
+        "SelectedContentPreview 缩略图和 hover preview 在 item 带 contentUrl 时走 RetryImage rehydrate。",
+        "media-library-projection 会把 completed task result 的 contentUrl、remoteTaskId、providerTaskId、mimeType 投影到 Asset 和 UnifiedMediaItem。",
+        "AssetContext 从任务 IndexedDB 和 Cache Storage metadata 合并 contentUrl/remoteTaskId/providerTaskId/mimeType。",
+        "new-api Creative image task DTO 在 success 状态返回 same-origin `result.url/contentUrl`，content endpoint 设置 private/no-store 且不暴露 provider result URL。"
+      ]
+    },
+    {
+      "nodeKey": "cross-layer-user-repro-adversarial",
+      "verdict": "pass",
+      "summary": "未发现当前磁盘状态下能复现用户列出的核心 bug 的源码级缺陷。关键链路已经从前端 generate/retry/resume、Cache Storage 重水合、媒体库/画布恢复，到后端 idempotency/durable task/provider poll/content proxy 串起来；主要剩余风险是端到端测试覆盖不足，以及 TIMEOUT 终态刷新后不自动恢复这一产品语义需要测试锁定。",
+      "findings": [
+        {
+          "evidence": "OpenTU `executeCreativeManagedImageTask` POSTs `/creative/relay/v1/images/tasks` with `Idempotency-Key`, stores `submitted.task_id` as `remoteId`, polls that public task id, then downloads same-origin `/content` into `/__aitu_cache__/image/{remoteTaskId}.{format}`. NewAPI `creativeRelayImageTaskSubmitLive` creates a durable local task before provider submit, stores provider affinity privately, marks provider accepted when upstream id exists, and `CreativeRelayImageTaskFetch` reconciles provider state before DTO. NewAPI DTO exposes same-origin `contentUrl`, not provider result URL.",
+          "id": "SM-001",
+          "impact": "UI generate click -> local task -> backend idempotency/public task id -> provider accepted/private upstream id -> poll -> same-origin content -> Cache Storage -> task result 的身份链路一致。",
+          "recommendation": "保持 public task id 作为前端 `remoteTaskId`，不要把 provider upstream id 暴露给前端缓存/历史链路。",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "跨层状态机身份链路当前一致"
+        },
+        {
+          "evidence": "前端 timeout checker 会 abort request/resume 并把 task 标为 FAILED/TIMEOUT；late completion 写回前通过 `isTaskStillProcessingRemote`、`isTaskStillProcessingAttempt`、`retryAttempt` 和 `startedAt` 检查。`task-storage-writer` 也拒绝 terminal task 或 retryAttempt 不匹配的 guarded write。后端 poll reconcile 对 terminal success/failure 用 CAS 更新，CAS loser 会 reload fresh task。",
+          "id": "SM-002",
+          "impact": "provider 在本地超时后才成功时，旧尝试不会覆盖 failed 或新 retry 的状态；后端也不会让 late failure 覆盖已成功状态。",
+          "recommendation": "补一个刷新后 FAILED/TIMEOUT 不自动恢复的显式语义测试，避免未来把 late success 自动恢复与 fresh retry 混淆。",
+          "severity": "low",
+          "status": "fixed_or_covered",
+          "title": "slow provider / late success 防旧写回语义成立"
+        },
+        {
+          "evidence": "`TaskQueueService.retryTask` 仅允许 failed/cancelled 或显式 completed retry；会 abort 旧 execution，清空 `error/result/remoteId/completedAt`，设置 `retryAttempt + 1`、新 `startedAt`、`executionPhase=SUBMITTING`，随后执行。image 执行传入 `opentu-image-{task.id}-retry-{n}` attempt-scoped idempotency key。",
+          "id": "SM-003",
+          "impact": "“retry 显示旧结果或不发新请求”在当前源码中已被修复：retry 会 fresh submit，不复用旧 remoteId/result，也不会让旧 executor slot 阻止新尝试。",
+          "recommendation": "保留现有 retryAttempt + startedAt 双 guard；不要退回只按 task id 做幂等。",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "retry fresh request 语义成立"
+        },
+        {
+          "evidence": "NewAPI `creativeImageTaskSafeFailReason` 对 URL、credential marker、cookie、CSRF、nonce、signed URL 等敏感失败原因返回泛化错误；非敏感 provider fail reason 会进入 DTO `fail_reason` 和 `error.message`。前端 `getCreativeImageTaskFailureMessage` 优先使用 DTO error/fail reason，否则才 fallback。",
+          "id": "SM-004",
+          "impact": "“泛化失败文案”对非敏感 provider 错误已改善；对敏感、空、不可公开错误仍会泛化，这是安全策略，不是当前 bug。",
+          "recommendation": "若产品需要更具体文案，应在后端定义安全错误码/类别，而不是透传原始 provider body。",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "失败文案兼顾可读性与脱敏"
+        },
+        {
+          "evidence": "result/task/asset 链路保留 `contentUrl`、`remoteTaskId`、`providerTaskId`；`assetTaskRecordToAssets` 和 `assetToUnifiedMediaItem` 生成 rehydrate props；`AssetItem`、`SelectedContentPreview`、`ThumbnailQueue`、`MediaViewport` 都把 rehydrateCacheUrl/sourceUrl/metadata 传给图片组件。",
+          "id": "SM-005",
+          "impact": "刷新后 task history / dock selected thumbnail 断链问题在源码上已修复：缩略图和预览不只依赖本地 Cache Storage 命中。",
+          "recommendation": "用一个 UI 集成测试覆盖 selected asset 刷新后仍能通过 contentUrl 重水合。",
+          "severity": "low",
+          "status": "fixed_or_covered",
+          "title": "历史/媒体 dock 缩略图恢复链路成立"
+        },
+        {
+          "evidence": "`ensureGeneratedImageCacheForTask` 在 Cache Storage miss 时只接受同源 `/creative/relay/v1/images/tasks/.../content` 重水合；`asset-cleanup` 对 generated cache URL miss 派发 `creative:generated-media-cache-miss` 而不是删画布元素；`useGeneratedMediaCacheMissRecovery` 可按 local task id、remoteId、result remote/provider id 或 result URL 查任务并 rehydrate 后给 canvas URL 加 `_retry`。",
+          "id": "SM-006",
+          "impact": "“canvas image empty after refresh”有完整恢复链路；自动插入前也会验证 generated cache URL 可用，失败则停在 post-processing failure 而不是插入空图。",
+          "recommendation": "补端到端刷新恢复测试，因为当前主要是函数/组件单元覆盖。",
+          "severity": "low",
+          "status": "fixed_or_covered",
+          "title": "画布空图恢复链路成立"
+        },
+        {
+          "evidence": "前端 `resolveCreativeImageDisplaySize` 把 `21:9`、`1024x1024` 规范为画布比例；后端 `ResolveCreativeImageTargetMetadata` 写 `targetWidth/targetHeight/targetAspectRatio`，Duomi live 将 `21:9` 映射为 provider 可接受像素尺寸，GrsAI GPT image 表也包含 21:9 多分辨率映射。",
+          "id": "SM-007",
+          "impact": "“生成占位比例错”当前已修复：前端显示 fallback 与后端目标尺寸元数据一致，且不会把裸 `21:9` 发给不接受该枚举的 provider。",
+          "recommendation": "继续把 schema-backed userParams 作为请求源，legacy size 只用于显示 fallback。",
+          "severity": "info",
+          "status": "fixed_or_covered",
+          "title": "占位比例和 provider 尺寸映射一致"
+        },
+        {
+          "evidence": "`viewport-persistence.shouldFlushBoardBeforeLeave` 将 viewport-only dirty 变化纳入 visibility/pagehide/beforeunload flush；`app.tsx` 在 closeSnapshot 新于 currentBoard 时恢复 children/viewport/theme；`MediaViewport` 用 `hasManualViewChangeRef` 阻止 resize/auto-fit 覆盖用户手动 pan/zoom。",
+          "id": "SM-008",
+          "impact": "“viewport unexpectedly resets”在源码上已修复：刷新离开前保存最新 viewport，媒体预览内部 auto-fit 也不会覆盖手动视图。",
+          "recommendation": "已有 focused test 覆盖 leave flush；可补一个 app init closeSnapshot 恢复 viewport 的集成测试。",
+          "severity": "low",
+          "status": "fixed_or_covered",
+          "title": "viewport 刷新和手动缩放保护成立"
+        }
+      ],
+      "coverageGaps": [
+        "没有执行新的测试或 live smoke：本轮按要求只做当前磁盘源码审计，未调用 live provider。",
+        "缺一个完整前端 E2E/集成测试覆盖：刷新后 Cache Storage 丢 blob -> taskStorageReader 查归档任务 -> contentUrl 重水合 -> canvas node 更新。当前有单元链路证据，但不是端到端。",
+        "缺一个显式测试锁定“FAILED/TIMEOUT + remoteId 刷新后不自动恢复，只能 retry 发新请求”的产品语义。当前 late-success 防覆盖和 retry fresh-submit 分别有测试。"
+      ],
+      "validatedPasses": [
+        "源码审计未调用 live provider。",
+        "源码审计未修改文件。",
+        "核对了 OpenTU retryAttempt scoped idempotency、terminal/attempt guarded write、managed resume timeout 防 late overwrite。",
+        "核对了 NewAPI durable task first、provider accepted guard、poll reconcile CAS、same-origin content proxy 和敏感失败原因脱敏。",
+        "核对了 refresh/retry/Cache Storage lifecycle：contentUrl -> local cache -> task storage -> media dock/canvas -> cache miss rehydrate。"
+      ]
+    },
+    {
+      "nodeKey": "aspect-dimensions-placeholder-display",
+      "verdict": "concerns",
+      "summary": "当前磁盘状态整体已经把 placeholder/target/actual 三层拆开：显示尺寸工具 actual 优先，processing 占位按 requested/target 比例，NewAPI 只暴露 target metadata，OpenTU 下载 content 后 decode actual 并写入本地结果。但仍有两个源级尺寸回归点：TaskItem 没把已 decode 的 imageDimensions 用于预览盒，以及 auto-insert group 把混合比例图片统一成第一张尺寸。",
+      "findings": [
+        {
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:449-465 onload 会把 img.naturalWidth/naturalHeight 写入 imageDimensions；同文件 863-871 的详情文本使用 imageDimensions。但预览盒 style 在 406-440 只传 task.result.width/height、task.params.width/height、targetWidth/targetHeight、requested size/userParams 给 fitCreativeImagePreviewBox，依赖数组也没有 imageDimensions。",
+          "id": "OT-DIM-001",
+          "impact": "当 completed 图片 result 没有 width/height，但浏览器已 decode 出实际尺寸时，任务列表最终预览仍按 target/requested 比例定盒子。复现状态：任务 result 只有 url/contentUrl/targetWidth/targetHeight 或 params.userParams=1:1，实际图片 onload 为 3840x1648；详情会显示 3840x1648，但 preview wrapper 仍按 1:1/target 比例，宽图会在方盒中变成小横条。",
+          "recommendation": "让 previewBoxStyle 优先使用 imageDimensions?.width/height，再回退 result actual、target、requested；补 TaskItem 回归测试覆盖 actual onload 覆盖 target/requested。",
+          "severity": "medium",
+          "status": "verified_issue",
+          "title": "TaskItem 已 decode 的 actual dimensions 未用于最终预览盒比例"
+        },
+        {
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/utils/image-generation-anchor-task.ts:49-89 在无 workflow/batch 独立 anchor 时按 prompt 分组；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:1183-1193 对分组只取 firstInsertTask 或第一张 verifiedDimensions；同文件 1329-1333 把单个 dimensions 传给 insertImageGroup；/mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/canvas-insertion.ts:530-542 将同一个 dimensions 写给所有 imageUrls。",
+          "id": "OT-DIM-002",
+          "impact": "同 prompt、不同实际比例的图片若在默认 5s group window 内完成，会被作为一组插入，并全部使用第一张图片的比例。复现状态：两个 autoInsertToCanvas IMAGE 任务 prompt 相同、无 workflowId/batchId/batchIndex，A 实际 21:9，B 实际 9:16；flush 后 B 也按 A 的 21:9 尺寸插入画布，违反 final canvas 使用各自 actual decoded dimensions 的要求。",
+          "recommendation": "分组插入应保留 per-url/per-task dimensions，可扩展 insertImageGroup 接收 item 数组，或直接走 executeCanvasInsertion items，每个 item 带自己的 verified actual dimensions；补 21:9 + 9:16 group 回归测试。",
+          "severity": "medium",
+          "status": "verified_issue",
+          "title": "同 prompt 分组画布插入会把所有图片尺寸扁平化为第一张"
+        }
+      ],
+      "coverageGaps": [
+        "未看到 TaskItem 级别测试覆盖“图片 onload 得到 actual dimensions 后，预览盒从 target/requested 比例切到 actual 比例”。",
+        "useAutoInsertToCanvas 的 group rehydrate 测试只覆盖两张同为 1:1 的图片，未覆盖同 prompt 分组中 21:9 + 9:16/1:1 混合实际尺寸。",
+        "本次按只读审计未重跑测试，也未调用任何 live provider。"
+      ],
+      "validatedPasses": [
+        "creative-image-display-size.ts 明确按 actual width/height > targetWidth/targetHeight > requested size/userParams 的优先级解析比例，并有 21:9、9:16、actual 优先测试。",
+        "TaskProgressOverlay 只填充父 preview box，没有固定 4:3；processing/failed/completed 共享 TaskItem 计算出的 previewBoxStyle。",
+        "AIInputBar 对 schema aspectRatio 生成 requestedSize，多图 count>1 创建独立 batch anchors，当前 Creative 多图不会落回 stack 默认 320x180。",
+        "fallback-adapter-routes 在完成时下载 /content、写本地 Cache，并用 decoded blob width/height 作为 actual；targetWidth/targetHeight 只作为 target metadata 透传。",
+        "generated-media-cache 的 cache miss rehydrate 只接受同源 Creative content 路径，rehydrate 后重新 decode dimensions。",
+        "task-storage-writer/reader 保留 width/height、contentUrl、mimeType、targetWidth/targetHeight，且 retryAttempt guard 防止旧执行流晚到覆盖新重试。",
+        "useTaskExecutor 对 managed Creative refresh resume 使用 remoteId 校验；timeout 后 abort，late success 不覆盖 failed 状态，相关测试存在。",
+        "NewAPI live task 状态机 submit -> durable task -> provider accept -> fetch reconcile -> success/failure CAS -> content proxy 成立；DTO 不泄露 provider ResultURL，content 路由 private no-store。"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+[
+  {
+    "key": "v34-ui-history-dock-narrow",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "OpenTU feat/creative-embed",
+      "mustFix": [
+        {
+          "evidence": "视频 rehydrate 元数据已经进入 UI 数据模型：packages/drawnix/src/components/task-queue/TaskQueuePanel.tsx:971、packages/drawnix/src/components/task-queue/DialogTaskList.tsx:459、packages/drawnix/src/components/media-library/media-library-projection.ts:201。但展示层没有消费它：packages/drawnix/src/components/shared/media-preview/MediaViewport.tsx:745 只渲染 <video src={mediaUrl}>；ThumbnailQueue.tsx:187、TaskItem.tsx:772、AssetItem.tsx:223、MediaLibraryInspector.tsx:311 都只传 src/poster 给 VideoPosterPreview；VideoPosterPreview.tsx:78 的 props 不含 rehydrate 字段，失败后只在 placeholder/video 间切换。SelectedContentPreview.tsx:209 的视频 hover 也直接用原生 <video src={hoveredContent.url}>。SW 在 apps/web/src/sw/index.ts:5045 只广播 cache miss warning，不会用这些 item metadata 重建视频缓存；现有测试只覆盖 media-library projection 和 canvas video cache miss recovery，未覆盖 MediaViewport/VideoPosterPreview 视频 rehydrate。",
+          "fixDirection": "给视频展示层补齐与图片 RetryImage 等价的恢复路径：VideoPosterPreview/MediaViewport/SelectedContentPreview 接收并使用 rehydrateCacheUrl、rehydrateSourceUrl、rehydrateMetadata，在视频/海报 cache miss 时调用 rehydrateGeneratedVideoCacheUrl 后带 _retry 重新加载；从 TaskItem、ThumbnailQueue、AssetItem、MediaLibraryInspector、history item 显式透传这些字段，并补 UI 单测覆盖本地 /__aitu_cache__/video 丢失但 contentUrl 存在的场景。",
+          "id": "opentu-ui-video-rehydrate-gap",
+          "impact": "已完成的生成视频在刷新、Cache API 被清理或缩略图缺失后，会在任务队列/历史/媒体库/Unified 预览/selected hover 中显示空白占位、坏缩略图或不可播放视频；用户可见内容实际上有 broker contentUrl 可恢复，但当前 UI 链路不会触发恢复。",
+          "severity": "HIGH",
+          "title": "生成视频的预览/缩略图链路丢失 rehydrate，cache miss 后仍会空白或坏图",
+          "verification": "只读核查当前磁盘代码；未调用 live provider，未读取 secrets。rg 未发现 VideoPosterPreview/MediaViewport 对 rehydrateGeneratedVideoCacheUrl 的测试或实现覆盖。"
+        }
+      ],
+      "openQuestions": [],
+      "status": "complete",
+      "summary": "仅发现 1 个剩余 mustFix：生成视频展示链路没有消费当前代码已投影出的 rehydrate metadata。其余用户点名的图片 blank/broken thumbnail、失败原因显示、retry 语义、viewport refresh persistence 在当前代码/测试中已有覆盖，未作为 mustFix 报告。",
+      "testedScenarios": [
+        "只读审计 OpenTU 当前磁盘代码；未改文件。",
+        "检查 task queue/history/dock-selected preview/media library/UnifiedMediaViewer/SW cache miss 相关文件。",
+        "未运行测试套件；本次结论基于当前代码路径与现有测试文件覆盖面检查。"
+      ]
+    }
+  },
+  {
+    "key": "v34-catalog-schema-narrow",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "read-only-current-code-audit",
+      "mustFix": [
+        {
+          "evidence": "`/mnt/f/code/project/new-api/controller/creative_image_tasks.go:147` `CreativeRejectManagedImageBindingSyncRoute` 只用 `service.GetCreativeModelBindingByID(modelName)`，并在 `ok && binding.Modality == \"image\"` 时拒绝 sync `/images/generations`；`/mnt/f/code/project/new-api/service/creative_model_capability.go:998` 的 `GetCreativeModelBindingByID` 返回任意 stored binding，不过滤 `Enabled`、canary group、channel readiness。与此同时，`validateCreativeModelBindingsConfig` 只在 `binding.Enabled` 时禁止 binding id 与 enabled channel model 冲突（`service/creative_model_capability.go:1765`），所以一个 disabled draft binding 可以误拦截同名普通 channel model 的 sync 图片请求。反向缺口也存在：`creativeModelsForUser` 会追加内置 preview binding（`controller/creative.go:1425`），`mockCreativeImagePreviewBinding()` 暴露 id `mock:gpt-image-2:preview`（`service/creative_model_capability.go:2554`），但该内置 binding 不在 `GetCreativeModelBindingByID` 的 stored lookup 中，因此 sync route 不会按 managed binding 拒绝它。",
+          "fixDirection": "把 sync route gate 改成 catalog/executable-aware helper：仅拒绝当前用户组可执行的 managed image binding，并覆盖内置 preview binding；不要用 raw stored binding lookup 直接判定。补两个路由测试：disabled stored binding id == 普通 channel model 时 sync route 不应被 managed gate 拒绝；内置 preview model id 走 sync `/images/generations` 时应稳定返回“must use /images/tasks”。",
+          "id": "NA-CREATIVE-SYNC-GATE-001",
+          "impact": "managed model id gate 与 catalog/resolver 语义不一致：可能误封普通图片模型，也可能让内置 managed preview id 绕过专用 task-route 拒绝边界，进入普通 relay/distribute 路径并跳过 schema-backed userParams 校验入口。",
+          "severity": "MEDIUM",
+          "title": "new-api sync image route 的 managed binding gate 同时过宽和漏判内置 preview binding",
+          "verification": "仅静态审计当前磁盘代码；未运行测试、未调用 provider。"
+        }
+      ],
+      "openQuestions": [],
+      "status": "complete",
+      "summary": "当前窄范围审计发现 1 个剩余缺陷，集中在 new-api `/creative/relay/v1/images/generations` 的 managed image binding gate。OpenTU 的 catalog consumption、schema-backed userParams 构造/净化、managed task route 提交，以及 Trellis 当前脚本/规格中未发现需要报告的当前代码缺陷。",
+      "testedScenarios": [
+        "静态读取 OpenTU: creative-session-broker、creative-embedded-model-guard、model-config、AI/workflow/MCP image serialization、fallback executor/adapter gates。",
+        "静态读取 new-api: creative model binding schema/raw-key validation、catalog exposure、resolver、sync/task route gates、provider adapter model/body mapping。",
+        "静态读取 Trellis/new2fly: scripts、ops、.trellis/spec 中与该窄范围相关内容；未使用历史报告作为证据。"
+      ]
+    }
+  },
+  {
+    "key": "v34-image-video-canvas-narrow",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "current on-disk audit",
+      "mustFix": [
+        {
+          "evidence": "OpenTU: `packages/drawnix/src/hooks/useAutoInsertToCanvas.ts` 的自动插入只构造 image/audio metadata，video 分支为 `undefined`（816-823）；frame 插入仍传 `{ metadata: imageMetadata }`（931-942）；普通 quickInsert 传入的 `metadata` 对 video 仍是 undefined（1112-1118）；多视频分组直接 `quickInsert('video', url, ..., dimensions)`（1510-1516）。更底层的 `packages/drawnix/src/services/canvas-operations/canvas-insertion.ts` 虽有 `InsertionItem.metadata`（52-65），但 video 分支调用 `insertVideoToCanvas(..., item.dimensions)` 时丢掉 metadata（390-397, 487-494），且 `insertVideoToCanvas` 签名本身无 metadata（168-184）。`packages/drawnix/src/components/task-queue/dialog-task-insert.ts` video 手动插入也只 `insertVideo(board, url)`（112-121）。相反，`packages/drawnix/src/data/video.ts` 和 `packages/drawnix/src/utils/frame-insertion-utils.ts` 已支持把 `getGeneratedVideoCanvasMetadata(...)` 写入节点（305-312, 750-763）。",
+          "fixDirection": "给 video 补齐与 image 对等的 task-to-canvas metadata 构造，使用 `resolveGeneratedVideoContentUrl` + `getGeneratedVideoCanvasMetadata`；让 `useAutoInsertToCanvas`、`dialog-task-insert`、`executeCanvasInsertion/quickInsert/insertAIFlow` 的 video 路径都把 metadata 传到 `insertVideoFromUrl`。补自动插入、dialog 手动插入、generic quickInsert 的视频 metadata 持久化测试。",
+          "id": "MF-005-VIDEO-CANVAS-METADATA-LOSS",
+          "impact": "生成视频被插入画布后，如果 `/__aitu_cache__/video/...` 被清掉且任务记录不可用，`useGeneratedMediaCacheMissRecovery` 只能从事件、任务结果或画布节点 metadata 推 contentUrl；缺 metadata 时会在 `contentUrl` 解析失败处返回 false（`useGeneratedMediaCacheMissRecovery.ts` 415-428），画布视频无法 rehydrate。",
+          "severity": "HIGH",
+          "title": "视频画布插入路径仍丢失 durable rehydrate metadata",
+          "verification": "静态核对当前磁盘代码；未调用 provider，未读取 secrets，未执行写入。"
+        },
+        {
+          "evidence": "OpenTU: `packages/drawnix/src/components/media-library/media-library-projection.ts` 已为 VIDEO 生成 `rehydrateCacheUrl/rehydrateSourceUrl/rehydrateMetadata`（201-248），测试也断言视频预览应携带这些字段（`packages/drawnix/src/services/__tests__/media-library-projection.test.ts` 170-183）。但 `packages/drawnix/src/components/shared/media-preview/MediaViewport.tsx` 的 video 分支只是 `<video src={mediaUrl}>`，没有 onError rehydrate（745-771），而 image 分支用 `RetryImage` 并传 rehydrate props（830-846）。`packages/drawnix/src/components/media-library/AssetItem.tsx` 只给 IMAGE 构造 rehydrate props（151-173），VIDEO 直接走 `VideoPosterPreview`（223-233）。`MediaLibraryInspector.tsx` image 有 RetryImage rehydrate（272-306），video 也只是 `VideoPosterPreview`（311-323）。`VideoPosterPreview.tsx` props 没有 rehydrate 字段（78-92），最终 `<video src={src}>` 直接播放（327-336）。",
+          "fixDirection": "增加 video 版 rehydrate 播放/预览组件，或扩展 `VideoPosterPreview`/`MediaViewport` 接收 rehydrate props：当 generated video cache URL 加载失败时调用 `rehydrateGeneratedVideoCacheUrl`，写回 cache 后用 `_retry` 或 blob URL 重新加载。把 media library card、inspector、viewer 的 video 路径全部接入，并补 cache-miss 单测。",
+          "id": "MF-005-VIDEO-MEDIA-LIBRARY-PREVIEW-NO-REHYDRATE",
+          "impact": "媒体库已经保存了生成视频的 content URL，但视频卡片、inspector、全屏预览都不消费它；本地 Cache Storage miss 后，视频预览/播放会停在失败状态。SW 会发 `media_cache_miss_video`，但这些非画布 video 元素没有对应的 window cache-miss recovery 事件或直接 rehydrate。",
+          "severity": "MEDIUM",
+          "title": "媒体库生成视频预览生成了 rehydrate 数据但未使用",
+          "verification": "静态核对当前磁盘代码；SW `/__aitu_cache__` miss 和 new-api content route 形状已只读核对，未发现路径不一致。"
+        }
+      ],
+      "openQuestions": [],
+      "status": "complete",
+      "summary": "当前窄范围只发现 2 个剩余缺陷，均集中在 generated video cache/canvas；未发现 image canvas recovery、SW cache miss 通知、new-api content route 路径不匹配的剩余缺陷。",
+      "testedScenarios": [
+        "只读审计 OpenTU 指定文件及直接调用链：cache util、canvas recovery hook、video component、video insertion、frame insertion、media library projection、SW cache handler。",
+        "只读核对 new-api route：`/creative/relay/v1/images/tasks/:task_id/content`、`/creative/relay/v1/videos/:task_id/content`、`/creative/api/assets/:id/content` 与 OpenTU allowlist 一致。",
+        "未运行 live provider 调用，未读取 secrets，未修改文件；本次为静态当前磁盘代码审计。"
+      ]
+    }
+  }
+]

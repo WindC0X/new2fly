@@ -1,0 +1,435 @@
+{
+  "branchResults": [
+    {
+      "branch": "new-api: feat/creative-embed; opentu: feat/creative-embed; new2fly: master",
+      "checkedEvidence": [
+        {
+          "detail": "提交 live Creative image task 时持久化 public task id、channel id、submit-time selected credential、provider endpoint、idempotency key 和 billing context；未把这些放入成功 DTO。见 controller/creative_image_tasks.go:301-335, 987-1031。",
+          "path": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go"
+        },
+        {
+          "detail": "ambiguous submit 分支会标记 ProviderSubmitAmbiguous 并返回 202；没有 upstream task id 时 fetch/reconcile 和后台 polling 都跳过，直到 90 分钟后过期失败。见 controller/creative_image_tasks.go:353-367, 725-731, 843-872；service/task_polling.go:36, 156-178, 306-321。",
+          "path": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go"
+        },
+        {
+          "detail": "测试固定了 submit 超时后 provider 实际 late accepted 但后端不恢复 upstream id、不再触发 provider fetch，fetch 仍为 in_progress。见 creative_test.go:2267-2380。",
+          "path": "/mnt/f/code/project/new-api/controller/creative_test.go"
+        },
+        {
+          "detail": "poll 使用 submit-time stored key；Creative managed task 缺 stored key 不回退当前 channel key。见 service/task_polling.go:265-297, 380-406；task_polling_affinity_test.go:650-811。",
+          "path": "/mnt/f/code/project/new-api/service/task_polling.go"
+        },
+        {
+          "detail": "poll 429/5xx 这类 HTTP 非 2xx 在 adapter 中是普通 error，不是 terminal malformed；后台轮询返回错误但不持久化失败，前端 poll 也把 429/500/502/503/504 当临时状态继续。见 creative_image_adapter.go:524-538；task_polling.go:407-414；fallback-adapter-routes.ts:315-335, 538-555。",
+          "path": "/mnt/f/code/project/new-api/service/creative_image_adapter.go"
+        },
+        {
+          "detail": "provider success 先 materialize 成内部 creative asset URL；materialize 失败时 submit 分支回退为 in_progress 且清空 resultURL，poll 分支直接返回错误不更新 terminal success。见 controller/creative_image_tasks.go:393-405, 781-792；service/task_polling.go:443-456。",
+          "path": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go"
+        },
+        {
+          "detail": "已成功但仍存 raw provider URL 的旧/异常行会在 fetch/content 时修复为 /creative/api/assets/{asset}/content；测试验证不会二次访问 provider signed URL。见 controller/creative_image_tasks.go:824-840；creative_test.go:2772-2818, 3005-3059。",
+          "path": "/mnt/f/code/project/new-api/controller/creative_test.go"
+        },
+        {
+          "detail": "CAS 状态更新和 billing outbox 在事务内创建；outbox 按 task row/user/task/operation FirstOrCreate，处理器支持 claim/idempotent done。见 model/task.go:584-628；service/task_billing.go:206-371。",
+          "path": "/mnt/f/code/project/new-api/model/task.go"
+        },
+        {
+          "detail": "前端生成图缓存只接受同源 broker content URL，并可从 remoteTaskId/providerTaskId 派生 /creative/relay/v1/images/tasks/{id}/content；重水化会带 same-origin credentials。见 generated-media-cache.ts:60-131, 133-217。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/utils/generated-media-cache.ts"
+        },
+        {
+          "detail": "TaskItem、AssetItem、SelectedContentPreview、RetryImage、useGeneratedMediaCacheMissRecovery 均传递 rehydrateSourceUrl/metadata；测试覆盖 dock/媒体库/选中图/归档任务 cache miss 恢复。见 TaskItem.tsx:378-405, 683-697；AssetItem.tsx:151-173；对应测试 useGeneratedMediaCacheMissRecovery.test.tsx:93-250、AssetItem.test.tsx:60-134、SelectedContentPreview.test.tsx:35-91。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx"
+        },
+        {
+          "detail": "Creative managed image 前端 timeout 为 90 分钟；刷新恢复保留带 remoteId 的 managed image processing task 并重新 resume；retry 会清空 stale result/remoteId 并使用 attempt-scoped idempotency key。见 TASK_CONSTANTS.ts:14-18；useTaskStorage.ts:79-110；useTaskExecutor.ts:411-480, 840-875；task-queue-service.ts:193-200, 2395-2465。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts"
+        },
+        {
+          "detail": "Duomi/GrsAI provider 参数合同有实现和测试：Duomi 21:9 -> 1792x768；GrsAI gpt-image-2/vip 将 UI aspect+resolution 映射为像素 aspectRatio；nano-banana 保留 imageSize 且 auto aspect omitted。见 creative_image_adapter.go:349-503；creative_image_adapter_test.go:122-338。",
+          "path": "/mnt/f/code/project/new-api/service/creative_image_adapter.go"
+        }
+      ],
+      "findings": [
+        {
+          "evidence": "controller/creative_image_tasks.go:353-367 在 submit timeout/interrupt 时只设置 ProviderSubmitAmbiguous 并返回 accepted；creativeMarkImageTaskSubmitAmbiguous 只写 ambiguous 标记和时间，不写 upstream id（843-872）。fetch/reconcile 遇到 UpstreamTaskID 空且 ambiguous 未过期时直接 return nil（725-731）；后台 collectPollingTaskBuckets 同样跳过 ambiguous task，过 90 分钟才放入 expired failure bucket（service/task_polling.go:156-178, 306-321）。测试 TestCreativeImageTaskSubmitLiveTimeoutStaysPendingAndReplaysTask 模拟 provider 延迟返回 accepted id，断言存储 UpstreamTaskID 为空、fetch 仍 in_progress、provider 调用次数不增加（creative_test.go:2267-2380）。",
+          "fixDirection": "让 ambiguous submit 可恢复：优先使用 provider 支持的 idempotency/client request id 查询或回放获取 upstream id；若 provider 不支持，至少把该状态作为明确的 ambiguous/recovery-needed 状态暴露给运维/用户，并提供取消或人工 reconcile 入口。不要在无 provider-side 关联信息时把它伪装成普通可轮询任务。",
+          "id": "F1",
+          "impact": "provider 可能已经接受并最终生成成功，但系统永远拿不到 upstream id，用户看到长期 in_progress 后失败/退款，结果丢失且可能产生 provider 侧成本。这直接覆盖历史场景“UI timeout 后 provider 仍在生成”。",
+          "rootCause": "submit transport timeout 被标为 ambiguous 后，系统只保留 public task id、selected key、endpoint 和本地 idempotency key；轮询索引完全依赖 upstream task id，且没有 provider-side request/idempotency reconcile 路径。",
+          "severity": "HIGH",
+          "symptom": "慢 provider 在 HTTP/前端窗口外成功接受任务时，后端不会恢复 late success。",
+          "title": "ambiguous submit 仍然无法恢复 provider late success",
+          "verification": "源码和现有测试已证明当前行为；建议新增一条期望恢复 upstream id 的测试，或明确测试/文档化 unsupported-provider 的 ambiguous 终态。"
+        },
+        {
+          "evidence": "service/task_polling.go:337-355 中 updateCreativeImageTasks 只要 model.CacheGetChannel 返回 error 或 nil，就批量 markTasksFailedWithCASAndRefund；controller fetch 的 creativeReconcileLiveImageTask 在 GetChannelById error/nil 时也 fail closed（controller/creative_image_tasks.go:738-740）。CacheGetChannel 在 MemoryCache disabled 时会走 DB GetChannelById，MemoryCache enabled 时 cache miss 也返回 error（model/channel_cache.go:194-205），代码没有区分 transient DB/cache 读取错误与确认删除/禁用。",
+          "fixDirection": "区分“确认 channel 已删除/禁用/endpoint 已改变”和“读取 channel 失败”。读取失败应 log/defer，保持 task in_progress 并等待下一轮；只有确认 affinity 失效才 terminal fail/refund。若要更强韧，可在 stored endpoint/key/upstream id 完整时允许在短期 channel lookup error 下继续用 stored affinity poll，并记录审计日志。",
+          "id": "F2",
+          "impact": "一次短暂 DB/cache 故障会在 provider 仍可恢复成功时把任务持久化为 failed 并退款；之后即使 provider 已完成，终态 failure 会阻断 fetch/materialize repair。",
+          "rootCause": "channel lookup error 与业务上不可恢复的 channel affinity loss 被合并处理，且失败动作是 terminal CAS/refund。",
+          "severity": "MEDIUM",
+          "symptom": "后台轮询或用户刷新 fetch 时遇到 transient channel cache/DB error，任务会永久失败。",
+          "title": "channel lookup transient error 会隐藏可恢复 provider success",
+          "verification": "未运行故障注入测试；代码路径足够直接。建议加测试：CacheGetChannel 第一次返回 error、第二次恢复且 provider 返回 success，期望 task 不失败并最终 materialize。"
+        },
+        {
+          "evidence": "后端 DTO 对 failure 会输出 safe fail_reason/error.message（controller/creative_image_tasks.go:1008-1017），safe filter 主要拦截 URL、token、signature、cookie、csrf 等敏感标记（1050-1085）。但前端 sanitizer 的 CREATIVE_SENSITIVE_ERROR_PATTERN 包含 provider/upstream/channel/baseurl 等普通运维词（creative-error-sanitizer.ts:1-18），TaskItem 展示失败原因时调用 sanitizeTaskErrorDisplayMessage（TaskItem.tsx:458-464），因此类似“missing provider affinity”“endpoint affinity changed”“provider terminal result invalid”等后端安全原因会被 UI 回退成“生成失败”。",
+          "fixDirection": "使用后端明确的 public error code/message 映射前端文案，或缩窄前端敏感词规则，只对 URL、密钥、签名、cookie、CSRF/nonce 等实际敏感模式回退。对内部词可映射为本地化、安全但可行动的消息，例如“生成通道配置已变更，请重试”。",
+          "id": "F3",
+          "impact": "安全边界没有破，但用户/客服仍难区分配置变更、结果无效、超时等终端失败，历史“所有失败都像 generic failed”在展示层仍会复现一部分。",
+          "rootCause": "后端已做脱敏，但前端又以更宽的关键词黑名单二次泛化。",
+          "severity": "LOW",
+          "symptom": "失败任务列表/历史里仍可能显示通用失败，而不是安全的具体原因。",
+          "title": "前端错误 sanitizer 过宽导致安全失败原因过度泛化",
+          "verification": "源码检查确认；建议补一个 TaskItem/useTaskExecutor 测试，输入后端 safe fail_reason，期望显示映射后的具体文案而非默认泛化文案。"
+        }
+      ],
+      "nonIssues": [
+        {
+          "claim": "未发现正常成功路径把 raw provider URL 暴露给前端 DTO。",
+          "evidence": "creativeImageTaskDTOFromTask 成功时只返回 /creative/relay/v1/images/tasks/{taskID}/content；provider success 先 materialize 成 /creative/api/assets/{asset}/content，老 raw URL 会在 fetch/content 修复。",
+          "reason": "DTO 与 content broker 均 owner-scoped；测试还验证 signed query 不出现在响应中。"
+        },
+        {
+          "claim": "未发现 selected key 丢失后回退当前 channel key 的 live Creative polling 路径。",
+          "evidence": "selectedPollingKeyForTask 对 Creative managed live task 缺 PrivateData.Key 直接 error；测试覆盖 missing stored key 不调用 provider。",
+          "reason": "这避免 retry/poll 用到轮换后的错误 key 或泄漏 channel current key。"
+        },
+        {
+          "claim": "poll 429/5xx 后恢复的状态机基本成立。",
+          "evidence": "provider HTTP 非 2xx 是普通 error；task_polling 只有 CreativeImageProviderTerminalError 才 fail closed；前端 poll 对 429/500/502/503/504 continue。",
+          "reason": "临时 provider/API 错误不会被持久化为 failed。"
+        },
+        {
+          "claim": "provider success 但 asset/cache 写失败不会把任务错误标 completed。",
+          "evidence": "submit success materialize 失败时状态改回 in_progress 且 resultURL 清空；poll success materialize 失败直接返回 error，不执行 terminal update。",
+          "reason": "下一轮 fetch/poll 仍可重新 materialize，避免 blank/raw URL 成功态。"
+        },
+        {
+          "claim": "CAS/billing 双结算/双退款风险已有较强防护。",
+          "evidence": "Task.UpdateWithStatusAndBillingOutbox 在 status CAS 成功后事务内 enqueue outbox；outbox FirstOrCreate 按 operation 去重；ProcessTaskBillingOutbox claim/done 幂等。",
+          "reason": "并发 fetch/poll/replay 下只有赢得状态 CAS 的路径会处理账务。"
+        },
+        {
+          "claim": "前端 canvas/task-history/dock 缓存恢复链路有针对 Creative contentUrl 的覆盖。",
+          "evidence": "generated-media-cache 限制同源 content 路径并重水化；useGeneratedMediaCacheMissRecovery 查内存与归档任务；AssetItem/SelectedContentPreview/RetryImage 测试覆盖 contentUrl 缺失时从 remoteTaskId 派生。",
+          "reason": "这直接覆盖历史的刷新后图片 loading/failed、dock thumbnail 断链、canvas cache miss 空白风险。"
+        },
+        {
+          "claim": "Duomi/GrsAI gpt-image-2/vip/nano-banana 参数合同未发现当前实现缺口。",
+          "evidence": "adapter 对 Duomi/GrsAI 参数映射有实现，测试覆盖 Duomi 21:9、GrsAI gpt-image-2/vip pixel aspectRatio、nano-banana auto aspect/imageSize。",
+          "reason": "当前代码和测试与任务描述的 provider 参数期望一致。"
+        }
+      ],
+      "openQuestions": [
+        {
+          "neededEvidence": "provider 文档或 staging mock 支持通过 client request/idempotency key 查询任务、取消任务或回放获取 accepted id。",
+          "question": "Duomi/GrsAI 是否提供 submit-time idempotency/query-by-client-key 能力？",
+          "whyItMatters": "这是修复 F1 的关键；若 provider 不支持，就只能把 ambiguous 状态显式化并提供人工/取消策略，无法自动恢复 late accepted id。"
+        },
+        {
+          "neededEvidence": "故障注入测试或 staging 日志：CacheGetChannel/DB 短暂失败时任务是否被 terminal fail。",
+          "question": "生产配置下 MemoryCacheEnabled 与 channel cache 初始化/DB error 的实际故障模式是什么？",
+          "whyItMatters": "决定 F2 是高概率事故还是低概率防御性缺口，也决定应 defer 还是允许 stored affinity poll。"
+        },
+        {
+          "neededEvidence": "运行相关 Go/TS 单元测试与一次非 live mock E2E：new-api creative_test/task_polling_affinity_test/creative_image_adapter_test，opentu useTaskExecutor/useAutoInsert/cache recovery/retry tests。",
+          "question": "本轮只做源码和测试检查，未执行测试。",
+          "whyItMatters": "需要实际测试输出确认当前工作树没有隐藏编译、mock、或类型回归。"
+        }
+      ],
+      "stateMachineSlice": "submit: 创建 durable task row(status=submitted, selected key/endpoint/idempotency/billing context) -> provider submit。accepted: 有 upstream id 时写 PrivateData.UpstreamTaskID，成功结果先 materialize 成内部 asset；materialize 失败则保持 in_progress。poll/fetch: 用 stored key + stored endpoint + upstream id 查询 provider；429/5xx 保持可重试；terminal malformed 才 fail closed/refund；success materialize 后 CAS terminal settle。content: DTO 只暴露 broker content URL，content endpoint 从 asset 服务读取或一次性拉 provider URL 并修复为 asset URL。gap: ambiguous submit 没有 upstream id 时不可 poll/reconcile，只等 90 分钟过期 failure。",
+      "summary": "只读审计结论：主链路的大部分修复成立，尤其是 stored key affinity、raw URL 脱敏/asset materialization、CAS billing、前端 contentUrl 重水化和参数合同。但 fresh lifecycle 仍有两个会隐藏可恢复 provider 成功的后端缺口：ambiguous submit 无 upstream id 不可恢复，以及 channel lookup transient error 被当 terminal failure。另有一个前端展示层错误过度泛化问题。未运行测试、未调用 live provider。",
+      "verdict": "fail"
+    },
+    null,
+    null,
+    null,
+    {
+      "branch": "readonly-dynamic-workflow-v8-creative-runtime-reaudit",
+      "checkedEvidence": [
+        {
+          "detail": "前端错误清洗器命中 authorization/bearer/api key/upstream/provider/URL/token 等词时整体替换为 fallback。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-error-sanitizer.ts:1"
+        },
+        {
+          "detail": "useTaskExecutor 在普通执行、audio resume、image resume 失败时把 getFriendlyErrorMessage 再送入 sanitizer 后写入 task.error.message/details.originalError。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:178"
+        },
+        {
+          "detail": "TaskItem 显示 task.error.message 和 details.originalError 的清洗结果，并在错误详情 tooltip 中展示 originalError。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:458"
+        },
+        {
+          "detail": "后端 Creative image DTO 对失败任务公开 safe fail_reason 和 error.message，不公开 PrivateData、provider signed URL、key 或 raw payload。",
+          "path": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go:987"
+        },
+        {
+          "detail": "后端测试明确要求 failed DTO 保留可行动文案 provider rejected prompt。",
+          "path": "/mnt/f/code/project/new-api/controller/creative_test.go:2066"
+        },
+        {
+          "detail": "Creative managed image 有 remoteId 后使用 90 分钟远端任务超时，而非 15 分钟普通 image timeout。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/utils/task-utils.ts:109"
+        },
+        {
+          "detail": "retryTask 会递增 retryAttempt、清 result/error/remoteId、重置 startedAt/executionPhase，并用 attempt-scoped idempotency key 测试覆盖。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2395"
+        },
+        {
+          "detail": "Prompt History 对失败任务直接使用 task.error.message 构造 kind:error 预览，未调用 creative-error-sanitizer。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/services/prompt-history-service.ts:185"
+        },
+        {
+          "detail": "PromptHistoryTool 直接渲染 resultPreviewText(record.resultPreview)。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/components/prompt-history/PromptHistoryTool.tsx:107"
+        },
+        {
+          "detail": "SelectedContentPreview、TaskItem、PromptHistoryTool 的图片预览都带 RetryImage rehydrateSourceUrl/metadata 路径；相关测试覆盖 selected image 和 history/canvas cache miss。",
+          "path": "/mnt/f/code/project/opentu/packages/drawnix/src/components/shared/SelectedContentPreview.tsx:66"
+        }
+      ],
+      "findings": [
+        {
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-error-sanitizer.ts:1 把任何包含 provider/upstream 的文案整体 fallback；/mnt/f/code/project/new-api/controller/creative_test.go:2066 要求公开 provider rejected prompt；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:543 将错误写入前再次清洗。",
+          "fixDirection": "把前端 sanitizer 从宽词命中改成精确 secret/URL/credential 片段清洗；不要仅因包含 provider/upstream 这类普通说明词就丢弃整句。补测试：provider rejected prompt、content policy、quota/rate limit 应保留；Bearer/sk/token/signed URL/raw callback payload 应隐藏。",
+          "id": "F1",
+          "impact": "后端已经安全保留的可行动失败原因会在前端变成“任务执行失败，请稍后重试/生成失败”，用户无法区分 prompt 被拒、额度、参数、provider validation 或暂态错误，复现历史“全部失败泛化”的问题。",
+          "rootCause": "前端清洗器使用过宽的黑名单词表，并且 useTaskExecutor、TaskItem、batch UI、anchor view model 都依赖同一清洗结果。",
+          "severity": "HIGH",
+          "symptom": "例如后端返回 fail_reason=provider rejected prompt 时，前端因为包含 provider 直接显示 fallback。",
+          "title": "前端错误清洗过度，吞掉后端安全保留的可行动 provider 失败原因",
+          "verification": "添加 sanitizer 单测和 useTaskExecutor/TaskItem 展示测试；用后端 DTO 样例 provider rejected prompt 验证 UI 显示不再泛化。"
+        },
+        {
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/prompt-history-service.ts:185 对 FAILED 任务直接返回 task.error?.message；/mnt/f/code/project/opentu/packages/drawnix/src/components/prompt-history/PromptHistoryTool.tsx:921 直接渲染 resultPreviewText。",
+          "fixDirection": "在 prompt-history-service 构建 error preview 时调用 sanitizeTaskErrorDisplayMessage，并在 PromptHistoryTool 渲染前做防御性清洗。增加 legacy raw error 测试，覆盖 URL、token、provider payload 和正常可行动错误。",
+          "id": "F2",
+          "impact": "旧 IndexedDB 任务若存过 raw provider body、signed URL、token/cookie/nonce 片段，任务队列已清洗但 Prompt History 仍可能直接显示；同时新旧界面错误文案不一致。",
+          "rootCause": "Prompt History 是独立摘要路径，没有复用 creative-error-sanitizer。",
+          "severity": "HIGH",
+          "symptom": "历史记录结果列可能显示未经清洗的 task.error.message。",
+          "title": "Prompt History 绕过错误清洗，存在 legacy raw error 渲染风险",
+          "verification": "构造失败任务 error.message='https://...token=secret' 和 error.message='quota exceeded'，验证前者隐藏、后者保留。"
+        },
+        {
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:458 计算 safeTaskOriginalError；/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:1077 渲染详情；/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:1113 memo comparator 只比较 error.message，不比较 error.details.originalError。",
+          "fixDirection": "把 comparator 纳入 task.error?.details?.originalError、task.error?.code、task.updatedAt 或移除这段过窄 memo；补一个相同 message 但 details 更新的 rerender 测试。",
+          "id": "F3",
+          "impact": "重试、刷新或后端轮询把同一泛化 message 下的 details 更新后，TaskItem 可能不重绘，详情 tooltip 留在旧错误，造成错误展示和 retry 后状态解释不一致。",
+          "rootCause": "React.memo 自定义比较遗漏了 UI 实际依赖的 error details 字段。",
+          "severity": "MEDIUM",
+          "symptom": "错误主文案相同但 [详情] 内容变化时，列表项可能仍显示旧详情。",
+          "title": "TaskItem memo 比较遗漏 originalError，错误详情可能陈旧",
+          "verification": "组件测试更新同一 task id/status/message 但不同 originalError，断言 tooltip 内容随 props 更新。"
+        }
+      ],
+      "nonIssues": [
+        {
+          "claim": "慢 provider 仍在生成时，UI 不应按普通图片 15 分钟超时直接终止可恢复任务。",
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/constants/TASK_CONSTANTS.ts:13 和 /mnt/f/code/project/opentu/packages/drawnix/src/hooks/__tests__/useTaskExecutor.test.ts:178",
+          "reason": "有 remoteId 的 Creative managed image 使用 90 分钟 CREATIVE_REMOTE_IMAGE_TIMEOUT_MS，测试覆盖“超过普通 image timeout 仍保持 resumable”。"
+        },
+        {
+          "claim": "重试不应复用旧 remoteId/旧 result。",
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2437 和 /mnt/f/code/project/opentu/packages/drawnix/src/services/__tests__/task-queue-service-image-retry.test.ts:645",
+          "reason": "retryTask 清 result/error/remoteId，递增 retryAttempt，并测试 attempt-scoped idempotency key。"
+        },
+        {
+          "claim": "生成图片的 canvas/history/selected thumbnail 缓存 miss 有重建路径。",
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:169 和 /mnt/f/code/project/opentu/packages/drawnix/src/components/shared/SelectedContentPreview.test.tsx:31",
+          "reason": "cache miss 可从 contentUrl/remoteTaskId/providerTaskId 派生 relay content URL 并 rehydrate；selected image 也有 RetryImage rehydration 测试。"
+        },
+        {
+          "claim": "Duomi/GrsAI gpt-image-2/vip/nano banana 参数合同当前有显式覆盖。",
+          "evidence": "/mnt/f/code/project/new-api/service/creative_image_adapter.go:379 和 /mnt/f/code/project/new-api/service/creative_image_adapter_test.go:220",
+          "reason": "后端 adapter 覆盖 GrsAI GPT Image 像素映射、VIP 1K/2K/4K、Duomi 21:9 映射、nano banana auto aspect/imageSize 行为。"
+        }
+      ],
+      "openQuestions": [
+        {
+          "neededEvidence": "浏览器端真实 IndexedDB 数据和一次 Playwright/人工 UI 刷新过程。",
+          "question": "当前生产/测试用户是否已有包含 raw signed URL/token/provider payload 的旧失败任务？",
+          "whyItMatters": "F2 是否只是潜在泄露，还是刷新 Prompt History 即可复现。"
+        },
+        {
+          "neededEvidence": "运行前端 vitest 与后端 go test，以及一次非生产 mock provider 端到端 smoke。",
+          "question": "只读沙箱未运行测试或浏览器验证，现有缓存 rehydrate 和 viewport 保持是否在真实 UI 上仍稳定？",
+          "whyItMatters": "源码和单测显示路径存在，但无法证明实际浏览器刷新、dock 缩略图和 canvas viewport 无视觉回归。"
+        }
+      ],
+      "stateMachineSlice": "后端：POST /creative/relay/v1/images/tasks -> durable Task(submitted/in_progress, stored key/endpoint/upstream affinity) -> provider submit/poll -> success 时 materialize 到 creative asset/content URL，failure 时 safe fail_reason/error.message；GET task 会 reconcile live task。前端：Task PENDING/PROCESSING(submitting/polling/materializing) -> useTaskExecutor resumeCreativeManagedImageTask -> COMPLETED(result url/contentUrl/remoteTaskId) 或 FAILED(error.message/details.originalError)；retryTask 清 result/error/remoteId 并 retryAttempt+1；TaskItem/anchor/batch 渲染清洗后的错误，Prompt History 当前未清洗失败摘要。",
+      "summary": "结论：生命周期主干比历史故障明显改善，慢 provider、retry 新请求、cache rehydrate、selected thumbnail、参数映射都有源码和测试支撑。但错误传播仍不合格：前端 sanitizer 过宽会把后端安全保留的 provider 失败原因泛化；Prompt History 还绕过 sanitizer，可能渲染 legacy raw error；TaskItem 错误详情 memo 也可能陈旧。未修改文件、未部署、未调用 live provider。",
+      "verdict": "fail"
+    },
+    null
+  ],
+  "synthesis": {
+    "confirmedFindings": [
+      {
+        "evidence": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go:353-367 将 submit timeout/interrupt 标记为 ProviderSubmitAmbiguous 后直接返回 202；/mnt/f/code/project/new-api/controller/creative_image_tasks.go:725-731 和 /mnt/f/code/project/new-api/service/task_polling.go:156-178 对没有 UpstreamTaskID 的 ambiguous task 只跳过；/mnt/f/code/project/new-api/service/task_polling.go:306-321 到 90 分钟才过期；/mnt/f/code/project/new-api/controller/creative_test.go:2267-2380 已把 late accepted 但 UpstreamTaskID 为空、fetch 仍 in_progress 固定成测试行为。",
+        "fixDirection": "为 ambiguous submit 增加 provider-side reconcile：优先使用 provider client request/idempotency key 查询或回放获取 upstream id；若 provider 不支持，必须把状态显式暴露为 recovery-needed，并提供取消/人工 reconcile，不要伪装成普通可轮询任务。",
+        "id": "F1",
+        "impact": "provider 可能已经接受并生成成功，但本系统永远拿不到 upstream id，用户最终看到长时间 in_progress 后失败/退款，结果丢失且可能产生 provider 成本。",
+        "rootCause": "轮询、fetch reconciliation 完全依赖 UpstreamTaskID；submit transport timeout 后只持久化 ambiguous 标记、本地 idempotency key、key 和 endpoint，没有 provider-side 查回 upstream id 的路径。",
+        "severity": "HIGH",
+        "symptom": "慢 provider 在后端 submit HTTP 超时后 late accepted，系统无法恢复 late success。",
+        "title": "ambiguous submit 仍无法恢复 provider late success",
+        "verification": "新增 mock provider 测试：submit 第一次超时但 provider 记录 client idempotency，后续 query/replay 返回 accepted id，期望任务恢复 upstream id 并最终 success；若 provider 不支持，则测试明确 ambiguous 进入可见的 recovery-needed/可取消状态。"
+      },
+      {
+        "evidence": "/mnt/f/code/project/new-api/service/task_polling.go:337-355 中 CacheGetChannel error 或 nil 会批量 markTasksFailedWithCASAndRefund；/mnt/f/code/project/new-api/controller/creative_image_tasks.go:738-740 中 fetch reconcile 的 GetChannelById error/nil 也 fail closed；/mnt/f/code/project/new-api/model/channel_cache.go:194-205 未区分 cache/DB transient read error 与确认不存在。",
+        "fixDirection": "区分“确认 channel 删除/禁用/endpoint 改变”和“channel 读取失败”。读取失败应 defer 并保持 in_progress；只有确认 affinity 失效才 terminal fail/refund。必要时用已存 key+endpoint 做短期 bounded polling，并记录审计。",
+        "id": "F2",
+        "impact": "一次短暂 DB/cache/channel cache 故障会把仍可能成功的 provider task 永久失败并退款，后续 provider success 无法再被 materialize 或展示。",
+        "rootCause": "channel lookup 的基础设施错误和业务不可恢复的 channel affinity loss 被合并成 terminal failure。",
+        "severity": "MEDIUM",
+        "symptom": "后台 poll 或刷新 fetch 遇到 transient channel lookup error 时，任务被永久标 failed。",
+        "title": "channel lookup transient error 会隐藏可恢复 provider success",
+        "verification": "加故障注入测试：第一次 CacheGetChannel/GetChannelById 返回 error，第二次恢复且 provider 返回 success，期望任务不失败并最终 completed。"
+      },
+      {
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/prompt-history-service.ts:181-189 对 FAILED task 直接使用 task.error?.message；/mnt/f/code/project/opentu/packages/drawnix/src/components/prompt-history/PromptHistoryTool.tsx:107-118、921-924 直接渲染 resultPreviewText；同仓库 /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-error-sanitizer.ts:1-18 有清洗器但该路径未使用。",
+        "fixDirection": "Prompt History 构建 error preview 时调用统一 sanitizer，渲染前再做防御性清洗；补 legacy IndexedDB 失败任务测试，覆盖 signed URL、token/cookie/nonce/provider raw payload 隐藏，以及 quota/prompt rejected 等安全文案保留。",
+        "id": "F3",
+        "impact": "旧 IndexedDB 或其他绕过 useTaskExecutor 的失败任务若含 signed URL、token、cookie、nonce 或 raw provider body，Prompt History 可能直接显示；这违反错误/安全边界。",
+        "rootCause": "任务队列和历史记录是两条展示管线，Prompt History 未复用 Creative error sanitizer。",
+        "severity": "HIGH",
+        "symptom": "历史记录结果列可能渲染未清洗的失败原因。",
+        "title": "Prompt History 绕过错误清洗，存在 legacy raw error 渲染风险",
+        "verification": "构造 failed task.error.message='https://x/?token=secret' 和 'provider rejected prompt'，验证历史列表前者 fallback/清洗、后者保留安全可行动文案。"
+      },
+      {
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-error-sanitizer.ts:1-18 把 provider、upstream、channel、baseurl 等普通运维词命中后整体 fallback；/mnt/f/code/project/new-api/controller/creative_image_tasks.go:1008-1017 只公开 safe fail_reason/error.message；/mnt/f/code/project/new-api/controller/creative_test.go:2066-2072 明确期望 DTO 保留 'provider rejected prompt'；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:178-182 和 TaskItem.tsx:458-466 会再次清洗。",
+        "fixDirection": "把前端 sanitizer 改成精确 secret/URL/credential 片段清洗，或使用后端 public error code/message 映射；不要仅因包含 provider/upstream/channel 就丢弃整句。",
+        "id": "F4",
+        "impact": "后端已安全保留的 prompt rejected、quota、validation、terminal invalid 等可行动原因会在前端变成“生成失败/任务执行失败”，历史“所有失败泛化”仍会部分复现。",
+        "rootCause": "前端黑名单关键词过宽，且在 useTaskExecutor 和 TaskItem 展示层重复应用。",
+        "severity": "MEDIUM",
+        "symptom": "fail_reason='provider rejected prompt' 在前端会因 provider 关键词被泛化。",
+        "title": "前端错误 sanitizer 过宽，吞掉安全可行动失败原因",
+        "verification": "补 sanitizer 单测：provider rejected prompt、quota exceeded、content policy blocked 应保留；Bearer/sk/token/signed URL/cookie/CSRF/nonce/raw callback payload 应隐藏。"
+      },
+      {
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:458-466 读取 task.error.details.originalError；同文件 1077-1104 渲染详情 tooltip；但 React.memo comparator 1113-1125 只比较 task.error?.message，未比较 originalError/code/updatedAt。",
+        "fixDirection": "把 comparator 纳入 task.error?.details?.originalError、task.error?.code、task.updatedAt，或移除过窄 comparator；补同 message 不同 originalError 的 rerender 测试。",
+        "id": "F5",
+        "impact": "刷新、重试或后端轮询更新同一泛化 message 下的详情时，TaskItem 可能不重绘，详情 tooltip 留在旧错误，影响客服/用户判断。",
+        "rootCause": "自定义 memo 比较遗漏实际 UI 依赖字段。",
+        "severity": "LOW",
+        "symptom": "主错误文案相同但详细错误变化时，列表详情可能陈旧。",
+        "title": "TaskItem memo 遗漏 originalError，错误详情可能陈旧",
+        "verification": "组件测试更新同一 task id/status/message 但不同 details.originalError，断言 tooltip 内容更新。"
+      }
+    ],
+    "coverageGaps": [
+      {
+        "gap": "未运行本轮 Go/Vitest/Playwright 验证。",
+        "howToClose": "运行 new-api creative controller/polling/adapter 测试，opentu media-executor/task retry/cache/history/sanitizer 测试，并执行 mock provider E2E。",
+        "impact": "源码路径清晰，但不能排除编译、mock、类型或浏览器集成回归。"
+      },
+      {
+        "gap": "缺 provider real/staging slow-submit 证据。",
+        "howToClose": "用非生产 mock 或 staging provider 验证 submit HTTP timeout 后 provider 是否支持 client idempotency/query/cancel，并记录可恢复策略。",
+        "impact": "F1 的系统缺口已确认，但自动恢复方案取决于 Duomi/GrsAI provider 能力。"
+      },
+      {
+        "gap": "缺 channel lookup transient 故障注入测试。",
+        "howToClose": "mock CacheGetChannel/GetChannelById 第一次 error、第二次恢复，断言任务保持 in_progress 并最终 success。",
+        "impact": "当前代码会 terminal fail；缺测试会让后续修复容易回归。"
+      },
+      {
+        "gap": "缺真实浏览器 refresh/reopen 视觉验证。",
+        "howToClose": "用 Playwright 在 refresh/reopen 后检查 canvas viewport 不重置、dock selected thumbnail、task history thumbnail、canvas node 非空和比例正确。",
+        "impact": "源码和单测支持缓存恢复，但用户历史问题是视觉/运行时问题，仍需浏览器证据。"
+      },
+      {
+        "gap": "缺 Prompt History legacy raw error 覆盖。",
+        "howToClose": "新增 prompt-history-service 和 PromptHistoryTool 测试，模拟旧任务 error.message 含 URL/token/raw payload。",
+        "impact": "当前确认存在绕过 sanitizer 路径，未被测试网兜住。"
+      }
+    ],
+    "executiveSummary": "结论：当前源码支持 Creative runtime 主链路的大部分修复，包括 stored key/endpoint affinity、90 分钟 frontend resume、retry 清 remoteId/result 并使用 attempt idempotency、contentUrl/cache rehydrate、raw provider URL materialization repair、Duomi/GrsAI 参数映射。但端到端生命周期仍 fail：ambiguous submit 仍不可恢复 late accepted provider task；channel lookup transient error 会把可恢复任务永久失败；错误展示/历史记录仍有过度泛化和潜在 legacy raw error 渲染问题。未修改文件、未部署、未调用 live provider。",
+    "fullStateMachine": "前端创建：schema-backed Creative image 参数进入 userParams，并标记 creativeManaged；taskQueue 用 taskId/retryAttempt 生成 idempotency key，POST /creative/relay/v1/images/tasks。后端 submit：先创建 durable Task(submitted/in_progress, public task id, channel id, submit-time selected key, provider endpoint, idempotency key, billing context, metadata)。provider quick accepted：若返回 upstream id，写入 PrivateData.UpstreamTaskID；若直接 success，先 MaterializeCreativeImageProviderResult 成内部 creative asset/content URL，失败则回到 in_progress/99% 而非 completed。provider submit ambiguous：transport timeout/cancel 标 ProviderSubmitAmbiguous=true 并返回 202；因为没有 upstream id，fetch 和后台 poll 都跳过，90 分钟后过期 failed/refund。poll/fetch：后台按 upstream id 分桶，使用 stored key + stored endpoint；missing key/endpoint 或 endpoint affinity changed 会 fail closed；provider HTTP 429/5xx 是普通 error，不持久化 terminal failure；terminal malformed 才 fail closed；provider failure 写 safe fail_reason；provider success 再 materialize asset，CAS terminal settle/refund 通过 billing outbox 幂等处理。content/DTO：success DTO 只暴露 /creative/relay/v1/images/tasks/{task}/content；旧 raw provider ResultURL 会在 fetch/content 时修复成 /creative/api/assets/{asset}/content；failure DTO 公开 safe fail_reason/error.message。前端 resume/retry/cache：刷新恢复 processing+remoteId 的 Creative image task 并 resumeCreativeManagedImageTask，普通 15 分钟 image timeout 不适用，remote timeout 为 90 分钟；retry failed 或允许 retry completed 会清 error/result/remoteId、startedAt、executionPhase 并递增 retryAttempt；completed 后下载 contentUrl 写本地 cache，content/cache 503 或写失败会在 materializing 阶段重试；TaskItem/AssetItem/SelectedContentPreview/Prompt History 图片预览可从 contentUrl/remoteTaskId/providerTaskId 重新水化。展示缺口：TaskItem 会调用过宽 sanitizer；Prompt History 失败文本当前不调用 sanitizer。",
+    "newRegressionRisks": [
+      {
+        "mitigation": "用 provider idempotency/query-by-client-key/cancel 能力做幂等恢复；恢复动作必须有唯一 client key、provider request audit 和重复提交保护。",
+        "risk": "修 F1 时如果用简单重放 submit，可能创建重复 provider task 或重复计费。",
+        "why": "当前本地 idempotency 只保护 broker replay，不必然保护 provider-side submit。"
+      },
+      {
+        "mitigation": "仅对 lookup error 做短期 defer；确认 channel deleted/disabled 或 endpoint changed 时仍 terminal fail；所有 stored-key polling 写审计日志并设上限。",
+        "risk": "修 F2 时过度宽松可能继续 poll 已撤销/轮换的 channel。",
+        "why": "stored key/endpoint affinity 是安全边界，不能把 transient error 和真正配置失效混为一谈。"
+      },
+      {
+        "mitigation": "把 sanitizer 改成片段级 redaction，并用 secret corpus 测试 Bearer/sk/token/cookie/nonce/signed URL/raw payload；保留安全 public reason 测试。",
+        "risk": "缩窄 F4 sanitizer 可能重新泄露敏感信息。",
+        "why": "当前过度泛化虽然影响可用性，但提供了粗粒度安全兜底。"
+      },
+      {
+        "mitigation": "materialization retry 继续受 CREATIVE_REMOTE_IMAGE_TIMEOUT_MS 限制，并暴露明确 materializing 状态/错误。",
+        "risk": "加强 cache/materialization repair 后可能导致用户看到长时间 96% 而无明确反馈。",
+        "why": "当前逻辑会在 materializing 阶段持续重试到远端超时。"
+      }
+    ],
+    "requiredFixOrder": [
+      "1. 先定义统一错误公开合同：后端 public fail_reason/error code、前端片段级 redaction、Prompt History/TaskItem 共用同一 sanitizer。",
+      "2. 修复 Prompt History 绕过 sanitizer，再缩窄 sanitizer 过宽关键词，补安全与可行动文案双向测试。",
+      "3. 修复 backend ambiguous submit recovery 或显式 recovery-needed/cancel 终态，避免继续伪装成普通 in_progress。",
+      "4. 修复 channel lookup transient error：读取失败 defer，确认 affinity 失效才 terminal fail/refund。",
+      "5. 修 TaskItem memo comparator 的 originalError/code/updatedAt 漏比较。",
+      "6. 完成 mock slow-provider E2E、browser refresh/reopen 视觉验证，再考虑 staging smoke。"
+    ],
+    "verdict": "fail",
+    "verificationGates": [
+      "new-api: go test ./controller ./service -run 'CreativeImageTask|CreativeImageProvider|DispatchPlatformUpdateCreativeImage|TaskPollingAffinity'",
+      "opentu: pnpm/vitest 运行 creative-error-sanitizer、prompt-history-service、PromptHistoryTool、useTaskExecutor、task-queue-service-image-retry、media-executor、useGeneratedMediaCacheMissRecovery、RetryImage、useAutoInsertToCanvas、creative-image-display-size 相关测试。",
+      "Mock E2E: provider quick success；submit timeout 后 late accepted 且可 query/replay 恢复；poll 429/500/503 后 success；success 后 content/cache 第一次失败再修复；terminal failure safe reason。",
+      "Fault injection: CacheGetChannel/GetChannelById transient error 后恢复，任务不得 terminal fail。",
+      "Browser/Playwright: refresh/reopen 后 canvas viewport 保持、canvas node 非空、processing placeholder 比例正确、task history/dock/selected thumbnail 能从 contentUrl rehydrate。",
+      "Security gate: 所有 UI 错误路径不显示 secrets、cookies、CSRF/nonce、provider keys、signed URLs、raw provider payload；同时保留 provider rejected prompt/quota/content policy 等安全可行动文案。"
+    ],
+    "weakenedOrRejected": [
+      {
+        "decision": "weakened",
+        "evidence": "前端 /mnt/f/code/project/opentu/packages/drawnix/src/utils/task-utils.ts:109-120 对 resumable async image 使用 90 分钟 timeout；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:411-480 会 resume remoteId；但后端 /mnt/f/code/project/new-api/controller/creative_image_tasks.go:353-367、725-731 对 submit ambiguous 无 upstream id 仍不可恢复。",
+        "idOrClaim": "“provider success after frontend ordinary polling timeout 已完全解决”",
+        "reason": "前端普通 15 分钟 timeout 问题基本被修复，但 submit 阶段后端 timeout/ambiguous 的 late accepted 分支仍是 confirmed gap。"
+      },
+      {
+        "decision": "needs-runtime-evidence",
+        "evidence": "/mnt/f/code/project/new-api/service/creative_image_adapter.go:524-538 把 provider 非 2xx 返回普通 error；/mnt/f/code/project/new-api/service/task_polling.go:407-414 仅 terminal error 才 fail；/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:315-335、538-555 对 429/5xx 继续 poll。",
+        "idOrClaim": "“provider poll 429/5xx then recovery 已端到端成立”",
+        "reason": "源码状态机支持 transient recovery，但本轮未看到专门的 provider poll 429/5xx 后 success 单测或运行时 smoke，只能判为源码支持、需 runtime/mock E2E 证据。"
+      },
+      {
+        "decision": "weakened",
+        "evidence": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go:393-405、781-792 和 /mnt/f/code/project/new-api/service/task_polling.go:443-456 在 success materialize/cache 写失败时不写 terminal success；/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:489-524 对 content/cache materialization retry。",
+        "idOrClaim": "“provider success but content/cache write failure later repair 完全可靠”",
+        "reason": "后端不会错误 completed，前端有 materializing retry；但还需要浏览器 IndexedDB/cache 写失败和刷新后 repair 的运行时验证。"
+      },
+      {
+        "decision": "rejected",
+        "evidence": "/mnt/f/code/project/new-api/service/creative_model_capability.go:384-570 定义 GrsAI gpt-image、vip、Duomi、nano-banana 参数模板；同文件 1918-1955、2040-2082 校验必需字段和值；/mnt/f/code/project/new-api/service/creative_image_adapter.go:349-503 和 creative_image_adapter_test.go:122-338 覆盖 Duomi 21:9、GrsAI gpt-image-2/vip pixel aspectRatio、nano-banana auto/imageSize。",
+        "idOrClaim": "“Duomi/GrsAI gpt-image-2/vip/nano-banana 参数控件或合同仍缺失/错误”",
+        "reason": "当前源码和测试未支持该 claim；未发现指定 family 的参数合同缺口。"
+      },
+      {
+        "decision": "needs-runtime-evidence",
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/utils/generated-media-cache.ts:60-217 限制同源 contentUrl 并 rehydrate；TaskItem.tsx:378-405、683-697 传递 rehydrateSourceUrl/metadata；相关 rg 结果显示 useGeneratedMediaCacheMissRecovery、useAutoInsertToCanvas、media library projection 有 contentUrl 测试。",
+        "idOrClaim": "“task-history/dock/canvas thumbnail recovery 已完全覆盖历史视觉问题”",
+        "reason": "源码和单测覆盖 cache miss 恢复，但 dock/selected thumbnail、canvas viewport、blank node、placeholder ratio 是浏览器视觉场景，需要 Playwright/人工 runtime 证据。"
+      },
+      {
+        "decision": "weakened",
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2395-2457 retry 会清 error/result/remoteId 并递增 retryAttempt；task-queue-service-image-retry.test.ts:645-679 覆盖 attempt-scoped idempotency，715-754 覆盖 completed retry 清 stale result。",
+        "idOrClaim": "“retry failed/completed 后不会显示旧结果或立即失败”",
+        "reason": "重试重置逻辑源码和测试成立；但若失败来自 F1 ambiguous 或 F2 channel transient terminal failure，新的 retry 仍可能受后端 lifecycle 缺口影响。"
+      }
+    ]
+  }
+}

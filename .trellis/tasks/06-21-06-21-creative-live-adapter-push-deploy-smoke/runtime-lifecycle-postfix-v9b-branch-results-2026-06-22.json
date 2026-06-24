@@ -1,0 +1,270 @@
+[
+  {
+    "branch": "A1-frontend-executor",
+    "coverageGaps": [
+      "未做 live provider 调用，慢 provider 行为基于源码和 mock 场景推导。",
+      "目标 Vitest 未全绿：`pnpm vitest run ...` 结果为 43 passed / 1 failed；失败在 `media-executor.test.ts:848` 的 Blob/metadata matcher 断言，运行路径本身完成且未 `failTask`。"
+    ],
+    "findings": [
+      {
+        "confidence": 0.92,
+        "evidence": "前端 remote Creative image timeout 固定为 90 分钟：`opentu/packages/drawnix/src/constants/TASK_CONSTANTS.ts:14-18`，`utils/task-utils.ts:109-120`。`useTaskExecutor.markTaskTimedOut` 会写 `FAILED/TIMEOUT` 并 abort resume：`hooks/useTaskExecutor.ts:282-304`，启动/轮询前后也检查该 timeout：`416-472`、`824-837`。刷新恢复只允许 `INTERRUPTED` / `INTERRUPTED_DURING_SUBMISSION` / `RESUME_FAILED`，不恢复 `TIMEOUT`：`hooks/useTaskStorage.ts:145-192`。后端默认异步任务 timeout 是 1440 分钟：`new-api/common/init.go:155-156`，清扫也按该值处理：`new-api/service/task_polling.go:54-68`；GET 任务会 live reconcile provider 并可在成功时返回 content URL：`new-api/controller/creative_image_tasks.go:528-545`、`708-825`、`990-1030`。现有前端测试还固化了 90 分钟后不再 resume：`hooks/__tests__/useTaskExecutor.test.ts:230-251`。",
+        "fixDirection": "不要让浏览器 90 分钟 timeout 成为 remote Creative image 的不可恢复终态。将前端 remote timeout 与后端任务窗口对齐，或改成非终态 stalled/recoverable 状态；刷新时对 `FAILED/TIMEOUT + remoteId + Creative managed` 先向 `/creative/relay/v1/images/tasks/:id` reconcile，再决定 completed/failed；保留 retryAttempt/startAt/remoteId guard，避免 stale resume 覆盖新 retry。",
+        "id": "A1-FE-001",
+        "impact": "慢 provider 在 90 分钟后、后端 24 小时清扫前完成时，后端仍可能成功并可取回内容，但前端已永久显示失败。刷新不会恢复，自动插入、cache-storage 回灌、history completed 结果、dock completed preview 都不会走到成功链路；用户可能误判失败并发起重复 retry。",
+        "reproduction": "Mock 一个 Creative managed image task：`status=PROCESSING`、`remoteId` 存在、`startedAt=Date.now()-CREATIVE_REMOTE_IMAGE_TIMEOUT_MS-1000`。挂载 `useTaskExecutor` 后会调用 timeout 分支而不是 `resumeCreativeManagedImageTask`，本地写 `FAILED/TIMEOUT`。随后 mock 后端在第 100 分钟返回 `completed + contentUrl`，前端不会再 poll；刷新后 `useTaskStorage` 因 TIMEOUT 不在恢复白名单仍保持 failed。",
+        "severity": "HIGH",
+        "title": "前端 90 分钟终态 TIMEOUT 会截断后端仍可成功的 Creative remote image 任务"
+      }
+    ],
+    "status": "complete",
+    "summary": "retry/stale-write 保护整体成立：retry 会清 remoteId、递增 retryAttempt、使用新 idempotency key，并且 executor/storage 写回有 retryAttempt/startAt guard。主要缺陷是慢 provider timing 的跨层状态机不一致，导致成功链路被前端提前终止。",
+    "verifiedChecks": [
+      "慢 provider timing：核对前端 90 分钟 remote timeout、executor timeout 写失败、后端 1440 分钟 timeout/reconcile。",
+      "跨层状态机：核对 PROCESSING(remoteId) -> frontend TIMEOUT failed 与 backend IN_PROGRESS/SUCCESS 的分歧。",
+      "stale resume vs retry：核对 `useTaskExecutor.isTaskStillProcessingAttempt`、`taskStorageWriter.shouldSkipGuardedWrite`、`taskQueueService.shouldSkipExecutionAttemptWriteback`。",
+      "retry 新请求：核对 `retryTask` 清 remoteId/startedAt/result/error，image idempotency key 带 retryAttempt。",
+      "timeout vs later success：普通 late write 有 guard；remote Creative 的 later backend success 被本地 TIMEOUT 截断。",
+      "failure reason preservation：核对 frontend sanitizer 与 managed image fail_reason/message 提取，未发现会打印敏感载荷的审计输出。",
+      "refresh/retry/cache-storage/canvas/history/dock：核对 `useTaskStorage`、`fallback-adapter-routes` cache materialization、`useAutoInsertToCanvas` readiness gate、cache miss recovery、prompt history reader、task queue panel/dialog insert。",
+      "运行 mocked Vitest：`useTaskExecutor.test.ts` 4/4 通过，`task-queue-service-image-retry.test.ts` 17/17 通过，`media-executor.test.ts` 22/23 通过。"
+    ]
+  },
+  {
+    "branch": "A2-frontend-ui-state",
+    "coverageGaps": [
+      "fast-context/codegraph 调用被运行时取消；已改用 rg/nl/sed 精确源码检查。",
+      "沙箱为 read-only，未运行可能写缓存/临时文件的 Vitest/Playwright。",
+      "未做 live provider 调用，符合本次约束。"
+    ],
+    "findings": [
+      {
+        "confidence": 0.91,
+        "evidence": "packages/drawnix/src/hooks/useImageGenerationAnchorSync.ts:94-108 从 post-processing error、task.error.message、task.error.details.originalError 直接派生 anchor.error；packages/drawnix/src/utils/image-generation-anchor-view-model.ts:443 原样输出为 viewModel.error；packages/drawnix/src/components/image-generation-anchor/ImageGenerationAnchorContent.tsx:197-200 直接渲染。TaskItem 则在 packages/drawnix/src/components/task-queue/TaskItem.tsx:477-485 使用 sanitizeTaskErrorDisplayMessage。",
+        "fixDirection": "在 deriveAnchorError 或 viewModel.error 前统一 sanitize；保留安全的 provider reason，红act URL/token/callback/raw payload。补测试：originalError/postProcessingError 含 signed URL/token 时，anchor UI 只显示安全 fallback。",
+        "id": "A2-FE-002",
+        "impact": "任务列表错误已净化，但画布失败节点会直接显示 raw error，可能泄露签名 URL、callback/provider 元数据或 raw payload 片段，并破坏用户可见错误契约。",
+        "reproduction": "Mock 一个 image anchor 关联失败任务：task.error.details.originalError = 'download failed https://signed.example/path?token=...'，触发 useImageGenerationAnchorSync reconcile；ImageGenerationAnchorContent 会直接显示该字符串。",
+        "severity": "HIGH",
+        "title": "Image-generation anchor 失败错误绕过 sanitizer"
+      },
+      {
+        "confidence": 0.87,
+        "evidence": "packages/drawnix/src/components/task-queue/TaskItem.tsx:225-241 的 areTaskItemPropsEqual 只比较 id/status/progress/error/result/少量 UI props；但渲染依赖 task.remoteId、task.params.model/prompt/size/userParams/width/height、result remote/provider ids、contentUrl、尺寸、cacheWarning 等，见同文件 356-492、520-603、702-716、812-1090。现有 TaskItem.memo.test.ts 只覆盖 originalError 变化。",
+        "fixDirection": "移除手写 comparator，或改成 task 对象 identity/version 比较；若保留 comparator，纳入所有渲染相关字段和 callback。补测试：remoteId/contentUrl/params 更新时 thumbnail/rehydrate metadata/buttons 必须刷新。",
+        "id": "A2-FE-001",
+        "impact": "refresh/resume/poll 期间行 UI 可能停留在旧状态，导致 RetryImage rehydrate metadata、缩略图、标签或动作按钮不更新，影响 cache-storage/canvas 恢复链路。",
+        "reproduction": "渲染 completed image TaskItem 后，发出同 id/status/progress/result 引用但 remoteId 或 params.size/contentUrl 改变的 taskUpdated；React.memo 返回 true，行不重渲染。",
+        "severity": "MEDIUM",
+        "title": "TaskItem memo comparator 漏掉 lifecycle UI 依赖字段"
+      }
+    ],
+    "status": "complete",
+    "summary": "当前 frontend task queue UI state 未完全达到产品目标：重试、LazyImage/RetryImage、thumbnail fallback、慢 provider resumable timeout 主路径大体成立，但失败节点错误展示存在泄露风险，TaskItem memo 还有 stale UI 风险。",
+    "verifiedChecks": [
+      "检查 TaskQueuePanel/DialogTaskList/VirtualTaskList/TaskItem。",
+      "检查 RetryImage/LazyImage/useThumbnailUrl/task-utils。",
+      "检查 useTaskQueue/useFilteredTaskQueue/useTaskStorage/useTaskExecutor。",
+      "检查 task-queue-service retry/idempotency/remoteId/restore/update 状态流。",
+      "检查 canvas anchor retry：useAutoInsertToCanvas/useImageGenerationAnchorSync/ImageGenerationAnchorContent。",
+      "检查 generated-media-cache/useGeneratedMediaCacheMissRecovery/creative-error-sanitizer。",
+      "确认失败节点重试：处理中任务不会重新提交；已完成但后处理失败走 handleTaskCompleted，不调用 provider retry。",
+      "确认 slow provider frontend timing：resumable Creative image timeout 使用 CREATIVE_REMOTE_IMAGE_TIMEOUT_MS=90min，普通 image wait/poll 常量仍为 15min。"
+    ]
+  },
+  {
+    "branch": "B1-media-cache-canvas",
+    "coverageGaps": [
+      "未运行 Vitest/Go/browser 刷新实测：当前沙箱只读，测试可能写缓存/临时文件。",
+      "codegraph/fast-context 探索调用被运行环境取消，已降级为 rg + 精确源码行段审计。",
+      "未做 live provider 调用，符合本次约束；slow provider 结论来自当前源码状态机与测试取证。"
+    ],
+    "findings": [
+      {
+        "confidence": 0.9,
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/utils/asset-cleanup.ts:86-101 `reportGeneratedMediaCacheMiss` 只发送 `taskId/elementId/imageUrl`；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:186-203 只从 task result 推导 `contentUrl`，没有读取画布节点上的 `contentUrl/remoteTaskId/providerTaskId`；同文件 224-237 直到 rehydrate 成功后才定位元素并重触发 URL。",
+        "fixDirection": "cache-miss 事件 detail 应携带元素上的 durable metadata，或 recovery hook 先根据 `elementId/imageUrl` 找到画布节点并用节点 `contentUrl/remoteTaskId/providerTaskId/mimeType` 调 `rehydrateGeneratedImageCacheUrl`；task 反查只能作为 fallback。补测试：清空 taskStorageReader，仅保留带 metadata 的 canvas node + Cache Storage miss，仍能恢复。",
+        "id": "B1-001",
+        "impact": "Cache Storage 被清理或浏览器刷新后，如果任务记录被归档/清理、URL 反查失败，即使画布节点已经持久化了生成图恢复身份，画布仍无法自愈，会留下破图/空图节点。这个直接破坏 refresh/cache-storage/canvas 端到端目标。",
+        "reproduction": "Mock 场景：画布元素 `{id:'img1', url:'/__aitu_cache__/image/local-task.png', contentUrl:'/creative/relay/v1/images/tasks/remote/content'}`，删除 Cache Storage blob，并让 `taskQueueService.getAllTasks()`、`taskStorageReader.getTask/findImageTaskIdByResultUrl/getAllTasks()` 都返回空。触发图片加载失败后，当前 recovery 因找不到 task 在 202-203 返回，不会使用节点 metadata。",
+        "severity": "HIGH",
+        "title": "Cache miss 恢复忽略画布节点上的 durable 生成图 metadata"
+      },
+      {
+        "confidence": 0.88,
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/canvas-insertion.ts:143-158 单图 `insertImageToCanvas` 会写 metadata，但 552-568 `insertImageGroup` 没有 metadata 参数；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:988-1003、1402-1409 多图分支只传 urls/dimensions，1353-1369 grouped `insertAIFlow` 对 image 传 `undefined`；同文件 869-876、915-924、1325-1331 Frame/PPT 分支调用 `insertMediaIntoFrame` 也无 metadata；/mnt/f/code/project/opentu/packages/drawnix/src/utils/frame-insertion-utils.ts:661-670、770-825 插入并绑定 Frame 但不写生成图字段。",
+        "fixDirection": "把 `GeneratedImageCanvasMetadata` 作为公共插入契约向下传递：`insertImageGroup` 接收 per-image metadata 数组，`insertMediaIntoFrame/insertMediaIntoSelectedFrame/quickInsertCanvasMedia/insertImageFromUrl` 支持 metadata 并在新节点上 `Transforms.setNode`。补覆盖：多任务 grouped、PPT Frame 替换、selected Frame 插入后节点包含 `contentUrl/remoteTaskId/providerTaskId/mimeType`。",
+        "id": "B1-002",
+        "impact": "多图、分组任务、PPT/Frame 插入生成图时，画布节点通常只持有 `/__aitu_cache__/...`。刷新后若本地 Cache Storage miss，选择 dock 缩略图、canvas 渲染和 retry 都缺少节点级恢复身份，只能赌任务记录仍存在。",
+        "reproduction": "Mock 两个 Creative image task 同 prompt 同窗口完成，各自 result 有 `/__aitu_cache__/image/task-a.png` 和 `/creative/relay/v1/images/tasks/remote-a/content`。`useAutoInsertToCanvas` 走 grouped 分支后，`insertImageGroup` 创建的节点没有 `contentUrl/remoteTaskId`；清 Cache Storage 并刷新，节点无法独立恢复。",
+        "severity": "HIGH",
+        "title": "多图/Frame/分组自动插入没有把生成图恢复 metadata 写入画布节点"
+      },
+      {
+        "confidence": 0.84,
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/utils/media-library-image-insert.ts:20-32 只返回 ready URL；/mnt/f/code/project/opentu/packages/drawnix/src/components/media-library/MediaLibraryGrid.tsx:1260-1275、/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskQueuePanel.tsx:607-624、/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/dialog-task-insert.ts:48-52、/mnt/f/code/project/opentu/packages/drawnix/src/components/shared/media-preview/MediaViewport.tsx:516-528 都先 rehydrate/cache-ready，再用 `insertImageFromUrl` 或 `quickInsertCanvasMedia` 裸插入；/mnt/f/code/project/opentu/packages/drawnix/src/data/image.ts:327-338 函数签名没有 metadata 参数，458-463 插入后不写生成图字段。",
+        "fixDirection": "让媒体库/任务队列/预览插入 helper 返回 `{url, metadata}`，并接入统一的 metadata-aware canvas insert API。补测试：媒体库双击、任务队列手动插入、PromptHistory/MediaViewport 插入后，画布节点持久化 rehydrate metadata。",
+        "id": "B1-003",
+        "impact": "媒体库、任务队列、PromptHistory 预览的显示端能 rehydrate 缩略图，但用户手动插入到画布时恢复身份被丢掉。刷新后 selected dock 只能从节点读到裸 cache URL，Cache Storage miss 时退化为破图。",
+        "reproduction": "Mock 一个媒体库 AI_GENERATED asset，含 `remoteTaskId/contentUrl`。`getReadyMediaLibraryImageInsertUrl` 成功把 blob 写回缓存，随后 `MediaLibraryGrid` 调 `insertImageFromUrl(board, ready.url)`。检查新画布节点，只有 `url`，没有 `contentUrl/remoteTaskId/providerTaskId`。",
+        "severity": "HIGH",
+        "title": "媒体库/任务队列/预览手动插入 rehydrate 后没有持久化节点 metadata"
+      },
+      {
+        "confidence": 0.78,
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:451-459 调 `cacheMediaFromBlob(localUrl, blob, 'image', { taskId, model, metadata:{remoteTaskId,contentUrl,mimeType} })`；/mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts:1223-1237 只在 options 没有 `metadata` 键时才把 options 当 metadata，否则保留原对象；1301-1311 最终只持久化 `normalizedOptions.metadata`，顶层 `taskId/model` 被丢弃；/mnt/f/code/project/opentu/packages/drawnix/src/contexts/AssetContext.tsx:109-125、562-565 cache-only AI 分类依赖 `metadata.taskId` 且有 `prompt/model/params` 或 `source=AI_GENERATED`。",
+        "fixDirection": "调用处把 `taskId/model/prompt/source` 放进 `metadata` 内，或 `cacheMediaFromBlob` 合并兼容顶层 legacy 字段与 `metadata`。补测试：Creative result cache item 仅从 unified cache 投影时仍是 `AI_GENERATED`，保留 taskId/model/contentUrl。",
+        "id": "B1-004",
+        "impact": "正常有 task 记录时媒体库会从 task 投影 AI 素材；但 task 记录被清理、只剩 unified cache 元数据时，Creative 生成图可能被当作 LOCAL，丢 prompt/model/taskId，影响媒体库筛选、批量同步和后续恢复语义。",
+        "reproduction": "Mock 调用 `cacheMediaFromBlob('/__aitu_cache__/image/remote.png', blob, 'image', {taskId:'local', model:'gpt-image-2', metadata:{remoteTaskId:'remote', contentUrl:'/creative/relay/v1/images/tasks/remote/content'}})`；随后 `getAllCachedMedia()` 返回的 item.metadata 无 `taskId/model/prompt`，`hasAIGeneratedCacheMetadata` 为 false。",
+        "severity": "MEDIUM",
+        "title": "Creative 生成图写入 unified cache 时 taskId/model 顶层字段未落盘"
+      }
+    ],
+    "status": "complete",
+    "summary": "当前代码的后端异步状态机、90 分钟 slow provider 轮询、429/5xx 暂态继续轮询、content same-origin relay、RetryImage/媒体库/PromptHistory 显示端 rehydrate 基本达到目标。主要缺口在前端画布持久化边界：节点 metadata 写入不覆盖多入口，且 cache-miss recovery 即使有节点 metadata 也不用它。",
+    "verifiedChecks": [
+      "Slow provider timing：`TASK_CONSTANTS.ts:11-18`、`fallback-adapter-routes.ts:478-559`、`useTaskExecutor.ts:411-480`。",
+      "Cross-layer state machine：后端 `creative_image_tasks.go:528-601,990-1033`、`creative_image_adapter.go:166-209`、`task_polling.go:323-482`；前端 submit/poll/cache/canvas 路径已串读。",
+      "Refresh/retry/cache-storage/canvas：`generated-media-cache.ts:133-200,263-324`、`RetryImage.tsx:214-247,292-310,364-400`、`asset-cleanup.ts:47-101`、`useGeneratedMediaCacheMissRecovery.ts:77-250`。",
+      "History/dock/media library：`selection-utils.ts:797-868`、`SelectedContentPreview.tsx:51-90`、`prompt-history-service.ts:208-219`、`PromptHistoryTool.tsx:120-148`、`media-library-projection.ts:191-236`、`AssetItem.tsx:151-173`。",
+      "No live provider calls；未输出 secrets、cookies、CSRF/nonce、provider keys、signed URLs 或 raw provider payloads。"
+    ]
+  },
+  {
+    "branch": "C1-backend-task-lifecycle",
+    "coverageGaps": [
+      "codegraph/fast-context MCP 调用在本会话返回取消；后续使用当前源码的 rg/nl/sed 精确检查。",
+      "未运行 go test：当前会话是 read-only sandbox，Go 测试/构建缓存需要写入。",
+      "本分支按要求只审计 backend；frontend canvas/history/dock UI 未做深挖，只核对了 backend 对 refresh/retry/content/cache-storage 的支撑路径。"
+    ],
+    "findings": [
+      {
+        "confidence": 0.91,
+        "evidence": "controller/creative_image_tasks.go::creativeRelayImageTaskSubmitLive 301-344 先持久化 SUBMITTED task，此时 PrivateData.UpstreamTaskID 为空；407-431 才在 provider 返回后填 upstream id 并 CAS 更新。service/task_polling.go::TaskPollingLoop/collectPollingTaskBuckets 137-145、156-178 会把空 upstream 且未标记 ambiguous 的未完成任务归入 nullTasks 并 fail/refund。ambiguous 标记只在 submit error 分支设置：controller/creative_image_tasks.go 353-367、846-859。",
+        "fixDirection": "增加 submit-in-flight 状态/时间戳，或在 provider submit 前设置可被 polling 识别的 in-flight/ambiguous guard；polling 对空 upstream 的新建 live image task 应先跳过一个明确 grace window，只在 submit 已终止或 guard 过期后失败。",
+        "id": "C1-BE-001",
+        "impact": "慢 provider 初始响应超过一个轮询周期时，本地任务可能先被后台轮询标记失败并退款；provider 随后实际接受的任务会变成孤儿，refresh/history/dock 只能看到失败，结果无法进入缓存和画布。",
+        "reproduction": "mock provider 在 submit 时 sleep 超过 15s 后再返回 accepted id；使用默认或较长 RELAY_TIMEOUT 发起 /creative/relay/v1/images/tasks；让 TaskPollingLoop 在 provider 返回前运行一次；任务会因 upstream task id empty 失败，submit handler 后续 CAS 失败并返回重载后的 failed task。",
+        "severity": "HIGH",
+        "title": "慢 provider submit 期间会被后台轮询误判失败"
+      },
+      {
+        "confidence": 0.88,
+        "evidence": "service/creative_image_adapter.go::creativeImageProviderJSON/creativeImageProviderTransportErrorAmbiguous 524-553 将 timeout/context cancel 归为 ambiguous。controller/creative_image_tasks.go 353-367、846-859 将任务标记 ProviderSubmitAmbiguous 但没有 upstream id。controller/creative_image_tasks.go::creativeReconcileLiveImageTask 725-731 和 service/task_polling.go 163-171、306-321 只等待到 90 分钟过期；TaskPollingLoop 137-145 过期后失败退款。测试也固定了该行为：controller/creative_test.go 2267-2379，service/task_polling_affinity_test.go 615-647。",
+        "fixDirection": "向 provider 传递可查询的 idempotency/correlation key（public task id 或 request id）并实现 lookup-by-correlation；或将 submit 交给 server-owned worker 在客户端断开后继续读取 accepted id。无 provider 查询能力时，应把状态明确标为需人工/后台 reconciliation，而不是假定 late success 不存在。",
+        "id": "C1-BE-002",
+        "impact": "如果 provider 已接受并最终成功，但初始响应因超时/断连丢失，backend 永远拿不到 upstream id，无法 poll/materialize；用户最终看到失败，provider 成本和生成结果丢失。",
+        "reproduction": "mock provider 接受任务但 submit response 超时或客户端取消；重试同一 Idempotency-Key 会返回同一 in_progress task 且不重新提交；90 分钟后后台将其失败并退款，即使 provider 侧已完成。",
+        "severity": "MEDIUM",
+        "title": "ambiguous submit 的 late-success 没有恢复路径"
+      },
+      {
+        "confidence": 0.8,
+        "evidence": "service/creative_image_adapter.go::creativeImageProviderJSON 524-539 对 poll 非 2xx 只返回普通错误并丢弃可分类响应；CreativeImageProviderTerminalError 102-107 只识别 terminal malformed result。controller/creative_image_tasks.go::creativeReconcileLiveImageTask 755-760 与 service/task_polling.go::updateCreativeImageSingleTask 410-417 对普通错误只记录/返回，任务保持处理中。全局超时默认 1440 分钟：common/init.go 153-156，sweepTimedOutTasks 在 service/task_polling.go 57-78 才最终失败退款。",
+        "fixDirection": "为 image provider poll 增加 typed error 分类：429/5xx/network 保持 transient；404/410 task-not-found、invalid task id、stored-key auth terminal 等应安全落成 failure/refund。分类时继续丢弃或脱敏 provider body，避免泄漏。",
+        "id": "C1-BE-003",
+        "impact": "永久性的 provider poll 失败会让任务在处理中卡到全局超时，用户 refresh/history/dock 长时间显示 pending，额度也被锁住；终态反馈和退款延迟最多可达默认 24 小时。",
+        "reproduction": "创建已提交 live image task，provider poll endpoint 持续返回 404/410 或不可恢复的 selected-key auth failure；GET task 或后台 polling 都不会转 failure，只会等 TASK_TIMEOUT_MINUTES。",
+        "severity": "MEDIUM",
+        "title": "永久 poll 错误被当作 transient 直到全局超时"
+      }
+    ],
+    "status": "complete",
+    "summary": "当前 backend 正常路径已具备 submit/replay/poll/materialize/content DTO privacy/billing outbox 的基本闭环，但还没有达到慢 provider 与 ambiguous submit 下的产品目标；主要风险是空 upstream id 的时序窗口和 late-success 无法恢复。",
+    "verifiedChecks": [
+      "确认 backend git 状态：git -C /mnt/f/code/project/new-api status --short --branch",
+      "定位并审计目标文件：controller/creative_image_tasks.go、service/creative_image_adapter.go、service/task_polling.go、model/task.go、model/channel_cache.go、relay/relay_task.go、dto/task.go",
+      "审计路由/中间件：router/web-router.go creative image task routes；middleware Creative nonce 与 image task GET rate-limit bypass",
+      "审计相关测试：controller/creative_test.go live submit/timeout/fetch/content/privacy；service/task_polling_affinity_test.go ambiguous/polling/affinity；service/creative_image_adapter_test.go timeout/parser；relay/relay_task_test.go DTO redaction；model/task_cas_test.go outbox CAS",
+      "未执行 live provider calls，未打印密钥、cookie、nonce、signed URL 或 raw provider payload"
+    ]
+  },
+  {
+    "branch": "D1-provider-binding-verify",
+    "coverageGaps": [
+      "fast-context/codegraph 调用返回 `user cancelled MCP tool call`，已回退到 `rg/nl/sed` 精确源码检查。",
+      "相关 `go test` 无法执行：只读沙箱阻止 Go 在 `/tmp` 创建 build work dir。",
+      "按用户约束未做 live provider calls；本分支只审计 provider/model binding contract，不覆盖完整 refresh/retry/cache-storage/canvas/history/dock 端到端运行。"
+    ],
+    "findings": [
+      {
+        "confidence": 0.88,
+        "evidence": "`/mnt/f/code/project/new-api/service/creative_model_capability.go:553-595` 的 `grsai_nano_banana` manifest 模板对所有 nano-banana 暴露 `1:4/4:1/1:8/8:1`；但 `creativeGrsAIParameterSchemaAllowedValues` 在 `service/creative_model_capability.go:2036-2073` 只允许 `nano-banana-2*` 使用这些扩展比例。前端 builder 在 `/mnt/f/code/project/new-api/web/default/src/features/system-settings/models/creative-model-bindings-section.tsx:646-660` 直接复制 `selectedParameterTemplate.schema`，没有按 `providerModelId` 裁剪。",
+        "fixDirection": "把参数模板改成 provider-model aware：拆成普通 nano 与 nano-banana-2 模板，或让 manifest 返回按 providerModelId 约束后的 schema。补测试覆盖 manifest 模板生成的 `nano-banana-pro` draft 必须可 Validate，扩展比例只在 `nano-banana-2*` 出现。",
+        "id": "D1-F1",
+        "impact": "管理员用 guided builder 为 `nano-banana-pro`、`nano-banana-fast` 等非 2 系列创建 GrsAI live binding 时，会生成后端必然拒绝的 draft；未来新增 provider/model 时也容易再次出现 manifest 可选项与 runtime 校验分裂。",
+        "reproduction": "Mock channel: enabled、BaseURL/key present、models=`nano-banana-pro`。Admin 选 GrsAI image live + `grsai_nano_banana` + provider model `nano-banana-pro`，Add draft 后 Validate；后端会报 `parameterSchema field \"aspectRatio\" option \"1:4\" is not supported...`。无需 provider call。",
+        "severity": "MEDIUM",
+        "title": "nano-banana 模板对非 2 系列暴露后端会拒绝的扩展比例"
+      },
+      {
+        "confidence": 0.82,
+        "evidence": "后端 `creativeChannelSupportsProviderModel` / `creativeChannelModelMappingResolvesTo` 支持 channel `model_mapping` 链路，见 `/mnt/f/code/project/new-api/service/creative_model_capability.go:1590-1642`；测试在 `/mnt/f/code/project/new-api/service/creative_model_capability_test.go:1257-1268` 覆盖 `logical-image -> gpt-image-2` 可被 Validate 接受，dry-run 诊断 `channelModelId` 见 `1290-1315`。但 admin 前端类型只含 `models`，见 `/mnt/f/code/project/new-api/web/default/src/features/system-settings/types.ts:223-229`，并在 `creative-model-bindings-section.tsx:630-640`、`893-901` 用 `selectedChannelModels.includes(providerModelId)` 硬阻断。controller 测试还明确不返回 `model_mapping`，见 `/mnt/f/code/project/new-api/controller/creative_model_bindings_test.go:140-170`。",
+        "fixDirection": "不要让前端裸 `models.includes(providerModelId)` 成为硬门禁；改为 warning 并以后端 Validate 为准，或新增不泄漏 raw mapping 的 backend support-check/summary 字段，例如 `resolvedChannelModelId` / `supportsProviderModel`，复用后端 mapping 解析。补 mapped channel 的前端/控制器测试。",
+        "id": "D1-F2",
+        "impact": "合法 mapped channel 后端可用，但 admin guided builder 拒绝创建 draft；管理员只能手写 JSON，削弱绑定配置的可操作性和安全引导。",
+        "reproduction": "Mock channel: models=`logical-image`, model_mapping=`{\"logical-image\":\"gpt-image-2\"}`, enabled/baseURL/key present。后端 Validate 接受 `providerModelId=\"gpt-image-2\"`；UI 选择该 channel 后输入 `gpt-image-2` 会触发 “Provider model is not in the selected channel model list” 并在 `handleUpsertDraftBinding` return。",
+        "severity": "MEDIUM",
+        "title": "admin builder 与后端 channel model mapping 语义不一致"
+      }
+    ],
+    "status": "complete",
+    "summary": "D1 当前源码审计结论：Duomi/GrsAI GPT image 主契约基本闭合，普通 `gpt-image-2` 与 VIP `gpt-image-2-vip` 的 schema、payload mapping、dry-run parity 有后端校验和测试覆盖；但 provider binding 层仍有两个新问题，集中在 nano-banana model-aware schema 与 admin builder 对 channel mapping 的理解。",
+    "verifiedChecks": [
+      "检查 `/mnt/f/code/project/new-api/service/creative_model_capability.go` manifest/template/validation/dry-run/channel mapping。",
+      "检查 `/mnt/f/code/project/new-api/service/creative_image_adapter.go` Duomi/GrsAI payload mapping 与 target metadata。",
+      "检查 `/mnt/f/code/project/new-api/service/creative_model_capability_test.go`、`service/creative_image_adapter_test.go`、`controller/creative_model_bindings_test.go` 现有覆盖。",
+      "检查 `/mnt/f/code/project/new-api/web/default/src/features/system-settings/models/creative-model-bindings-section.tsx` builder、validate、dry-run、save gating。",
+      "尝试运行相关 Go 测试，但只读沙箱阻止 `/tmp/go-build*` 创建，未能执行。"
+    ]
+  },
+  {
+    "branch": "E1-e2e-user-repros",
+    "coverageGaps": [
+      "fast-context 和 codegraph MCP 在本运行时均被取消；已改用 rg/nl/sed 精确源码审计。",
+      "只读沙箱下未运行 Vitest/Go test/Playwright，也未做浏览器视觉验证。",
+      "按要求未调用 live provider；慢 provider 仅通过源码路径和 mock 场景重建。"
+    ],
+    "findings": [
+      {
+        "confidence": 0.91,
+        "evidence": "/mnt/f/code/project/new-api/service/creative_image_adapter.go:520-553 将 submit transport timeout/context cancel 标记为 ambiguous；/mnt/f/code/project/new-api/controller/creative_image_tasks.go:353-367 持久化 ProviderSubmitAmbiguous 后返回 202，但没有 UpstreamTaskID；同文件 725-731 在 fetch reconcile 中无 upstream id 时只等待，90 分钟后失败；/mnt/f/code/project/new-api/service/task_polling.go:156-178、306-321 后台 polling 同样跳过 ambiguous，过期后 terminal fail/refund。",
+        "fixDirection": "不要把该分支伪装成普通 in_progress。需要 provider-safe 恢复策略：用 provider idempotency/request id 查询 upstream task id，或显式进入 recovery_needed/cancelable 状态；如果 provider 不支持查询，应在 UX 和 billing 上明确不可恢复并避免用户误以为仍会自动出图。",
+        "id": "E1-01",
+        "impact": "provider 可能已经接受并继续生成，用户侧却永远拿不到 upstream id；结果丢失，90 分钟后失败/退款，且用户 retry 可能产生第二个 provider job 和额外成本。",
+        "reproduction": "mock provider 在 POST /images/tasks 已创建 upstream task 后让 HTTP 响应超时；本地 task 变为 in_progress + ProviderSubmitAmbiguous=true + UpstreamTaskID 空。之后 provider 成功，但 GET /creative/relay/v1/images/tasks/{task_id} 无法 poll，直到 ambiguous timeout 失败。",
+        "severity": "HIGH",
+        "title": "仍破损：submit 超时后的 late accepted provider task 不可恢复"
+      },
+      {
+        "confidence": 0.88,
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGenerationHistory.ts:27-39 只把 completed image 映射为 imageUrl/width/height，没有 contentUrl/remoteTaskId/providerTaskId；/mnt/f/code/project/opentu/packages/drawnix/src/components/generation-history/generation-history.tsx:75-82 只渲染 <RetryImage src={item.imageUrl}>；/mnt/f/code/project/opentu/packages/drawnix/src/components/retry-image.tsx:220-232 只有传入 effectiveRehydrateSourceUrl 时才会从 contentUrl 重建 Cache Storage。",
+        "fixDirection": "扩展 ImageHistoryItem/VideoHistoryItem，保留 result.contentUrl、remoteTaskId、providerTaskId、mimeType，并像 PromptHistoryTool/SelectedContentPreview 一样传给 RetryImage 的 rehydrateSourceUrl/rehydrateMetadata。",
+        "id": "E1-02",
+        "impact": "刷新后或 Cache Storage miss 时，生成历史里的 /__aitu_cache__/image/... 缩略图无法从 /creative/relay/.../content 重建，表现为一直加载后失败。",
+        "reproduction": "完成 Creative image task，result.url 为 /__aitu_cache__/image/<id>.png 且 result.contentUrl 存在；刷新或清空 Cache Storage 后打开 Generation History popover，RetryImage 没有 rehydrate source，只能重试本地 cache URL，最终失败。",
+        "severity": "MEDIUM",
+        "title": "仍破损：GenerationHistory 图片历史缺 rehydrate 元数据"
+      },
+      {
+        "confidence": 0.78,
+        "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:792-803 已构造 imageMetadata；但 frame/PPT 插入分支 869-876、915-924 调 insertMediaIntoFrame 时未传 metadata；多图分支 999-1003 调 insertImageGroup 时未传 metadata；批量 group 分支 1363-1368 只给 audio 传 metadata。相反，/mnt/f/code/project/opentu/packages/drawnix/src/services/canvas-operations/canvas-insertion.ts:143-157 已支持把 metadata 写入 canvas node，/mnt/f/code/project/opentu/packages/drawnix/src/utils/selection-utils.ts:797-853 和 SelectedContentPreview.tsx:66-89 会依赖这些字段做 selected/dock rehydrate。",
+        "fixDirection": "把 contentUrl/remoteTaskId/providerTaskId/mimeType 贯穿到 insertMediaIntoFrame、insertImageGroup 和批量 image group 的每个 image node；补 selected thumbnail cache-miss 测试覆盖 single、frame、PPT、multi-image/group。",
+        "id": "E1-03",
+        "impact": "普通单图 selected preview 已有修复路径，但 frame/PPT/多图生成节点刷新后被选中时可能只有 /__aitu_cache__/...，没有 contentUrl 元数据，dock/selected thumbnail 在 cache miss 下仍会坏。",
+        "reproduction": "生成多图或插入到 frame/PPT target，刷新并清空 Cache Storage 后选中生成节点；selection-utils 无法提取 contentUrl/remoteTaskId，SelectedContentPreview 无 rehydrateSourceUrl，只能加载失效的本地虚拟 URL。",
+        "severity": "MEDIUM",
+        "title": "仍破损：部分画布插入路径丢 generated image rehydrate metadata"
+      }
+    ],
+    "status": "complete",
+    "summary": "当前状态机结论：主链路已明显接近目标，但未完全达成。固定/基本固定：有 remoteId 的慢 provider 超过普通 15 分钟前端 timeout 后可 90 分钟 resume；failed/timed-out retry 会清 result/error/remoteId 并用 retryAttempt scoped idempotency；后端 success materialize 失败不会提前 completed；canvas 插入前会验证/cache rehydrate；viewport refresh 保存路径有源码修复。仍破损：submit transport timeout 且 provider late accepted 无 upstream id 不可恢复；GenerationHistory 旧历史缩略图缺 rehydrate 元数据；frame/PPT/multi-image 插入节点会丢部分 selected/dock rehydrate 元数据。未证实：浏览器真实 refresh/reopen 后 viewport、dock、history、canvas 非空的视觉稳定性。",
+    "verifiedChecks": [
+      "慢 provider timing：审计了 frontend 15min vs Creative remote 90min timeout，以及 backend ambiguous submit 90min timeout。",
+      "跨层状态机：UI task -> idempotent submit -> backend Task/PrivateData -> provider submit/poll -> asset materialize -> frontend poll/cache -> canvas/history/dock -> refresh/retry。",
+      "refresh/retry/cache-storage/canvas/history/dock：审计了 task-utils、useTaskExecutor、task-queue-service、fallback-adapter-routes、RetryImage、generated-media-cache、useAutoInsertToCanvas、SelectedContentPreview、GenerationHistory、viewport-persistence。",
+      "未调用 live provider，未输出 secrets/raw provider payload。"
+    ]
+  }
+]

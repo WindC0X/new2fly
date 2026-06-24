@@ -1,0 +1,217 @@
+{
+  "workflow": "creative-runtime-lifecycle-postfix-reaudit-v10-2026-06-23",
+  "journal": "/mnt/f/code/project/new2fly/.codex-flow/journal/creative-runtime-lifecycle-postfix-reaudit-v10-2026-06-23.jsonl",
+  "synthesisStatus": "failed-after-resume",
+  "note": "codex-flow fan-out branches completed; built-in synthesis returned null twice. This file preserves terminal branch outputs for continuation synthesis and main-session verification.",
+  "branchResults": [
+    {
+      "branch": "new-api: feat/creative-embed; opentu: feat/creative-embed; new2fly: master",
+      "findings": [
+        {
+          "evidence": "opentu packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:489-558 stops Creative managed image polling after CREATIVE_REMOTE_IMAGE_TIMEOUT_MS with a plain Error; the submit path persists that as code IMAGE_GENERATION_ERROR at fallback-adapter-routes.ts:674-688, while the resume path stores error.name at packages/drawnix/src/hooks/useTaskExecutor.ts:535-555. Refresh recovery only treats failed Creative managed image tasks as recoverable when error.code === TIMEOUT at packages/drawnix/src/utils/task-utils.ts:138-162.",
+          "fixDirection": "Normalize Creative managed remote poll timeout failures to a stable TIMEOUT code in both initial execution and resume paths, or broaden isRecoverableRemoteTaskFailure to recognize this specific timed-out Creative remote state while preserving remoteId. Add tests covering timeout -> refresh -> resume polling instead of regenerate.",
+          "id": "F-CROSS-001",
+          "impact": "A long-running provider task with a known remoteId can be marked failed locally and then not recovered after refresh. Manual retry clears remoteId and generates a new idempotency key, so the existing backend/provider task can be orphaned and the user may pay or wait twice.",
+          "severity": "MEDIUM",
+          "title": "Creative managed image local timeout is not recoverable after refresh",
+          "verification": "Confirmed by source inspection. Automated test execution was blocked: go test failed because the read-only sandbox could not create /tmp/go-build*."
+        }
+      ],
+      "openQuestions": [],
+      "status": "finding",
+      "summary": "Backend new-api Creative image async lifecycle checks pass from current code: submit is durable before provider call, selected key and endpoint affinity are stored, empty upstream fails closed, ambiguous submit is held then fail-closed/refunded, polling uses CAS plus billing outbox, and materialization failures remain retryable. One cross-layer frontend recovery gap remains for remote tasks that hit the client-side Creative timeout.",
+      "verifiedEvidence": [
+        "controller/creative_image_tasks.go:250-354 persists the task before live provider submit with selected key, provider endpoint, idempotency key, in-flight flag, and billing context.",
+        "controller/creative_image_tasks.go:355-388 handles ambiguous submit as accepted/in_progress and fail-closes non-accepted or empty-upstream submit results.",
+        "controller/creative_image_tasks.go:712-835 reconciles live tasks using stored key/upstream/endpoint affinity, treats temporary poll errors as non-terminal, retries materialization by leaving the task non-terminal, and terminally settles/refunds via CAS/outbox.",
+        "service/task_polling.go:36-39 and 159-186 hold in-flight or ambiguous tasks without upstream id until the 90-minute guard expires; service/task_polling.go:400-515 polls Creative image tasks with stored key and endpoint checks, then terminal CAS/outbox.",
+        "model/task.go:543-630 defines owner-scoped billing outbox uniqueness and UpdateWithStatusAndBillingOutbox transaction semantics; service/task_billing.go:206-371 processes pending/failed/stale outboxes idempotently.",
+        "service/creative_image_adapter.go:505-553 classifies submit transport timeout/cancel as ambiguous; service/creative_image_adapter.go:589-661 fail-closes terminal success responses missing result content.",
+        "controller/creative_test.go:2269-2384 covers ambiguous live submit replay and no immediate refund; controller/creative_test.go:2690-2967 covers live polling success, private DTO, endpoint/missing-affinity fail-closed paths, and malformed terminal result refund.",
+        "service/task_polling_affinity_test.go:600-684 covers missing upstream no public-task fallback plus in-flight/ambiguous bucket behavior; service/task_polling_affinity_test.go:687-848 covers background Creative polling success and missing stored key fail-closed.",
+        "opentu fallback-adapter-routes.ts:611-653 submits with a stable idempotency key and stores remoteId; fallback-adapter-routes.ts:402-475 downloads /content into /__aitu_cache__/image with remote/content metadata and retryable cache-write failure handling.",
+        "opentu useTaskStorage.ts:74-180 restores IndexedDB tasks and keeps remoteId-backed image/video/audio tasks resumable; task-queue-service.ts:2395-2457 clears remoteId only for explicit retry/regenerate.",
+        "opentu unified-cache-service.ts:1262-1355 writes generated blobs to Cache API plus IndexedDB and requests thumbnails; apps/web/src/sw/index.ts:4246-4303 bypasses Creative private API and serves /__aitu_cache__; apps/web/src/sw/index.ts:4937-5038 handles virtual cache and thumbnail fallback.",
+        "opentu generated-media-cache.ts:102-218 and useGeneratedMediaCacheMissRecovery.ts:214-277 can rehydrate cache misses from safe Creative content URLs; useAutoInsertToCanvas.ts:370-403 verifies generated image cache/content before canvas insertion."
+      ]
+    },
+    {
+      "branch": "opentu: feat/creative-embed; new-api: feat/creative-embed; new2fly: master",
+      "findings": [
+        {
+          "evidence": "opentu packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:478-489 polls Creative managed image tasks only until CREATIVE_REMOTE_IMAGE_TIMEOUT_MS, then throws \"creative image task timed out\" at 558. executeCreativeManagedImageTask catches that and writes a terminal failed task with IMAGE_GENERATION_ERROR at 674-687, then task-queue-service.ts:1378-1401 can persist EXECUTION_ERROR. useTaskStorage.ts:148-177 restores only isRecoverableRemoteTaskFailure(), and task-utils.ts:138-161 only treats TIMEOUT/INTERRUPTED-style failures as recoverable. retryTask() then clears remoteId at task-queue-service.ts:2444-2447, so retry becomes a fresh generation.",
+          "fixDirection": "Make Creative managed remoteId poll-budget expiry non-terminal, or store a recoverable TIMEOUT state that restore/resume handles without clearing remoteId. Keep regenerate explicit and separate from resume. Add a test where provider stays in_progress past CREATIVE_REMOTE_IMAGE_TIMEOUT_MS, local polling stops/reloads, then backend later returns completed and the same remoteId is resumed.",
+          "id": "OTU-LIFECYCLE-001",
+          "impact": "A slow provider task that is still running can be shown as failed locally. Late provider success is not recovered on refresh, and the retry button starts a new upstream task, risking duplicate cost and abandoning the original result.",
+          "severity": "HIGH",
+          "title": "Creative managed poll budget can still turn a running remote task into nonrecoverable local failure",
+          "verification": "Current tests cover old startedAt > remote budget resuming successfully in useTaskExecutor.test.ts:230-265, but I found no test covering executeCreativeManagedImageTask polling past the 90-minute budget and then recovering the existing remoteId."
+        },
+        {
+          "evidence": "Dialog insertion preserves generated image metadata via dialog-task-insert.ts:39-56 and passes it to insertImageFromUrl at 96-107. The toolbar dock TaskQueuePanel does not use that helper; TaskQueuePanel.tsx:607-624 verifies/rehydrates the cache but calls insertImageFromUrl(board, ready.url) without metadata. data/image.ts:468-472 only writes contentUrl/remoteTaskId/providerTaskId/mimeType onto the canvas node when metadata is supplied. Cache miss recovery can fall back to canvas metadata at useGeneratedMediaCacheMissRecovery.ts:211-231, but dock-inserted nodes lack that fallback.",
+          "fixDirection": "Route TaskQueuePanel image insertion through insertDialogTaskResultToBoard or pass the same generated-image canvas metadata to insertImageFromUrl. Add a TaskQueuePanel/dock insertion test that clears task history or simulates missing task lookup, evicts /__aitu_cache__, and verifies rehydrate from canvas metadata.",
+          "id": "OTU-LIFECYCLE-002",
+          "impact": "Images inserted from the dock can survive while the task record and Cache Storage entry exist, but if task history is cleared/retained away and the virtual cache misses after refresh, the canvas node lacks durable content metadata to rehydrate from backend content.",
+          "severity": "MEDIUM",
+          "title": "Dock image insertion drops generated-media rehydrate metadata",
+          "verification": "No TaskQueuePanel test was found for generated-image metadata insertion; existing coverage is for DialogTaskList/useAutoInsert/useGenerationHistory paths."
+        }
+      ],
+      "openQuestions": [],
+      "status": "finding",
+      "summary": "审计基于当前代码和测试静态重建，未做 live provider、部署、push 或凭据读取。OpenTU 的普通本地超时、IndexedDB restore、remoteId resume、idempotency retryAttempt、stale completion guard、SW/cache miss、thumbnail、canvas load verification、任务历史和 viewport 持久化大体已有保护；两个剩余问题集中在 Creative managed 远程任务的本地 poll-budget 终态化，以及 dock 插入路径的画布元数据缺口。",
+      "verifiedEvidence": [
+        "慢 provider 快成功/长 in_progress 后成功：fallback-adapter-routes.ts:478-555 持续轮询，media-executor.test.ts:722-872 覆盖 120s+ 后 completed、remoteId 先持久化、内容写入 cache、completeTask。",
+        "临时 poll/content 错误恢复：fallback-adapter-routes.ts:315-335 将 429/500/502/503/504 视为临时；402-466 将内容 fetch/cache write 转为 retryable materialization；478-524 在 completed 后 materialization 失败会继续重试。",
+        "本地普通 timeout 与 Creative managed 区分：task-utils.ts:120-136 对 Creative managed remote image 返回 false；useTaskExecutor.ts:282-304 的 terminal TIMEOUT 只会在 isTaskTimeout 为真时触发。",
+        "stale completion guard：useTaskExecutor.ts:322-347 校验 retryAttempt、startedAt、remoteId；task-storage-writer.ts:245-260 防 terminal overwrite 和 retryAttempt mismatch；task-queue-service.ts:545-588 校验执行 attempt。",
+        "resume vs regenerate：useTaskExecutor.ts:411-560 对 processing+remoteId 的 Creative image 执行 resume；task-queue-service.ts:2395-2465 retryTask 递增 retryAttempt、清 remoteId/result/error 并重新提交；task-queue-service-image-retry.test.ts:645-713 覆盖 attempt-scoped idempotency 与 processing+remoteId 不 regenerate。",
+        "IndexedDB restore：useTaskStorage.ts:74-111 restore stored tasks，并保留 video/audio/async-image processing+remoteId；148-177 将 recoverable failed remote task 改回 processing/polling。",
+        "后端 submit/idempotency/provider id：creative_image_tasks.go:89-107 准备/清理幂等；250-469 创建 task、预扣费、ProviderSubmitInFlight、提交 provider、保存 UpstreamTaskID、完成幂等并处理 billing outbox。",
+        "后端 reconcile/billing/content：creative_image_tasks.go:712-834 只在 provider terminal success/failure 时 CAS 更新并 settle/refund；532-605 fetch/content 路由 reconcile、materialize asset 或返回 asset content；model/task.go:613-630 CAS+outbox；service/task_billing.go:206-370 outbox claim/idempotent funding/token/log。",
+        "安全失败原因：creative_image_adapter.go:708-723 sanitize provider error；creative_image_tasks.go:1004-1047 DTO 只暴露 public result/content URL 与 sanitized fail_reason/error；1067-1115 过滤 URL/token/signature/cookie 等敏感片段。",
+        "/__aitu_cache__ 与 cache miss：SW apps/web/src/sw/index.ts:4268-4303 拦截虚拟缓存 URL，4937-5052 处理 thumbnail/cache hit/cache miss；generated-media-cache.ts:60-131 只接受同源 Creative content/asset content URL；166-200 rehydrate 并 decode 验证。",
+        "canvas/load/history/dock：useAutoInsertToCanvas.ts:370-403 和 848-862/1275-1299/1579-1605 在插入前验证 generated image cache，失败走 post-processing failure；TaskItem.tsx:400-427、707-712 和 useGenerationHistory.ts:18-51 为预览/历史传 rehydrate metadata。",
+        "刷新后 viewport：viewport-persistence.ts:13-25 定义 leave flush 条件；app.tsx:729-862 对 pan/zoom dirty state 在 debounce、visibilitychange、pagehide、beforeunload flush。"
+      ]
+    },
+    {
+      "branch": "generated image media lifecycle",
+      "findings": [
+        {
+          "evidence": "opentu/packages/drawnix/src/components/task-queue/TaskQueuePanel.tsx:607-624 builds contentUrl/remoteTaskId/providerTaskId metadata for generated image readiness, but then calls insertImageFromUrl(board, ready.url) without passing metadata. opentu/packages/drawnix/src/data/image.ts:331-343 only accepts generated metadata via the final metadata argument, and persists it to the inserted node at 468-472. opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:211-231 depends on durable node metadata when task records are gone.",
+          "fixDirection": "Pass the same generated-image metadata object into insertImageFromUrl after ensureGeneratedImageCacheUrlReady, and add a TaskQueuePanel manual-insert test that deletes task records then rehydrates from node metadata.",
+          "id": "GIML-001",
+          "impact": "Manual task-queue inserts can create canvas nodes without contentUrl/remoteTaskId/providerTaskId. After refresh or task-history cleanup, cache-miss recovery cannot reconstruct the provider content URL from the node, so generated images can become permanently unrecoverable on the canvas.",
+          "severity": "HIGH",
+          "title": "Manual task-queue image insert verifies cache but drops durable generated metadata",
+          "verification": "Source inspection only. Covered behavior is not exercised by the existing useAutoInsertToCanvas cache-rehydrate tests or useGeneratedMediaCacheMissRecovery node-metadata test because those tests do not go through TaskQueuePanel.handleInsert."
+        },
+        {
+          "evidence": "opentu/packages/drawnix/src/components/shared/media-preview/MediaViewport.tsx:516-528 verifies readiness with item.rehydrateSourceUrl and item.rehydrateMetadata, then calls quickInsertCanvasMedia(contentType, readyMediaUrl) without the metadata argument. opentu/packages/drawnix/src/services/canvas-operations/media-quick-insert.ts:81-87 exposes the metadata parameter and forwards it to selected-frame insertion at 99-106 when supplied.",
+          "fixDirection": "Forward item.rehydrateMetadata into quickInsertCanvasMedia from MediaViewport, and assert inserted generated image nodes retain contentUrl/remoteTaskId/providerTaskId.",
+          "id": "GIML-002",
+          "impact": "Dock/media preview insertion can pass availability verification but lose durable generated metadata on the inserted canvas node, breaking refresh/cache-miss recovery when local task records are absent.",
+          "severity": "HIGH",
+          "title": "Media preview canvas insert omits generated rehydrate metadata",
+          "verification": "Source inspection only. The lower-level quickInsertCanvasMedia contract supports metadata; the caller is the gap."
+        },
+        {
+          "evidence": "opentu/packages/drawnix/src/components/media-library/MediaLibraryGrid.tsx:1260-1275 verifies generated image cache readiness with rehydrate metadata, but then calls insertImageFromUrl(board, ready.url) without the final metadata argument. opentu/packages/drawnix/src/data/image.ts:468-472 persists generated metadata only when that argument reaches getGeneratedImageCanvasMetadata.",
+          "fixDirection": "Pass item.rehydrateMetadata, or the fallback asset-derived metadata already built at 1264-1272, into insertImageFromUrl. Add a media-library viewer insertion regression test for durable node metadata.",
+          "id": "GIML-003",
+          "impact": "Media-library viewer insertion can create generated-image canvas nodes that cannot self-rehydrate after IndexedDB/task-history loss, even though the preview path had enough remote identity information.",
+          "severity": "HIGH",
+          "title": "Media library viewer insertion drops generated metadata after readiness check",
+          "verification": "Source inspection only. This is a caller-level omission; display/thumbnail rehydrate props do not fix inserted node durability."
+        },
+        {
+          "evidence": "opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:1275-1299 verifies grouped generated image items before insertion, but the PPT slide grouped-frame path at 1350-1357 calls insertMediaIntoFrame(..., undefined) without metadata. Other nearby single/frame paths pass metadata, for example quickInsert at 1112-1118.",
+          "fixDirection": "Pass getImageTaskCanvasMetadata/current task metadata into insertMediaIntoFrame for grouped PPT slide insertion, matching the single-image and normal frame insertion paths. Add a grouped PPT slide auto-insert test that asserts metadata on every inserted/replaced frame image.",
+          "id": "GIML-004",
+          "impact": "Grouped PPT slide image insertion can succeed and complete post-processing while omitting durable generated metadata for the frame-inserted image, leaving that slide image less recoverable after refresh/cache loss.",
+          "severity": "MEDIUM",
+          "title": "Grouped PPT slide frame insertion does not carry generated metadata",
+          "verification": "Source inspection only. The general auto-insert tests cover cache verification and completion gates, but not this grouped PPT frame metadata path."
+        }
+      ],
+      "openQuestions": [],
+      "status": "finding",
+      "summary": "Source/test-only audit completed for the generated image media lifecycle. Backend slow-provider lifecycle gates look repaired in current code, and frontend auto-insert/cache-miss recovery has strong readiness checks, but several manual/media-library/frame insertion callers still drop generated-image metadata after verification. No live provider calls, deploys, pushes, or credential reads were performed.",
+      "verifiedEvidence": [
+        "Audit method: reconstructed from current source and tests with rg/nl/sed only; no live provider calls and no credential or raw provider payload inspection.",
+        "Slow provider timing gate: PASS. new-api/controller/creative_image_tasks.go:301-344 persists a durable task before provider submit; 355-369 keeps ambiguous submit as accepted/in-progress; 391-408 downgrades quick success to in-progress if materialization is not ready; 712-835 reconciles unfinished live tasks and treats non-terminal poll errors as retryable while terminal invalid results fail closed. new-api/service/task_polling.go:435-449 leaves temporary poll errors non-terminal and 478-515 materializes before terminal success plus billing outbox settlement/refund.",
+        "Cross-layer state machine gate: PARTIAL. Backend submit/idempotency/provider-id/DB/billing/outbox lifecycle is present, and auto-insert waits for cache/content readiness before completion at opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:370-403, 848-863, 1112-1168, 1275-1299. The gate is weakened by findings GIML-001 through GIML-004 where verified image insertion paths omit durable generated metadata.",
+        "Refresh/retry/cache end-to-end gate: PARTIAL. opentu/packages/drawnix/src/utils/generated-media-cache.ts:133-200 can rehydrate and verify /__aitu_cache__/ images from safe content URLs; opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:211-277 can recover from durable node metadata and retrigger canvas image load; tests at useGeneratedMediaCacheMissRecovery.test.tsx:201-252 cover metadata-only recovery. Findings show multiple insertion paths fail to write that durable metadata.",
+        "Thumbnail/cache-miss behavior: PASS for displayed task/media thumbnails. opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:400-438 builds generated rehydrate metadata and 705-719 passes it to RetryImage; opentu/packages/drawnix/src/components/retry-image.tsx:292-347 retries generated cache misses and rehydrate fallback; opentu/packages/drawnix/src/components/shared/media-preview/ThumbnailQueue.tsx:45-61 uses RetryImage and can fall back from thumbnail URL to original source. This does not cover inserted canvas node metadata gaps above.",
+        "Canvas completion gate: PASS for auto-insert core path. opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.test.ts:467-503 verifies cache failure does not complete post-processing; 505-539 verifies insertion failure does not complete; 636-691 verifies rehydrate before completion; 693-746 verifies direct content URL before completion. Manual/media-library insertion paths have separate metadata findings."
+      ]
+    },
+    {
+      "branch": "user-visible-ui-status-error-surfaces",
+      "findings": [
+        {
+          "evidence": "/mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:270 makes FAILED/CANCELLED tasks retryable without checking recoverable remote state; /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:1080 renders the same primary button text `重试`; /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskQueuePanel.tsx:313 and /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/DialogTaskList.tsx:165 call `retryTask(taskId)` directly; /mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2395 resets the task, increments retryAttempt, clears result/error, and explicitly clears `remoteId` at line 2446 for a fresh submission; /mnt/f/code/project/opentu/packages/drawnix/src/utils/task-utils.ts:138 defines `isRecoverableRemoteTaskFailure` for failed remote tasks, but this helper is not used by TaskItem/TaskQueuePanel/DialogTaskList labeling or action routing; /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:411 resumes only PROCESSING tasks with remoteId, not FAILED tasks clicked through the retry button.",
+          "fixDirection": "Split retry affordances by task state. For `isRecoverableRemoteTaskFailure(task)`, either route the action through a resume/poll path that preserves remoteId/upstream identity, or label the button/action as a fresh regeneration and require clear user intent. Keep the current `retryTask` fresh-submit path for terminal failures that cannot be resumed.",
+          "id": "UI-RETRY-SEMANTICS-001",
+          "impact": "Users can see a generic retry action on a failed remote task while the implementation discards the remote identity and starts a new provider submission. This can mislead users about whether they are resuming an existing job or regenerating, and can cause unexpected duplicate generation/billing behavior.",
+          "severity": "MEDIUM",
+          "title": "Retry button does not distinguish resume from fresh regeneration",
+          "verification": "Source-only verification. No live provider calls or runtime tests were run. The action path was traced from TaskItem/TaskQueuePanel/DialogTaskList to taskQueueService.retryTask and compared with the existing recoverable remote failure helper and PROCESSING resume path."
+        }
+      ],
+      "openQuestions": [
+        "未运行测试，原因是本轮为只读审计且环境为 read-only；结论基于当前源码和已有测试文件。"
+      ],
+      "status": "finding",
+      "summary": "审计重建了当前前后端生命周期链路。慢 provider、后端幂等/计费/outbox、前端刷新恢复、缓存 miss 重水化、错误脱敏和 TaskItem memoization 在检查范围内有对应源码保护。主要缺口是用户可见的 retry 语义：失败远程任务的按钮和动作没有准确区分“恢复已有任务”和“重新生成”。",
+      "verifiedEvidence": [
+        "Slow provider timing: /mnt/f/code/project/new-api/controller/creative_image_tasks.go:250 creates durable live image tasks with provider submit in-flight state, selected credential/endpoint affinity, billing context, and idempotency key; /mnt/f/code/project/new-api/controller/creative_image_tasks.go:396 handles quick success by materializing content, and falls back to in_progress when materialization is not ready; /mnt/f/code/project/new-api/controller/creative_image_tasks.go:712 reconciles long in_progress tasks; /mnt/f/code/project/new-api/controller/creative_image_tasks.go:765 returns non-terminal poll errors without fail-closing; /mnt/f/code/project/new-api/controller/creative_image_tasks.go:824 refunds on terminal failure.",
+        "Cross-layer state machine: /mnt/f/code/project/new-api/controller/creative_image_tasks.go:453 completes idempotency after accepted submit; /mnt/f/code/project/new-api/model/task.go:66 keeps PrivateData out of JSON; /mnt/f/code/project/new-api/model/task.go:102 stores upstream id, provider endpoint/key, idempotency, and billing context privately; /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskStorage.ts:74 restores tasks from IndexedDB; /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskStorage.ts:148 recovers failed remote tasks back to PROCESSING; /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:411 resumes PROCESSING async image tasks with remoteId.",
+        "Sensitive error surfaces: /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-error-sanitizer.ts:1 redacts URLs, tokens, signatures, callback/webhook/notify-hook and credential-like markers; /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-error-sanitizer.test.ts:9 preserves safe provider rejection reasons; /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useImageGenerationAnchorSync.ts:95 sanitizes anchor errors; /mnt/f/code/project/opentu/packages/drawnix/src/utils/image-generation-anchor-view-model.ts:136 sanitizes task and post-processing errors; /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:480 sanitizes task error and originalError before rendering; /mnt/f/code/project/opentu/packages/drawnix/src/services/prompt-history-service.ts:186 sanitizes failed task previews for prompt history.",
+        "Backend safe failure DTO: /mnt/f/code/project/new-api/controller/creative_image_tasks.go:1004 emits result URLs as broker content endpoints only; /mnt/f/code/project/new-api/controller/creative_image_tasks.go:1025 sanitizes failReason before DTO/error output; /mnt/f/code/project/new-api/controller/creative_image_tasks.go:1067 redacts sensitive fail reasons; /mnt/f/code/project/new-api/service/creative_image_adapter.go:708 sanitizes provider error fields during provider parsing.",
+        "Refresh/cache/display: /mnt/f/code/project/opentu/packages/drawnix/src/utils/generated-media-cache.ts:60 accepts only same-origin creative content URLs; /mnt/f/code/project/opentu/packages/drawnix/src/utils/generated-media-cache.ts:133 rehydrates generated cache URLs from safe content URLs; /mnt/f/code/project/opentu/packages/drawnix/src/components/retry-image.tsx:214 falls back from virtual cache URLs to cached/rehydrated blobs; /mnt/f/code/project/opentu/packages/drawnix/src/components/retry-image.tsx:292 retries generated content rehydration on repeated image load failures; /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGenerationHistory.ts:64 derives history from completed task queue data and carries rehydrate metadata; /mnt/f/code/project/opentu/packages/drawnix/src/components/generation-history/generation-history.tsx:79 passes image history through RetryImage.",
+        "Cache lifetime and miss behavior: /mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts:85 defines default max-age for AI handoff decisions; /mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts:831 treats IndexedDB metadata without Cache API bytes as cache_missing with warning; /mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts:1262 writes generated blobs to Cache Storage and IndexedDB; /mnt/f/code/project/opentu/packages/drawnix/src/services/unified-cache-service.ts:1363 reads cached blobs with normalized virtual URL matching and no remote fallback for virtual cache IDs.",
+        "Memoization: /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.tsx:225 compares task object identity plus controls; /mnt/f/code/project/opentu/packages/drawnix/src/components/task-queue/TaskItem.memo.test.ts:31 covers originalError, remoteId, and params changes; /mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskQueue.ts:128 replaces atom entries with event task objects; /mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:990 documents and implements new task objects for progress updates."
+      ]
+    },
+    {
+      "branch": "Creative schema-backed image params and live adapter compatibility",
+      "findings": [
+        {
+          "evidence": "Frontend only persists `remoteId` after submit response: `/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:638` and `:647`. On reload, `useTaskStorage` keeps only resumable tasks and otherwise marks processing tasks failed: `/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskStorage.ts:90`, `:106`, `:126`. Resumable image tasks require `remoteId`: `/mnt/f/code/project/opentu/packages/drawnix/src/utils/task-utils.ts:86`. Retry then increments `retryAttempt`: `/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:2417`, and uses a retry-scoped idempotency key: `:1161`.",
+          "fixDirection": "Persist the initial Creative image idempotency key on task creation and treat managed `SUBMITTING` tasks without `remoteId` as recoverable by replaying the same key once, instead of marking failed and forcing `retry-1`. Add a refresh-during-submit test proving backend idempotency returns/resumes the original task.",
+          "id": "F1",
+          "impact": "Refresh or tab close after backend durable submit but before frontend receives the task id can strand the original backend task and make user retry create a second provider/backend attempt. This violates the refresh/retry/resume gate and can duplicate generation/billing intent.",
+          "severity": "HIGH",
+          "title": "Refresh during managed image submit can regenerate with a new idempotency key instead of resuming",
+          "verification": "Source-only audit; no live calls. Existing tests cover managed resume after `remoteId`, but `rg` found no Creative image test for `SUBMITTING` without `remoteId` recovery."
+        },
+        {
+          "evidence": "Backend enforces required labels/options for Duomi GPT image and GrsAI GPT image/VIP only: `/mnt/f/code/project/new-api/service/creative_model_capability.go:1918`. `grsai_nano_banana` is only allowlisted by field id/value: `:2065`, `:2096`. A backend test saves a nano-banana schema with only `auto/1:1/16:9` aspect options and passes dry-run: `/mnt/f/code/project/new-api/service/creative_model_capability_test.go:1615`, `:1638`.",
+          "fixDirection": "Add a required schema contract for `grsai_nano_banana`, preferably model-family aware for base/pro vs nano-banana-2 extended ratios, or explicitly document/admin-gate intentional subsets. Add tests for 21:9 and extended nano options.",
+          "id": "F2",
+          "impact": "Current built-in nano template is correct, but stored live nano bindings can drift in labels/options and still pass validation. The frontend will faithfully render that drift because runtime schema is authoritative.",
+          "severity": "LOW",
+          "title": "GrsAI nano-banana lacks the same required schema contract as GPT image templates",
+          "verification": "Source-only audit; no live calls. This is a configuration-drift risk, not evidence that current built-in template is wrong."
+        }
+      ],
+      "openQuestions": [],
+      "status": "finding",
+      "summary": "审计重建了当前 backend/frontend 代码路径。核心 schema-backed 渲染、Duomi/GrsAI live adapter 映射、21:9、poll/retry/cache materialization mostly成立；主要缺口是刷新发生在 submit response 前时，frontend 不能用原始 idempotency key 恢复。",
+      "verifiedEvidence": [
+        "Backend adapter manifests constrain Duomi live to `duomi_gpt_image` and GrsAI live to `grsai_gpt_image/grsai_gpt_image_vip/grsai_nano_banana`: `/mnt/f/code/project/new-api/service/creative_model_capability.go:311`, `:328`.",
+        "Backend schemas expose model/template-specific `aspectRatio/imageSize/quality`; GPT/Duomi include 21:9 and nano-banana has no quality field: `/mnt/f/code/project/new-api/service/creative_model_capability.go:384`, `:498`, `:553`.",
+        "Backend request mapping is provider-specific: Duomi maps `aspectRatio/imageSize` to `size` and 21:9 to pixel size; GrsAI forces `replyType: async`, maps GPT image aspect+size to pixel aspectRatio, and omits `imageSize` for GPT image: `/mnt/f/code/project/new-api/service/creative_image_adapter.go:310`, `:349`, `:379`, `:437`, `:470`.",
+        "Backend live submit creates a durable task before provider call, marks in-flight, stores selected key/endpoint, completes idempotency after provider acceptance, and uses billing outbox: `/mnt/f/code/project/new-api/controller/creative_image_tasks.go:301`, `:346`, `:391`, `:453`.",
+        "Backend slow-provider gates are covered in code: in-flight/ambiguous submit waits up to 90 minutes, temporary poll errors return without terminal failure, malformed terminal provider results fail closed, and materialization errors leave task retryable: `/mnt/f/code/project/new-api/service/task_polling.go:37`, `:159`, `:435`, `:442`, `:478`.",
+        "Backend DTO/content path avoids direct provider result exposure by serving `/content` and materializing successful live result URLs to creative assets: `/mnt/f/code/project/new-api/controller/creative_image_tasks.go:532`, `:552`, `:655`, `:837`.",
+        "Frontend normalizes server `parameterSchema`, prefers it over static params, and renders it through `ParametersDropdown`: `/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:308`, `/mnt/f/code/project/opentu/packages/drawnix/src/constants/model-config.ts:3031`, `/mnt/f/code/project/opentu/packages/drawnix/src/components/ai-input-bar/ParametersDropdown.tsx:126`.",
+        "Frontend schema-backed submission sends only typed `userParams` plus `creativeManaged`, while legacy size/resolution/quality are suppressed for schema-backed paths: `/mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/creative-image-task-params.ts:65`, `/mnt/f/code/project/opentu/packages/drawnix/src/components/ttd-dialog/ai-image-generation.tsx:771`, `/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:1053`.",
+        "Frontend managed execution posts to `/creative/relay/v1/images/tasks`, stores `remoteId`, polls through temporary 429/5xx, downloads `/content`, and retries cache materialization errors: `/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:618`, `:647`, `:478`, `:549`, `:402`.",
+        "Frontend refresh/cache/canvas path restores tasks from IndexedDB, resumes managed remote images, rehydrates `/__aitu_cache__/image/` misses from safe content URLs, verifies generated image cache before canvas insertion, preserves history/dock rehydrate metadata, and flushes viewport on page hide: `/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskStorage.ts:75`, `/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:411`, `/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:223`, `/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useAutoInsertToCanvas.ts:370`, `/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGenerationHistory.ts:18`, `/mnt/f/code/project/opentu/apps/web/src/app/app.tsx:729`.",
+        "本次审计未运行测试、未调用 live provider、未部署、未读取凭据；依据为当前源码和测试文件。"
+      ]
+    },
+    {
+      "branch": "refresh/reopen workspace lifecycle",
+      "findings": [],
+      "openQuestions": [],
+      "status": "pass",
+      "summary": "未发现当前 refresh/reopen workspace lifecycle 分支的新增阻断问题。审计仅基于当前源码和现有测试文件，未执行 live provider、部署、推送、凭据读取或浏览器实测。",
+      "verifiedEvidence": [
+        "慢 provider gate：前端 `fallback-adapter-routes.ts` 的 `pollCreativeManagedImageTask` 对 completed 先下载 content 并写入 `unifiedCacheService.cacheMediaFromBlob`，写入/下载临时失败会以 `retryableMaterialization` 继续轮询直到远程超时；429/500/502/503/504 poll 响应直接 continue。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:402,478,511,538。",
+        "后端 live submit 在调用 provider 前先持久化 task、selected key、provider endpoint、in-flight 标记和 billing context；provider 快速 success 会 materialize 为 durable asset URL，materialize 失败降级为 IN_PROGRESS/99%，terminal failure 走 CAS refund outbox。证据：/mnt/f/code/project/new-api/controller/creative_image_tasks.go:301,339,346,396,409,426。",
+        "后台/重开后的后端轮询不使用通用 video adaptor，使用 stored key 和 provider endpoint affinity；非终态保持进度，终态 success materialize asset 并 settle/refund outbox。证据：/mnt/f/code/project/new-api/service/task_polling.go:355,400,415,435,455,478。现有测试覆盖 durable asset URL 和 outbox：/mnt/f/code/project/new-api/service/task_polling_affinity_test.go:760。",
+        "跨层状态机：前端创建任务即写 IndexedDB，managed image submit 使用稳定 idempotency key，提交成功后写 remoteId/invocationRoute，刷新后 `useTaskStorage` restore processing remote tasks，`useTaskExecutor` resume remote image task。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/task-queue-service.ts:193,2138,2168,2197；/mnt/f/code/project/opentu/packages/drawnix/src/services/media-executor/fallback-adapter-routes.ts:611,647；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskStorage.ts:74；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useTaskExecutor.ts:411。",
+        "viewport persistence：viewport-only pan/zoom 被标记为 pending/local dirty，debounced saveCurrentBoard；beforeunload/pagehide/visibilitychange 会清 debounce、写 localStorage close snapshot 并尝试 flush IndexedDB；启动时若 close snapshot 更新则恢复 children/viewport/theme。证据：/mnt/f/code/project/opentu/apps/web/src/app/app.tsx:204,423,729,784；/mnt/f/code/project/opentu/apps/web/src/app/viewport-persistence.ts:13。",
+        "workspace service：currentBoardId 使用 sessionStorage 隔离，switch/reload 会保留当前画板；saveBoard 同时持久化 elements、viewport、theme 并更新 metadata。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/workspace-service.ts:117,881,967,1197,1492。",
+        "cloud/local sync：outbound document snapshot 包含 elements/viewport/theme；asset sync 开启时 required URL 字段中的 local /__aitu_cache__/、blob、data URL 会先解析 blob 并上传为 `/creative/api/assets/.../content`，上传失败只记录错误，不删除 pending snapshot 或保存坏云文档；hydrate 会把 cloud asset ref 下载回本地 cache URL。证据：/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-sync.ts:587,1196,1232,1368；/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-document-assets.ts:593,618,640,675,705。",
+        "generated media refs：canvas 节点只持久化 safe rehydrate 字段 `contentUrl/remoteTaskId/providerTaskId/mimeType`；cache miss recovery 可从内存任务、IndexedDB/archived task 或 canvas metadata 重水合并触发 `_retry`。证据：/mnt/f/code/project/opentu/packages/drawnix/src/utils/generated-image-canvas-metadata.ts:1；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/useGeneratedMediaCacheMissRecovery.ts:81,186,223,253。",
+        "service worker/cache：Creative private API/relay 路径在 SW fetch handler 中先 pass-through，早于 `/__aitu_cache__/` 虚拟媒体处理；cache miss 返回 404，不会把 API/relay payload 混入媒体缓存。证据：/mnt/f/code/project/opentu/apps/web/src/sw/index.ts:4246,4268,4939；现有顺序测试：/mnt/f/code/project/opentu/apps/web/src/sw/creative-asset-pass-through.spec.ts:36。",
+        "现有 targeted tests 覆盖 viewport flush predicate、generated cache miss recovery、metadata persistence、managed remote resume timeout/stale overwrite、service worker pass-through ordering。证据：/mnt/f/code/project/opentu/apps/web/src/app/viewport-persistence.test.ts:4；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/__tests__/useGeneratedMediaCacheMissRecovery.test.tsx:93；/mnt/f/code/project/opentu/packages/drawnix/src/hooks/__tests__/useTaskExecutor.test.ts:178。"
+      ]
+    }
+  ]
+}

@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [Deep Audit Runtime Lifecycle Guide](./deep-audit-runtime-lifecycle-guide.md) | Avoid missing async/runtime lifecycle bugs in deep audits | Deep audits of async provider tasks, generated media, browser cache, retry, refresh, or workspace state |
 
 ---
 
@@ -36,6 +37,16 @@ These guides help you **ask the right questions before coding**.
 - [ ] You're not sure where to put some logic
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
+
+
+### When to Think About Runtime Lifecycle Audits
+
+- [ ] Deep audit covers async provider tasks
+- [ ] Generated media uses browser Cache Storage or Service Worker virtual URLs
+- [ ] Retry/resume/refresh behavior matters
+- [ ] Canvas/workspace state must survive reload
+
+→ Read [Deep Audit Runtime Lifecycle Guide](./deep-audit-runtime-lifecycle-guide.md)
 
 ### When to Think About Code Reuse
 

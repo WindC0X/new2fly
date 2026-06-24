@@ -1,0 +1,62 @@
+[
+  {
+    "blocked": null,
+    "branch": "backend-auth-routing-bootstrap",
+    "checksPerformed": [
+      "Read current task docs only: prd.md, design.md, implement.md, implement.jsonl, check.jsonl; did not open prior audit/result reports or live endpoints.",
+      "Inspected ../new-api router registration: router/main.go SetRouter and FRONTEND_BASE_URL branch; router/web-router.go SetCreativeRouter /creative/api and /creative/relay/v1 groups plus SetWebRouter SPA fallback.",
+      "Verified /creative API auth boundary in source: CreativeSessionHeaderBridge + UserAuth before CreativeBootstrap/CreativeListModels; creativeRequireSession rejects access-token auth.",
+      "Reviewed bootstrap/models catalog source: controller/creative.go creativeModelsForUser, service/creative.go group selection, service/creative_model_policy.go stored binding catalog inclusion.",
+      "Reviewed CSRF/nonce/same-origin source and tests: middleware/creative.go, middleware/creative_test.go, controller/creative_test.go nonce/origin cases.",
+      "Reviewed SPA fallback evidence: router/web_router_test.go covers API/relay not serving SPA, FRONTEND_BASE_URL not redirecting API/relay, asset misses returning 404, and no-store headers.",
+      "Reviewed session broker relay evidence: middleware.CreativeRelaySessionBroker, controller creativeSetupSessionBrokerToken, and controller/creative_test.go broker group selection/unavailable/wrong-modality/browser-session tests.",
+      "Searched current backend source/tests for /creative/cache or backend cache-path routing; found no backend /creative/cache route or current test evidence of a cache-path API boundary.",
+      "Did not run tests because this branch was requested as audit-only under read-only/no-live-endpoint constraints."
+    ],
+    "findings": [],
+    "goalAssessment": "No material backend auth/routing/bootstrap/model-catalog boundary issue found from current source/tests/task docs within the requested scope.",
+    "summary": "Current source and tests show /creative API/relay are explicitly registered, FRONTEND_BASE_URL preserves API/relay behavior, anonymous bootstrap/models fail auth, access-token auth is rejected by creative session-only handlers, unsafe requests require same-origin plus CSRF/nonce, relay uses session broker without accepting API keys, and SPA fallback excludes API/relay/assets. No material finding is supported by current evidence."
+  },
+  {
+    "blocked": null,
+    "branch": "backend-image-task-lifecycle-billing",
+    "checksPerformed": [
+      "任务意图/约束：读取 .trellis/tasks/06-21-06-21-creative-live-adapter-push-deploy-smoke/prd.md:18-45、design.md:40-66、task.json:1-6；未使用历史审计报告。",
+      "入口安全与限流：核对 ../new-api/router/web-router.go:90-115、../new-api/middleware/model-rate-limit.go:168-243；测试证据 ../new-api/middleware/rate-limit_test.go:64-142、../new-api/controller/creative_test.go:3437-3586。",
+      "submit/channel locking/idempotency：核对 ../new-api/controller/creative_image_tasks.go:156-470、943-1005；测试证据 ../new-api/controller/creative_test.go:2231-2464、2568-2768。",
+      "fetch/content/ownership/public DTO：核对 ../new-api/controller/creative_image_tasks.go:534-712、1007-1135；测试证据 ../new-api/controller/creative_test.go:2770-3246、3612-3737。",
+      "CAS/state/billing outbox/refund：核对 ../new-api/model/task.go:465-650、../new-api/service/task_billing.go:183-439；测试证据 ../new-api/model/task_cas_test.go:312-346、../new-api/service/task_billing_test.go:768-1013。",
+      "polling timeout/sweep：核对 ../new-api/service/task_polling.go:57-204、280-522、595-641；测试证据 ../new-api/service/task_polling_affinity_test.go:615-835。",
+      "provider adapter/failure sanitization/content fetch：核对 ../new-api/service/creative_image_adapter.go:139-285、310-727；测试证据 ../new-api/service/creative_image_adapter_test.go:41-109、346-360。",
+      "content materialization/asset owner isolation：核对 ../new-api/service/creative_asset.go:252-403、614-735、1087-1276 与 ../new-api/model/creative_asset.go:40-279；测试证据 ../new-api/service/creative_asset_test.go:229-384、475-512。",
+      "Creative live binding config/readiness：核对 ../new-api/service/creative_model_capability.go:687-729、885-955、1079-1129、1640-1868；测试证据 ../new-api/service/creative_image_adapter_test.go:430-590、705-756 与 ../new-api/service/creative_model_capability_test.go:1207-1384。",
+      "确认 ../new-api 实际路径为 /mnt/f/CODE/Project/new-api，审计使用当前 dirty worktree 磁盘状态；未修改文件、未读取 secrets、未调用 live provider、未执行测试命令。"
+    ],
+    "findings": [],
+    "goalAssessment": "已完成限定范围的只读审计；基于当前源码、测试和任务文档，未发现 material backend Creative image task lifecycle/billing 缺陷。",
+    "summary": "findings 为空。现有源码与测试覆盖了 submit/fetch/content、channel/key/endpoint affinity、idempotency replay、CAS/outbox/refund、timeout sweep、rate limit、owner scope、failure reason sanitization 与 materialized asset serving 的主要业务风险。"
+  },
+  {
+    "blocked": "Targeted Go tests could not run in this read-only sandbox: go test failed creating /tmp/go-build... with \"read-only file system\".",
+    "branch": "backend-bindings-adapters-provider-contracts",
+    "checksPerformed": [
+      "Read current task docs only: prd.md, design.md, implement.md, implement.jsonl/check.jsonl references; did not read prior audit/report files as evidence.",
+      "Admin route auth checked: router/api-router.go:201-212 uses DisableCache + RootAuth; validate/dry-run/save also use CreativeRequireNonce.",
+      "Admin controller checked: controller/creative_model_bindings.go:75-143 validates, dry-runs, requires noProviderCall before save, and logs only user_id/binding count; lines 151-159 reject access-token auth.",
+      "Route/session checks: router/web-router.go:90-113 puts /creative/relay/v1 behind session auth, rate limit, same-origin, nonce, forbidden-field guard; image task submit uses /images/tasks, while sync route rejects managed bindings in controller/creative_image_tasks.go:133-153.",
+      "Manifest/template mapping checked: service/creative_model_capability.go:274-343 registers mock, Duomi live, GrsAI live, and GrsAI dry-run presets; lines 383-590 define grsai_gpt_image, grsai_gpt_image_vip, duomi_gpt_image, grsai_nano_banana schemas.",
+      "Allowlist/denylist checked: service/creative_model_capability.go:46-81 allowlists binding/schema JSON keys; 1457-1526 validates raw JSON keys; 197-272 and 2363-2427 reject forbidden/sensitive control fields.",
+      "Channel/model support checked: service/creative_model_capability.go:1586-1668 enforces enabled channel, supported provider model/model mapping, explicit BaseURL, and available key; 1699-1735 restricts Duomi to gpt-image-2 and GrsAI templates to gpt-image-2, gpt-image-2-vip, or listed nano-banana models.",
+      "Parameter contract checked: service/creative_model_capability.go:1870-2114 requires live schema fields, visible required fields, and template-specific allowed values.",
+      "Provider adapter mapping checked: service/creative_image_adapter.go:310-324 maps Duomi body to model/prompt/size/quality and async endpoint; 379-397 maps GrsAI body to model/prompt/replyType=async/aspectRatio/imageSize/quality; 420-503 mirrors gpt-image-2/vip pixel mapping and nano-banana imageSize behavior.",
+      "Dry-run checked: service/creative_model_capability.go:1206-1243 builds offline dry-run result; 1246-1314 previews Duomi/GrsAI request bodies; controller/creative_model_bindings.go:123-132 blocks save unless dry-run returns noProviderCall=true.",
+      "Tests inspected: controller/creative_model_bindings_test.go:52-108 validates validate/dry-run/save/noProviderCall/log redaction; 203-225 rejects unsafe/access-token; 289-338 verifies nonce and non-root rejection.",
+      "Tests inspected: service/creative_image_adapter_test.go:127-203 verifies Duomi/GrsAI HTTP contracts; 225-263 verifies GrsAI gpt-image-2/vip mapping; 285-344 verifies nano-banana auto omission and optional param omission.",
+      "Tests inspected: service/creative_model_capability_test.go:807-909 verifies Duomi/nano-banana allowed values; 1307-1383 verifies missing/disabled channel and model mapping support; 1521-1723 verifies dry-run mirrors live mappings.",
+      "Attempted targeted verification command: go test -count=1 ./service ./controller -run 'Test(CreativeImageProvider|Creative.*ModelBindings|BuildCreativeModelBindings|ValidateCreativeModelBindings|CreativeLiveBinding|CreativeGrsAI|CreativeNano|CreativeImageTaskSubmitLive|CreativeForbiddenNormalizer)'."
+    ],
+    "findings": [],
+    "goalAssessment": "未发现当前审计范围内的 material backend issue。残余限制：仓库当前有既有未提交改动，且只读沙箱阻止运行 Go 测试。",
+    "summary": "Backend Creative Model Bindings 与 Duomi/GrsAI provider adapter contracts 静态审计完成；未调用 live providers，未读取或输出 secrets。"
+  }
+]

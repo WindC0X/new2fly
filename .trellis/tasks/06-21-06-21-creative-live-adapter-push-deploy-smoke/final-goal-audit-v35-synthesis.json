@@ -1,0 +1,130 @@
+{
+  "branchNullOrBlocked": [
+    "v33-cache-image-video-canvas：失败/null，但已由 v34-image-video-canvas-narrow 覆盖；不作为独立失败。",
+    "v33-e2e-ui-history-dock：失败/null，但已由 v34-ui-history-dock-narrow 覆盖；不作为独立失败。",
+    "v33-catalog-schema-generation：timeout/null，但已由 v34-catalog-schema-narrow 覆盖；不作为独立失败。",
+    "v32/v33 旧 null/failed 分支：按输入说明视为 v34 narrow branches 已覆盖，均标记为 stale。",
+    "重复归并：v33 MUST-002 与 v33 OPENTU-VIDEO-POLL-ABORT-LOST 是同一 AbortSignal 断链。",
+    "重复归并：v33 MUST-001 与 v33 creative-image-submit-not-durable-after-row 是同一 durable submit/ambiguous late-success 恢复缺口。",
+    "重复归并：v34 opentu-ui-video-rehydrate-gap 与 v34 MF-005-VIDEO-MEDIA-LIBRARY-PREVIEW-NO-REHYDRATE 合并为视频展示层 rehydrate 缺口。"
+  ],
+  "mustFix": [
+    {
+      "evidence": "v32 provenance journal 接受 REL-PROV-001；v33/v34 compact 未提供关闭证据。当前候选存在跨仓 dirty source/dist 状态，version.json 只证明 dist 指向 OpenTU commit，不证明当前 dirty source 可复现。",
+      "fixDirection": "冻结发布候选：清空或明确排除 dirty/untracked source；从记录的 OpenTU ref 重建 dist，同步 new-api 两份 embedded dist，提交删除/新增；记录 OpenTU ref、new-api ref、镜像 ID/digest。",
+      "id": "REL-PROV-001",
+      "impact": "可能把本地未提交或 stale dist 打进包，导致 staging/production 声明不可复现。",
+      "severity": "HIGH",
+      "title": "跨仓发布候选 provenance 仍未关闭",
+      "verification": "三仓 `git status --porcelain` clean 或只剩明确排除项；三份 dist hash 一致；version.json.gitCommit 等于记录的 OpenTU ref；远端 ref 可查。"
+    },
+    {
+      "evidence": "v32 provenance journal 接受 REL-GATE-001；v33/v34 compact 未提供关闭证据。release gate 之前可在 dirty tree 上 PASS，只校验 version.json 一致和 diff whitespace，不证明 publish-ready。",
+      "fixDirection": "新增 publish-ready gate：检查三仓 dirty/untracked/dist 删除状态、dist gitCommit 与指定 ref、build-sync-check、new-api tests、embedded smoke URL；保留只读 check 但标注非发布门禁。",
+      "id": "REL-GATE-001",
+      "impact": "门禁 false-positive 会允许 stale/broken Creative artifact 进入发布路径。",
+      "severity": "HIGH",
+      "title": "release gate 仍可能误报发布就绪",
+      "verification": "在当前 dirty checkout 修复后 publish-ready gate 应失败并指出 provenance 问题；clean rebuild/sync/commit 后应通过。"
+    },
+    {
+      "evidence": "v32 provenance journal 接受 REL-STAGE-001；v33/v34 compact 未提供当前候选 staging smoke/provenance 关闭证据。",
+      "fixDirection": "执行 no-provider staging smoke：embedded route/header matrix、authenticated bootstrap/models、admin validate/dry-run/save、browser catalog/parameter panel、mock image/video/audio lifecycle；记录脱敏结果。",
+      "id": "REL-STAGE-001",
+      "impact": "只能证明局部 artifact hygiene，不能声明 Creative embedded product goal 已满足 staging/production readiness。",
+      "severity": "HIGH",
+      "title": "缺少当前候选 staging smoke/provenance 证据",
+      "verification": "产出 `/creative/`、assets、bootstrap/models、relay、admin no-provider、mock lifecycle 的状态/header/行为表；生产 gate 单独确认。"
+    },
+    {
+      "evidence": "v33 MUST-001 与 creative-image-submit-not-durable-after-row 均指出：new-api 在 durable row 后同步 provider submit，缺少持久 submit outbox/恢复；ambiguous/in-flight 且无 upstream id 时后续 reconcile/polling 无法找回 late success。",
+      "fixDirection": "把 provider submit 建成 durable outbox/worker 或可恢复状态机；ambiguous/in-flight 任务必须有 provider-side idempotency 查询、人工恢复入口，或明确终止并退款，不得静默等到 timeout。",
+      "id": "IMG-DURABLE-SUBMIT-RECOVERY",
+      "impact": "provider 已产生成本或 late success，但系统无法定位结果，用户最终看到失败/退款，结果丢失。",
+      "severity": "HIGH",
+      "title": "Live image durable submit/ambiguous late-success 恢复缺口",
+      "verification": "新增崩溃/超时/late-success 测试：row 已写入但 upstream id 未保存时，恢复流程能找回或进入明确可审计失败态。"
+    },
+    {
+      "evidence": "v33 creative-image-provider-success-lost-on-materialization-failure：provider SUCCESS 后本地物化失败时保持 IN_PROGRESS，不保存 provider success result URL，content route 对非 SUCCESS 返回 409，最终可能被 timeout sweep 失败。",
+      "fixDirection": "拆分 provider success 与 local materialized success；保存 provider result 作为可重试物化来源；content/status 路径允许按需重试物化并暴露可恢复状态。",
+      "id": "IMG-PROVIDER-SUCCESS-MATERIALIZATION",
+      "impact": "上游已成功且已产生成本时，短暂对象存储/内容拉取故障会让用户永远拿不到结果。",
+      "severity": "HIGH",
+      "title": "Image provider success 在本地物化失败时可能丢失",
+      "verification": "模拟 provider success 后 materialize 首次失败、后续恢复；任务不得被超时 sweep 成失败，content/status 应能重试并最终返回结果。"
+    },
+    {
+      "evidence": "v33 creative-bootstrap-login-recovery：未登录进入 `/creative` 后，OpenTU mount 只初始化一次 session broker；bootstrap 401 后登录若无硬刷新，broker/catalog/auth material 不可靠恢复。",
+      "fixDirection": "在登录态变化、401 恢复、session material 更新时重新初始化 broker/bootstrap/catalog；fail-closed 空模型池必须能在登录后恢复。",
+      "id": "creative-bootstrap-login-recovery",
+      "impact": "用户从 logged-out `/creative` 登录后仍可能无可用模型，Creative 页面持续不可用。",
+      "severity": "HIGH",
+      "title": "登录恢复不会可靠触发 broker/bootstrap 恢复",
+      "verification": "E2E：未登录打开 `/creative` 得到 401/fail-closed，随后登录且不硬刷新，catalog、provider profile、模型选择和生成入口恢复。"
+    },
+    {
+      "evidence": "v33 SUNO-RAW-DATA-CONTENT-URL：new-api 把 Suno responseItem.Data 原样写入 task.Data，并由 fetch DTO 原样返回；OpenTU 从 clips 取 audioUrl 并缓存。",
+      "fixDirection": "服务端过滤/重写 provider media URL 与 raw payload，只返回受控 content proxy 或脱敏 DTO；前端不得依赖原始 provider URL 生命周期。",
+      "id": "SUNO-RAW-DATA-CONTENT-URL",
+      "impact": "provider 媒体 URL/raw task data 暴露到客户端业务对象，绕过受控 content proxy 生命周期。",
+      "severity": "HIGH",
+      "title": "Suno fetch relay 返回原始 provider data/content URL",
+      "verification": "单测/集成：Suno fetch 响应不含原始 provider URL、signed URL 或 raw provider payload；播放/缓存走受控 content endpoint。"
+    },
+    {
+      "evidence": "v34 opentu-ui-video-rehydrate-gap 与 MF-005-VIDEO-MEDIA-LIBRARY-PREVIEW-NO-REHYDRATE：视频 rehydrate metadata 已进入数据模型/媒体库投影，但 MediaViewport、VideoPosterPreview、TaskItem、AssetItem、Inspector 等展示层只消费 src/poster，cache miss 后不触发 rehydrate。",
+      "fixDirection": "为生成视频展示组件接入 rehydrate props/onError 流程，覆盖任务队列、历史、dock selected、媒体库卡片、inspector、UnifiedMediaViewer、缩略图。",
+      "id": "MF-005-VIDEO-DISPLAY-REHYDRATE-GAP",
+      "impact": "刷新或 Cache API 被清理后，已完成生成视频仍可能显示空白、坏缩略图或无法播放。",
+      "severity": "HIGH",
+      "title": "生成视频展示层未消费 rehydrate metadata",
+      "verification": "组件测试/E2E：清空 `/__aitu_cache__/video/...` 后，各展示入口自动通过 contentUrl 恢复视频/缩略图。"
+    },
+    {
+      "evidence": "v34 MF-005-VIDEO-CANVAS-METADATA-LOSS：auto insert、frame insert、quickInsert、多视频分组和 canvas-insertion video 分支仍未把 durable metadata 写入画布节点。",
+      "fixDirection": "统一 video insertion metadata 管线，把 contentUrl/taskId/cacheUrl/rehydrate metadata 写入画布 video 节点；底层 insertVideoToCanvas 支持并保存 metadata。",
+      "id": "MF-005-VIDEO-CANVAS-METADATA-LOSS",
+      "impact": "视频插入画布后若 cache 被清理且任务记录不可用，画布 recovery 无法从节点 metadata 找回 contentUrl。",
+      "severity": "HIGH",
+      "title": "视频画布插入路径仍丢失 durable rehydrate metadata",
+      "verification": "画布插入测试：生成视频插入后节点包含 durable metadata；清 cache/移除任务记录后仍能 rehydrate。"
+    },
+    {
+      "evidence": "v33 MUST-002 与 OPENTU-VIDEO-POLL-ABORT-LOST：default video adapter 把 request.signal 传入 submit，但 submit 成功进入 pollUntilComplete 时漏传 signal；pollUntilComplete 本身支持 signal。",
+      "fixDirection": "把 AbortSignal 贯穿 submit-to-poll transition，并补充取消/卸载/重试后不继续 polling 的测试。",
+      "id": "OPENTU-VIDEO-POLL-ABORT-LOST",
+      "impact": "用户取消后仍会持续打 status/content 链路直到完成、错误上限或超时，造成资源浪费和状态机漂移。",
+      "severity": "MEDIUM",
+      "title": "Video submit-to-poll transition 丢失 AbortSignal",
+      "verification": "单测：submit 后 abort，poll loop 停止且不再请求 status/content；旧结果不得覆盖取消态。"
+    },
+    {
+      "evidence": "v33 OT-AUDIO-CACHE-WARNING-HIDDEN：SW/unified cache 已检测 audio cache miss 并投影 cacheWarning，但 MediaLibrary/任务历史 UI 仅对 IMAGE/VIDEO 展示 warning，audio 被过滤。",
+      "fixDirection": "让 audio 入口展示 cache unavailable/需重新下载提示；预览、播放、插入按钮根据 warning 给出可理解状态。",
+      "id": "OT-AUDIO-CACHE-WARNING-HIDDEN",
+      "impact": "音频 cache 被清理或远端链接失效后，用户看不到限制提示，仍会尝试播放/插入失效音频。",
+      "severity": "MEDIUM",
+      "title": "音频缓存缺失告警被 UI 层隐藏",
+      "verification": "组件测试：audio asset/task 带 cacheWarning 时，媒体库和任务历史显示警告并调整不可用操作。"
+    },
+    {
+      "evidence": "v34 NA-CREATIVE-SYNC-GATE-001：new-api sync image route gate 只用 GetCreativeModelBindingByID，未过滤 Enabled/canary/channel readiness；同时内置 managed preview id 与 resolver/catalog 语义存在漏判。",
+      "fixDirection": "按 resolver/catalog 的 enabled、channel readiness、canary group、managed preview id 语义统一 sync route gate；managed image 必须走 task route 与 schema-backed userParams 校验。",
+      "id": "NA-CREATIVE-SYNC-GATE-001",
+      "impact": "可能误封普通图片模型，也可能让内置 managed preview id 绕过专用 task-route 边界进入普通 relay/distribute 路径。",
+      "severity": "MEDIUM",
+      "title": "new-api sync image route managed binding gate 过宽且漏判",
+      "verification": "路由单测：disabled/canary/unready binding 不误封；enabled managed/preview binding 必须拒绝 sync route 并要求 task route schema 校验。"
+    }
+  ],
+  "requiredNextChecks": [
+    "先关闭 REL-PROV-001/REL-GATE-001/REL-STAGE-001；否则不能声明 staging/production readiness。",
+    "修复 HIGH mustFix 后运行 no-provider build-sync/release gate、new-api relevant tests、OpenTU relevant unit/E2E。",
+    "补充 mock/no-provider image/video/audio 生命周期 smoke，尤其 late success、materialization retry、video cache miss rehydrate、logged-out then login。",
+    "所有验证记录必须脱敏；本次 synthesis 未调用 live providers、未运行测试、未读取或打印 secrets。"
+  ],
+  "stateMachine": "当前合成规则：v32 provenance/staging gates 若无关闭证据则保持 open；v33/v34 terminal ok 节点中的 mustFix 视为 current accepted；v33/v32 null/failed 分支仅在未被 v34 narrow 覆盖时才阻塞，本次均标记 stale/covered；重复候选按根因归并。",
+  "summary": "结论：post-MF005/MF006 当前审计 verdict=needs-fix。v34 已覆盖 v33 的 null 分支，但仍有 12 个去重后的当前 mustFix/open gate，其中 HIGH 9 个、MEDIUM 3 个。最大发布阻塞仍是 provenance/release/staging gate；产品侧剩余风险集中在 live image durable recovery、provider success materialization、登录后 bootstrap 恢复、Suno raw URL 暴露，以及生成视频 rehydrate 在展示和画布路径的断链。",
+  "verdict": "needs-fix"
+}

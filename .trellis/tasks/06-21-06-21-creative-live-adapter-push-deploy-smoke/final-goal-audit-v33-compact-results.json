@@ -1,0 +1,187 @@
+[
+  {
+    "key": "v33-e2e-identity-retry",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "OpenTU: feat/creative-embed; new-api: feat/creative-embed; Trellis/new2fly: master",
+      "mustFix": [
+        {
+          "evidence": "new-api `controller/creative_image_tasks.go:362` uses a detached submit context with timeout, then `:374` treats provider transport timeout as ambiguous, `:375-386` stores `ProviderSubmitAmbiguous` and completes the idempotency record while returning `202`. Later fetch/reconcile sees missing `PrivateData.UpstreamTaskID` and for ambiguous tasks just returns without polling until expiry (`controller/creative_image_tasks.go:747-759`). Background polling similarly skips ambiguous tasks until the 90-minute expiry bucket, then fails/refunds them (`service/task_polling.go:143-150`, `:162-184`). The current test locks in this behavior: after a delayed provider acceptance, stored `UpstreamTaskID` is empty and fetch remains `in_progress` without another provider call (`controller/creative_test.go:2349-2457`).",
+          "fixDirection": "Do not represent ambiguous provider acceptance as a normal recoverable `in_progress` task unless there is a provider-side lookup path. Persist/send a provider idempotency/client request id that can be reconciled to an upstream task id, or expose a distinct recovery-needed state with cancel/manual reconcile. Add tests where provider accepts after backend timeout and later fetch/retry recovers or explicitly fails with a non-misleading state.",
+          "id": "MUST-001",
+          "impact": "Slow provider timing / provider late success can produce paid upstream work that the backend can never locate. Browser refresh or idempotent retry only replays the same local task id, not the lost upstream id, so the user waits until timeout and loses the successful result.",
+          "severity": "HIGH",
+          "title": "Live image ambiguous submit cannot recover provider late success",
+          "verification": "Current on-disk code and tests were inspected only; no live providers called."
+        },
+        {
+          "evidence": "OpenTU `videoAPIService.generateVideoWithPolling` receives `signal` and passes it to submit (`packages/drawnix/src/services/video-api-service.ts:654-671`), but the transition into polling omits it (`:696-703`). `pollUntilComplete` would honor a signal if provided (`:773`, `:781`, `:788-793`, `:855`). The adapter does pass `request.signal` into `generateVideoWithPolling` (`packages/drawnix/src/services/model-adapters/default-adapters.ts:258-273`), and TaskQueueService aborts the controller on cancel (`packages/drawnix/src/services/task-queue-service.ts:2566-2568`) while writeback guards prevent cancelled state overwrite (`:644-651`). Audio’s equivalent path passes the signal into polling (`packages/drawnix/src/services/audio-api-service.ts:1266-1272`).",
+          "fixDirection": "Pass `signal` through the initial video `pollUntilComplete` call, and add a session-broker video test that aborts after `onSubmitted`/remoteId persistence and asserts no further status polling occurs. Keep the existing resume-polling abort test.",
+          "id": "MUST-002",
+          "impact": "Abort/cancel after video submit does not stop initial status polling. It should not overwrite a cancelled task due to existing writeback guards, but it keeps hitting new-api/provider status paths until completion, error, or max attempts, wasting resources and weakening retry/abort semantics.",
+          "severity": "MEDIUM",
+          "title": "Initial video polling drops abort signal after submit",
+          "verification": "Current on-disk code and tests were inspected only; no live providers called."
+        }
+      ],
+      "openQuestions": [
+        "是否允许各 live image provider 接收并按 idempotency/client request id 查询任务？如果不支持，ambiguous submit 只能做显式不可恢复/人工恢复，而不能承诺自动 resume。"
+      ],
+      "status": "complete",
+      "summary": "只读审计了当前磁盘代码，重点重建了 local task id、idempotency key、backend task id、upstream/provider task id、contentUrl 在 image/video/audio 的 retry/resume 链路。未调用 live providers，未输出 secrets、cookies、tokens、签名 URL 或原始 provider payload。当前只发现上述两个仍成立的产品缺陷；image Cache Storage rehydrate、image status fetch retry、audio signal propagation、remote image retry enqueue 这些候选点在当前代码里有相应保护。",
+      "testedScenarios": [
+        "代码阅读：new-api live image submit/reconcile/background polling/idempotency paths。",
+        "代码阅读：OpenTU Creative managed image submit/poll/cache rehydrate/retry/resume paths。",
+        "代码阅读：OpenTU video/audio session-broker submit, resume, abort signal propagation paths。",
+        "测试证据阅读：new-api live image timeout test and OpenTU video/audio abort-related tests；本次未运行测试。"
+      ]
+    }
+  },
+  {
+    "key": "v33-cache-image-video-canvas",
+    "status": "failed",
+    "resultStatus": "error",
+    "result": null
+  },
+  {
+    "key": "v33-e2e-ui-history-dock",
+    "status": "failed",
+    "resultStatus": "error",
+    "result": null
+  },
+  {
+    "key": "v33-catalog-bootstrap-session",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "opentu: feat/creative-embed; new-api: feat/creative-embed; new2fly: master",
+      "mustFix": [
+        {
+          "evidence": "new-api 只对 `/creative/api` 和 `/creative/relay/v1` 挂 `CreativeSessionHeaderBridge(), UserAuth()`，但静态 `/creative` 由 `serveCreative` 直接返回 embedded SPA：/mnt/f/code/project/new-api/router/web-router.go:53, /mnt/f/code/project/new-api/router/web-router.go:58, /mnt/f/code/project/new-api/router/web-router.go:202, /mnt/f/code/project/new-api/router/web-router.go:253。OpenTU 启动只在 mount effect 调一次 `initializeCreativeManagedSessionBroker()`：/mnt/f/code/project/opentu/packages/drawnix/src/drawnix.tsx:362。401/bootstrap error 会清 auth、安装 `creative_session_unavailable` 空 catalog，然后返回 error：/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:627, /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:668, /mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.ts:696。虽然 error 后 `initializationPromise` 会重置，但生产代码没有第二次调用；测试只证明手动调用第二次可恢复：/mnt/f/code/project/opentu/packages/drawnix/src/services/creative-session-broker.test.ts:1099。",
+          "fixDirection": "补齐跨层恢复路径：要么 new-api 在未登录访问 `/creative` 时先进入登录并在成功后用整页跳转回 `/creative/`，要么 OpenTU embedded 在 401/error 后监听明确的 session 恢复信号（focus/visibility/storage/broadcast 或 host login success）重新调用 broker。若保留后台登录页 redirect，`/sign-in?redirect=/creative/` 成功后必须用 `window.location.assign` 这类整页导航加载 Creative bundle，而不是后台 SPA 内部 navigate。",
+          "id": "creative-bootstrap-login-recovery",
+          "impact": "用户未登录直接打开 `/creative` 会加载 OpenTU，但 bootstrap 401 后进入 fail-closed 空模型池；之后登录若没有硬刷新，页面仍无 session-broker auth material、无 provider profile/catalog、无可用模型，Creative 继续不可用。这个命中产品目标里的 logged-out `/creative` then login 生命周期。",
+          "severity": "HIGH",
+          "title": "未登录进入 `/creative` 后登录不会可靠触发 broker/bootstrap 恢复",
+          "verification": "新增无 live provider 的端到端用例：先让 `/creative/api/bootstrap` 返回 401，随后模拟登录/session cookie 恢复，验证同一 Creative 页面或登录回跳后重新请求 bootstrap/models、安装 managed catalog、生成控件可见且没有 static defaults。"
+        }
+      ],
+      "openQuestions": [],
+      "status": "complete",
+      "summary": "只读审计当前磁盘代码。除上述登录恢复断链外，未发现新的当前关键缺陷：auth material 清理、unavailable profile fail-closed、embedded 无静态默认模型、slow provider status/content、refresh retry 与 Cache Storage rehydrate 路径都有当前实现与针对性测试支撑。未调用 live providers，未执行测试。",
+      "testedScenarios": [
+        "阅读 OpenTU broker 初始化、auth material、unavailable catalog、runtime model discovery、generated media cache 与 image task resume 代码。",
+        "阅读 new-api `/creative` 静态路由、`/creative/api`/relay 鉴权、image task submit/fetch/content、provider polling/materialize 代码。",
+        "核对相关单测和 e2e：401 后函数级 retry、embedded smoke、slow provider resume、refresh materialize Cache Storage、cache miss rehydrate。"
+      ]
+    }
+  },
+  {
+    "key": "v33-newapi-image-billing-state",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "new-api: feat/creative-embed; OpenTU: feat/creative-embed; Trellis: master",
+      "mustFix": [
+        {
+          "evidence": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go:317 在请求线程中创建 task row 并写入 ProviderSubmitInFlight；/mnt/f/code/project/new-api/controller/creative_image_tasks.go:355 插入 durable row 后，/mnt/f/code/project/new-api/controller/creative_image_tasks.go:362 才同步调用 provider submit，没有持久 submit outbox/worker。若该请求进程在插入后、保存 UpstreamTaskID 前中断，后续 /mnt/f/code/project/new-api/service/task_polling.go:162 只按空 upstream id 分桶，/mnt/f/code/project/new-api/service/task_polling.go:171 和 :178 对 ambiguous/in-flight 仅等待，过期后 /mnt/f/code/project/new-api/service/task_polling.go:143-150 标失败退款；fetch 侧 /mnt/f/code/project/new-api/controller/creative_image_tasks.go:747-760 也是等待后失败。",
+          "fixDirection": "把 provider submit 做成 durable submit job/outbox：row 创建和提交任务入队在同一事务或可恢复边界内完成；worker 负责提交、持久化 UpstreamTaskID、处理 ambiguous retry/lookup。对已存在 in-flight 且无 UpstreamTaskID 的任务，重启后应能按幂等键/请求指纹恢复提交或明确确认未提交，而不是只等 90 分钟失败。",
+          "id": "creative-image-submit-not-durable-after-row",
+          "impact": "HIGH：durable row 之后的 provider submit 不是可恢复操作。重启、部署、进程崩溃、provider 慢响应或 120s submit 超时都可能留下已扣费/已发起 provider 成本但无 UpstreamTaskID 的任务；用户最终只看到失败/退款，provider late success 无法取回。",
+          "severity": "HIGH",
+          "title": "durable row 后的 provider submit 没有持久化执行/恢复路径",
+          "verification": "增加 crash/restart 级测试：在 task.Insert 成功后、SubmitCreativeImageProviderTask 返回前模拟进程退出；重启 polling/worker 后应能继续提交或恢复 UpstreamTaskID。另加 provider 请求已接受但响应超时的 late-success 用例，验证不会只超时失败。"
+        },
+        {
+          "evidence": "/mnt/f/code/project/new-api/controller/creative_image_tasks.go:814-838 在 status reconcile 发现 provider SUCCESS 后先物化 provider URL；物化失败时把 task 保持为 IN_PROGRESS，仅把 progress 降到 99%，没有保存 provider success 的 ResultURL，也没有进入 SUCCESS。后台轮询同样在 /mnt/f/code/project/new-api/service/task_polling.go:485-496 物化失败即返回错误，不更新终态。content 端 /mnt/f/code/project/new-api/controller/creative_image_tasks.go:587 对非 SUCCESS 直接 409，因此用户不能通过 content 路径触发按需物化；最终全局超时扫任务 /mnt/f/code/project/new-api/service/task_polling.go:60-83 会把这种已上游成功但本地未物化的任务失败退款。",
+          "fixDirection": "把“provider 已成功”和“本地资产物化完成”拆成两个可恢复状态。至少在 provider SUCCESS 时持久化成功状态和私有 ResultURL/物化待办，content/status 再安全重试物化；或新增 materialization outbox，避免把 provider 成功降回普通 IN_PROGRESS 并被通用超时扫掉。",
+          "id": "creative-image-provider-success-lost-on-materialization-failure",
+          "impact": "HIGH：上游已经生成成功时，短暂对象存储故障、内容拉取失败、asset runtime 暂不可用会让任务永远不对用户呈现 SUCCESS，之后可能被超时失败/退款。结果丢失，provider 成本已发生，late success 无法通过 content/Cache Storage 生命周期恢复。",
+          "severity": "HIGH",
+          "title": "provider 成功结果在本地物化失败时会丢失终态并可能被超时失败",
+          "verification": "增加测试：provider poll 返回 SUCCESS，但 MaterializeCreativeImageProviderResult 第一次失败、第二次恢复。期望任务保留 provider success 信息并最终通过 status/content 成功返回；同时覆盖物化长时间失败不会被普通 task timeout 当作 provider 失败处理。"
+        }
+      ],
+      "openQuestions": [],
+      "status": "complete",
+      "summary": "只读审计完成；未调用 live provider，未输出 provider payload、token、cookie、signed URL。当前可证实的后端关键缺陷集中在 durable provider submit 恢复路径和 provider-success/materialization 状态拆分。",
+      "testedScenarios": [
+        "静态阅读当前磁盘代码：new-api controller/service/model/middleware/router 关键路径。",
+        "交叉阅读 OpenTU submit/poll/retry/Cache Storage 入口，未把前端单独问题列为 backend must-fix。",
+        "未运行测试或 live provider；本次为只读审计。"
+      ]
+    }
+  },
+  {
+    "key": "v33-cache-audio-sw-library",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "OpenTU: feat/creative-embed; new-api: feat/creative-embed; Trellis/new2fly: master",
+      "mustFix": [
+        {
+          "evidence": "OpenTU 的 SW 在 `apps/web/src/sw/index.ts:4939` 的 `handleCacheUrlRequest` 中识别 audio，并在 cache miss 时发送 `media_cache_miss_audio` 通知（`apps/web/src/sw/index.ts:5045`）。`packages/drawnix/src/services/unified-cache-service.ts:596` 会把该失败写成 `cacheWarning` 元数据，`packages/drawnix/src/contexts/AssetContext.tsx:602` 和 `packages/drawnix/src/contexts/AssetContext.tsx:745` 又把这个 warning 投影到素材库 asset。但 UI 层把 audio 排除掉：`packages/drawnix/src/components/media-library/AssetItem.tsx:75` 只对 IMAGE/VIDEO 调 `useUnifiedCache`，`packages/drawnix/src/components/media-library/AssetItem.tsx:78` 只给 IMAGE/VIDEO 展示 warning；任务历史同样在 `packages/drawnix/src/components/task-queue/TaskItem.tsx:368` 和 `packages/drawnix/src/components/task-queue/TaskItem.tsx:371` 排除了 audio。",
+          "fixDirection": "让音频也走 cache status/warning 展示链路：`AssetItem` 和 `TaskItem` 至少应对 AUDIO 使用已有 `asset.cacheWarning` / `task.result.cacheWarning`，必要时也调用 `useUnifiedCache(mediaUrl)`；对缺失 audio 禁用或拦截插入/播放并展示明确提示。不要尝试把 audio 伪装成 image/video rehydrate。",
+          "id": "OT-AUDIO-CACHE-WARNING-HIDDEN",
+          "impact": "Cache Storage 被清理、驱逐或远端音频链接失效后，系统已经检测到 audio miss，但用户在素材库和任务历史看不到“需下载/缓存不可用”提示，仍会尝试预览、播放或插入不可用音频。音频恢复本身按当前代码是可接受限制，不是我确认的缺陷；缺陷是这个限制没有在产品界面暴露。",
+          "severity": "MEDIUM",
+          "title": "音频缓存缺失告警被 UI 层过滤，MediaLibrary/任务历史会展示无提示的失效音频",
+          "verification": "新增/更新测试：1. `AssetItem` 接收 AUDIO asset 且带 `cacheWarning` 时显示 `需下载`；2. `TaskItem` 的 AUDIO completed result 带 `cacheWarning` 时显示同等提示；3. `/__aitu_generated__/audio/...` cache miss 只记录 warning，不触发 image/video rehydrate。"
+        }
+      ],
+      "openQuestions": [],
+      "status": "complete",
+      "summary": "当前只确认 1 个缺陷。未把“audio 清空 Cache Storage 后无法像 image/video 一样重水化”列为缺陷：new-api 当前没有 Suno audio content proxy，OpenTU 生成完成时会主动缓存音频，文档云同步会把 audio URL 上传为 `/creative/api/assets/.../content`；因此这是当前能力边界。真正的问题是 cache miss 已被检测却没有向音频用户可见化。",
+      "testedScenarios": [
+        "只读追踪 OpenTU `/__aitu_generated__/audio` 与 `/__aitu_cache__` SW miss -> unified-cache warning -> MediaLibrary/TaskItem UI 投影链路。",
+        "只读追踪 OpenTU audio submit/poll/retry：submit 后保存 remoteId，慢 provider 以 5s interval、720 次上限 polling，retry 有 remoteId 时恢复 polling。",
+        "只读追踪 new-api Creative Suno submit/fetch：owner-scoped task fetch 返回 Suno task DTO，没有发现 audio content proxy/materialize rewrite。",
+        "只读追踪 Creative document asset sync：`audioUrl`、clips、covers/thumbnails 会上传并重写为 `/creative/api/assets/:id/content`。未运行测试，按用户要求未调用 live providers。"
+      ]
+    }
+  },
+  {
+    "key": "v33-newapi-video-suno-state",
+    "status": "terminal",
+    "resultStatus": "ok",
+    "result": {
+      "branch": "readonly-current-disk-audit",
+      "mustFix": [
+        {
+          "evidence": "new-api: `service/task_polling.go` 的 `updateSunoTaskFromResponse` 在 684-686 行把 `responseItem.Data` 原样写入 `task.Data`；`relay/relay_task.go` 的 `SunoTaskModel2Dto` 在 394-408 行又把 `Data: task.Data` 原样返回给 `/creative/relay/v1/suno/fetch...`。OpenTU 侧 `audio-api-service.ts` 1011-1040 行直接从响应 clips 中取 `audioUrl`，`task-queue-service.ts` 858-865 行再用该 URL 做本地缓存。",
+          "fixDirection": "给 Suno 建一个 owner-scoped content proxy 或最小 DTO：fetch 只返回 task id、状态、进度、歌词文本、clip id 等必要字段；音频/封面内容通过 new-api 受控 content endpoint 获取。至少要在 relay 返回前递归移除 provider 原始 payload、signed/media URL、headers/token 类字段。",
+          "id": "SUNO-RAW-DATA-CONTENT-URL",
+          "impact": "Suno Creative relay fetch 当前会把 provider 结果数据交给浏览器，媒体 URL 生命周期依赖前端及时缓存。慢 provider、刷新或缓存失败时，签名 URL/原始 provider payload 仍可能暴露在客户端状态与调试面板之外的业务对象中，绕过了 video content proxy 那类受控访问模型。",
+          "severity": "HIGH",
+          "title": "Suno fetch relay returns raw task data including provider media URL fields",
+          "verification": "只读静态代码追踪；未调用 live provider，未打印任何原始 payload 或 URL。"
+        },
+        {
+          "evidence": "OpenTU: `model-adapters/default-adapters.ts` 258-283 行把 `request.signal` 传给 `videoAPIService.generateVideoWithPolling`；但 `video-api-service.ts` 696-703 行调用 `pollUntilComplete` 时只传 `interval/maxAttempts/onProgress/routeModel/params`，漏传 `signal`。`pollUntilComplete` 本身在 773-793、830-856 行支持 `signal`，所以这是调用处断链。",
+          "fixDirection": "在 `generateVideoWithPolling` 调用 `pollUntilComplete` 时传入 `signal`，并补一条提交成功后 abort 的单元测试，断言不会继续 status query/backoff sleep。同步检查 `generation-api-service.resumeVideoGeneration` 974-987 行的 timeout race，避免底层 polling 在超时后继续运行。",
+          "id": "OPENTU-VIDEO-POLL-ABORT-LOST",
+          "impact": "默认 video adapter 路径在提交成功并保存 remoteId 后，用户取消、卸载前 abort 或重试无法停止后续状态轮询。现有 TaskQueue/storage guard 会降低旧结果覆盖风险，但慢 provider 场景下仍会持续打 new-api status/content 链路直到完成、连续错误上限或 90 分钟超时，造成状态机与资源生命周期漂移。",
+          "severity": "MEDIUM",
+          "title": "Video submit-to-poll transition drops AbortSignal",
+          "verification": "只读静态代码追踪；未运行测试，因当前环境为 read-only。"
+        }
+      ],
+      "openQuestions": [],
+      "status": "complete",
+      "summary": "本轮只审计当前磁盘代码，未调用 live providers，未依赖旧报告。new-api 的 video Creative relay 主状态/content 路由已有 same-origin/nonce、platform allowlist、owner scope、stored-key polling、CAS + billing outbox；未看到当前重复扣费/重复退款类缺陷。当前需要修的是 Suno fetch 原始数据/内容 URL 暴露，以及 OpenTU video 轮询取消链路断开。",
+      "testedScenarios": [
+        "静态追踪 new-api `/creative/relay/v1/videos` submit/status/content 路由、platform allowlist、owner-scoped VideoProxy、stored selected key 和 durable upstream id。",
+        "静态追踪 new-api Suno submit/fetch owner+platform isolation、forbidden callback/notifyHook/idempotency/header/body 字段 denylist。",
+        "静态追踪 new-api video/Suno polling 终态 CAS、billing outbox、refund/settle 路径。",
+        "静态追踪 OpenTU video/audio submit、onSubmitted remoteId 持久化、retry/resume、Cache Storage rehydrate 与 service worker private Creative path bypass。"
+      ]
+    }
+  },
+  {
+    "key": "v33-catalog-schema-generation",
+    "status": "timeout",
+    "resultStatus": "error",
+    "result": null
+  }
+]
