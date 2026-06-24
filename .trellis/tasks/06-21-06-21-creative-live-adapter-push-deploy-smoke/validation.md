@@ -905,3 +905,68 @@ new-api fork/feat/creative-embed              50221b76cfa29dd55a8cac76dcbbcb5b90
 ```
 
 No production/VPS deployment was performed by this push step.
+
+## 2026-06-25 final local Docker staging refresh after pushed commits
+
+Final local staging image was rebuilt from `new-api` commit `50221b76cfa29dd55a8cac76dcbbcb5b902cb8bb` after embedded dist provenance was corrected to OpenTU commit `57d328340acee6ba5d775296433d0d909cc6ddfe`.
+
+Docker build:
+
+```bash
+docker build --pull=false --progress=plain -t new-api-creative-embed:staging-current /mnt/f/code/project/new-api
+```
+
+Result:
+
+```text
+image=sha256:747628185593027847fa28344918980edf1d60fd2d119b02924b5bbe37d9a4e3
+```
+
+Container refresh:
+
+```bash
+STAGING_BIND_ADDR=127.0.0.1 STAGING_PORT=39084 \
+  docker compose -f ops/newapi-opentu-staging/docker-compose.yml \
+  -p newapi-opentu-staging up -d --force-recreate
+```
+
+Result:
+
+- container `newapi-opentu-staging-new-api` recreated from image `sha256:747628185593027847fa28344918980edf1d60fd2d119b02924b5bbe37d9a4e3`;
+- `RestartCount=0`;
+- health check became `healthy`;
+- preserved named volumes:
+  - `newapi-opentu-staging_newapi_opentu_staging_data:/data`
+  - `newapi-opentu-staging_newapi_opentu_staging_logs:/app/logs`
+
+No-provider smoke evidence:
+
+- Route/header assertion command passed:
+  - `GET /creative/` -> 200 `text/html`, no-cache;
+  - `GET /creative/sw.js` -> 200 `text/javascript`, no-cache;
+  - `GET /creative/version.json` -> 200 `application/json`, no-cache;
+  - discovered existing `/creative/assets/*` -> 200 non-HTML immutable asset;
+  - missing `/creative/assets/__missing_release_check__.js` -> 404 non-HTML;
+  - unauth `/creative/api/bootstrap` -> 401 JSON `private, no-store`;
+  - wrong relay GET `/creative/relay/v1/chat/completions` -> 404 JSON `private, no-store`;
+  - unauth `/v1/models` -> 401 JSON;
+  - `/login` -> 200 HTML.
+- Temporary random staging user registration/login smoke passed without printing or persisting the generated password:
+  - register 200 success=true;
+  - login 200 success=true, 2FA not required;
+  - authenticated `/creative/api/bootstrap` -> 200 success=true;
+  - authenticated `/creative/api/models` -> 200 success=true;
+  - models response shape=list, count=7;
+  - first models included `Gpt-5.5-mini`, `Gpt-image-2`, `gpt-image-2`, `gpt-image-2-vip`, `duomi:gpt-image-2:live-smoke`.
+- Playwright page smoke passed:
+  - `GET http://127.0.0.1:39084/creative/` -> browser status 200;
+  - title `New API Creative - 我的画板1`;
+  - body text length 145;
+  - body text contained `模型`, `云同步`, and `生成`;
+  - pageerror_count=0.
+
+Notes:
+
+- `networkidle` is not a valid readiness condition for this app because the page can keep long-lived requests/loops; the browser smoke uses `load` + DOM/text readiness instead.
+- No live provider generation was triggered.
+- Production/VPS deployment remains a separate unauthorized gate.
