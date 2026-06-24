@@ -889,3 +889,19 @@ Notes:
 - Existing Sass/Browserslist/chunk-size warnings remain non-blocking warnings.
 - OpenTU `apps/web/public/version.json` was restored after the build because it is a source-side build metadata side effect; the committed embedded new-api dist carries the correct provenance.
 - This gate did not perform live provider calls. Production/VPS deployment remains a separate unauthorized gate.
+
+## 2026-06-25 remote push verification
+
+Host Git was used because WSL Git could not read GitHub credentials from the host credential store.
+
+Dry-run push succeeded for all three repositories, then real push was executed and verified with `git ls-remote`.
+
+Verified remote refs:
+
+```text
+new2fly origin/master                          2b36da0bca7cd95897ff462e4f37f7c4f6c0efed
+opentu fork/feat/creative-embed               57d328340acee6ba5d775296433d0d909cc6ddfe
+new-api fork/feat/creative-embed              50221b76cfa29dd55a8cac76dcbbcb5b902cb8bb
+```
+
+No production/VPS deployment was performed by this push step.
